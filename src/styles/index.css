@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #04060f;
+    color: #e6f1ff;
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  canvas {
+    display: block;
+    touch-action: none;
+  }
+
+  button {
+    font-family: inherit;
+  }
+}
+
+@layer utilities {
+  .glass {
+    background: rgba(8, 12, 24, 0.72);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(122, 215, 255, 0.18);
+  }
+
+  .glass-warm {
+    background: rgba(20, 12, 8, 0.72);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 179, 122, 0.18);
+  }
+}

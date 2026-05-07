@@ -1,0 +1,241 @@
+{
+  "planets": [
+    {
+      "id": "skills",
+      "title": "Skills",
+      "subtitle": "Languages, libraries, and tools",
+      "color": "#7ad7ff",
+      "accent": "#a8e8ff",
+      "position": [18, 4, -6],
+      "radius": 2.4,
+      "time": "noon",
+      "style": "oceanic",
+      "palette": ["#3a6fa8", "#a8e8ff", "#0a1f3c"],
+      "orbitPeriod": 110,
+      "surface": {
+        "atmosphere": "#1b3a5e",
+        "ground": "#0f2034",
+        "skyTop": "#0a1530",
+        "skyBottom": "#1d4d80"
+      },
+      "beacons": [
+        {
+          "id": "skill-ts",
+          "label": "TypeScript",
+          "position": [-3, 0.6, 1],
+          "kind": "badge",
+          "content": {
+            "level": "Advanced",
+            "description": "Strict-mode type design, generics, and ergonomic API surfaces."
+          }
+        },
+        {
+          "id": "skill-react",
+          "label": "React",
+          "position": [2.6, 0.4, 2.2],
+          "kind": "badge",
+          "content": {
+            "level": "Advanced",
+            "description": "Hooks, suspense, R3F, performance profiling."
+          }
+        },
+        {
+          "id": "skill-three",
+          "label": "Three.js / R3F",
+          "position": [0, 0.5, -3.4],
+          "kind": "badge",
+          "content": {
+            "level": "Advanced",
+            "description": "Custom shaders, post-processing, scene optimisation."
+          }
+        },
+        {
+          "id": "skill-node",
+          "label": "Node.js",
+          "position": [3.2, 0.4, -2.0],
+          "kind": "badge",
+          "content": {
+            "level": "Proficient",
+            "description": "REST/GraphQL services, streaming, build tooling."
+          }
+        },
+        {
+          "id": "skill-py",
+          "label": "Python",
+          "position": [-2.8, 0.4, -2.4],
+          "kind": "badge",
+          "content": {
+            "level": "Proficient",
+            "description": "Data pipelines, ML prototyping, scripting."
+          }
+        }
+      ]
+    },
+    {
+      "id": "about",
+      "title": "About Me",
+      "subtitle": "The path so far",
+      "color": "#ffb37a",
+      "accent": "#ffd6b3",
+      "position": [-20, -2, -10],
+      "radius": 2.2,
+      "time": "dusk",
+      "style": "rocky",
+      "palette": ["#c87850", "#f5d6a8", "#3a1e10"],
+      "orbitPeriod": 145,
+      "surface": {
+        "atmosphere": "#5e2f1b",
+        "ground": "#2a160a",
+        "skyTop": "#1a0a05",
+        "skyBottom": "#7a3a1c"
+      },
+      "beacons": [
+        {
+          "id": "about-bio",
+          "label": "Hello",
+          "position": [-2.4, 0.6, 1.6],
+          "kind": "story",
+          "content": {
+            "heading": "I build interactive worlds.",
+            "body": "Engineer and designer focused on the seam where 3D rendering, performant web, and storytelling meet."
+          }
+        },
+        {
+          "id": "about-origin",
+          "label": "Origin",
+          "position": [2.6, 0.5, 1.0],
+          "kind": "story",
+          "content": {
+            "heading": "Started with games",
+            "body": "Cut my teeth modding indie games, then graduated to real-time graphics and product engineering."
+          }
+        },
+        {
+          "id": "about-now",
+          "label": "Now",
+          "position": [0.4, 0.6, -3.2],
+          "kind": "story",
+          "content": {
+            "heading": "What I do today",
+            "body": "Design and ship rich web experiences, tools for creators, and small interactive narratives."
+          }
+        }
+      ]
+    },
+    {
+      "id": "projects",
+      "title": "Projects",
+      "subtitle": "Selected works",
+      "color": "#b078ff",
+      "accent": "#d6b3ff",
+      "position": [4, -6, -22],
+      "radius": 2.6,
+      "time": "night",
+      "style": "gas-giant",
+      "palette": ["#7a4cb0", "#d6b3ff", "#3e1d5e"],
+      "orbitPeriod": 95,
+      "surface": {
+        "atmosphere": "#3b1b5e",
+        "ground": "#1a0a2a",
+        "skyTop": "#100525",
+        "skyBottom": "#4a1c80"
+      },
+      "beacons": [
+        {
+          "id": "proj-celestial",
+          "label": "Celestial Navigator",
+          "position": [-3, 0.5, 1.4],
+          "kind": "project",
+          "content": {
+            "heading": "Celestial Navigator",
+            "description": "This very portfolio. A telescope POV that lets visitors orbit, lock, and explore planets of work.",
+            "video": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "links": [
+              { "label": "GitHub", "url": "https://github.com/" },
+              { "label": "Live", "url": "#" }
+            ]
+          }
+        },
+        {
+          "id": "proj-aurora",
+          "label": "Aurora",
+          "position": [2.4, 0.5, 1.6],
+          "kind": "project",
+          "content": {
+            "heading": "Aurora",
+            "description": "Real-time generative aurora simulation in WebGL with custom volumetric shading.",
+            "video": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "links": [
+              { "label": "GitHub", "url": "https://github.com/" }
+            ]
+          }
+        },
+        {
+          "id": "proj-tide",
+          "label": "Tide",
+          "position": [0, 0.5, -3.2],
+          "kind": "project",
+          "content": {
+            "heading": "Tide",
+            "description": "Collaborative whiteboard with live cursors, vector tools, and offline-first sync.",
+            "video": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "links": [
+              { "label": "Live Demo", "url": "#" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "contacts",
+      "title": "Contacts",
+      "subtitle": "Find me out there",
+      "color": "#7affc4",
+      "accent": "#b3ffd6",
+      "position": [-12, 6, 18],
+      "radius": 2.0,
+      "time": "dawn",
+      "style": "forested",
+      "palette": ["#3e9c5e", "#b3ffd6", "#1b3a26"],
+      "orbitPeriod": 130,
+      "surface": {
+        "atmosphere": "#1b5e3f",
+        "ground": "#0a2a1c",
+        "skyTop": "#051a10",
+        "skyBottom": "#1c7a4a"
+      },
+      "beacons": [
+        {
+          "id": "contact-linkedin",
+          "label": "LinkedIn",
+          "position": [-2.2, 0.5, 1.4],
+          "kind": "link",
+          "content": {
+            "url": "https://www.linkedin.com/",
+            "description": "Professional profile and history."
+          }
+        },
+        {
+          "id": "contact-github",
+          "label": "GitHub",
+          "position": [2.4, 0.5, 1.4],
+          "kind": "link",
+          "content": {
+            "url": "https://github.com/",
+            "description": "Open source and prototypes."
+          }
+        },
+        {
+          "id": "contact-x",
+          "label": "X",
+          "position": [0, 0.5, -3.0],
+          "kind": "link",
+          "content": {
+            "url": "https://x.com/",
+            "description": "Short-form thoughts and demos."
+          }
+        }
+      ]
+    }
+  ]
+}
