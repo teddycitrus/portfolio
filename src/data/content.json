@@ -143,16 +143,16 @@
       "beacons": [
         {
           "id": "proj-celestial",
-          "label": "Celestial Navigator",
+          "label": "Personal Portfolio",
           "position": [-3, 0.5, 1.4],
           "kind": "project",
           "content": {
-            "heading": "Celestial Navigator",
+            "heading": "Personal Portfolio",
             "description": "This very portfolio. A telescope POV that lets visitors orbit, lock, and explore planets of work.",
             "video": "https://www.youtube.com/embed/dQw4w9WgXcQ",
             "links": [
-              { "label": "GitHub", "url": "https://github.com/" },
-              { "label": "Live", "url": "#" }
+              { "label": "GitHub", "url": "https://github.com/teddycitrus/portfolio" },
+              { "label": "Live", "url": "https://johnmannully.vercel.app/" }
             ]
           }
         },
@@ -162,11 +162,11 @@
           "position": [2.4, 0.5, 1.6],
           "kind": "project",
           "content": {
-            "heading": "Aurora",
-            "description": "Real-time generative aurora simulation in WebGL with custom volumetric shading.",
-            "video": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "heading": "Iris",
+            "description": "An accessibility-focused hands-free computer control system that uses real-time eye tracking and offline voice recognition to enable clicking, scrolling, and typing without physical input.",
+            "video": "https://youtu.be/ZL2roGYZErk",
             "links": [
-              { "label": "GitHub", "url": "https://github.com/" }
+              { "label": "GitHub", "url": "https://github.com/teddycitrus/iris-application/blob/main/main.py" }
             ]
           }
         },
@@ -176,11 +176,11 @@
           "position": [0, 0.5, -3.2],
           "kind": "project",
           "content": {
-            "heading": "Tide",
-            "description": "Collaborative whiteboard with live cursors, vector tools, and offline-first sync.",
-            "video": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "heading": "Iris 2.0",
+            "description": "A supply chain risk intelligence platform that maps supplier and logistics data onto a live 3D globe and lets users query their exposure through a plain-English voice agent, no dashboards required.",
+            "video": "https://youtu.be/A2EZWu-5rUs?si=DDb2YWlYsQclZK0x",
             "links": [
-              { "label": "Live Demo", "url": "#" }
+              { "label": "GitHub", "url": "https://github.com/teddycitrus/eureka-iris" }
             ]
           }
         }
@@ -211,7 +211,7 @@
           "position": [-2.2, 0.5, 1.4],
           "kind": "link",
           "content": {
-            "url": "https://www.linkedin.com/",
+            "url": "https://www.linkedin.com/in/john-mannully/",
             "description": "Professional profile and history."
           }
         },
@@ -221,7 +221,7 @@
           "position": [2.4, 0.5, 1.4],
           "kind": "link",
           "content": {
-            "url": "https://github.com/",
+            "url": "https://github.com/teddycitrus",
             "description": "Open source and prototypes."
           }
         },
@@ -231,7 +231,7 @@
           "position": [0, 0.5, -3.0],
           "kind": "link",
           "content": {
-            "url": "https://x.com/",
+            "url": "https://x.com/Jeffelo15",
             "description": "Short-form thoughts and demos."
           }
         }
