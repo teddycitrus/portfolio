@@ -9,3 +9,9 @@ dist-ssr
 *.log
 .idea
 .vscode
+.swarm
+.claude-flow
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+.shots

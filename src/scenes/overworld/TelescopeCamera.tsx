@@ -1,68 +1,103 @@
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { useAppStore } from '@/state/useAppStore';
-import { planets, getOrbitalPosition } from '@/data/content';
-import { gyroState } from '@/hooks/useGyroscope';
-import { lookState, resetLook } from '@/hooks/usePointerLock';
+import { useAppStore, type SceneMode } from '@/state/useAppStore';
+import { dragLook, pointerState } from '@/state/runtime';
 
-const HOVER_ANGLE = THREE.MathUtils.degToRad(8);
+const MOUSE_YAW = 0.32;
+const MOUSE_PITCH = 0.18;
+const MAX_YAW = 0.9;
+const MAX_PITCH = 0.5;
+
+/** Vertical fov that keeps the planet arc readable: 60 on landscape, up to 80 on portrait. */
+export const responsiveFov = (aspect: number): number =>
+  60 + 20 * THREE.MathUtils.clamp((1.4 - aspect) / 0.8, 0, 1);
+
+interface Spring {
+  v: number;
+}
+
+/** Critically damped spring step (Unity style SmoothDamp). Mutates the velocity holder. */
+const smoothDamp = (cur: number, target: number, s: Spring, smoothTime: number, dt: number) => {
+  const omega = 2 / smoothTime;
+  const x = omega * dt;
+  const exp = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+  const change = cur - target;
+  const temp = (s.v + omega * change) * dt;
+  s.v = (s.v - omega * temp) * exp;
+  return target + (change + temp) * exp;
+};
+
+const clamp = THREE.MathUtils.clamp;
+const _euler = new THREE.Euler(0, 0, 0, 'YXZ');
 
 const TelescopeCamera = () => {
-  const { camera } = useThree();
-  const yaw = useRef(0);
-  const pitch = useRef(0);
-
+  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const mode = useAppStore((s) => s.mode);
+  const prevMode = useRef<SceneMode | null>(null);
+  const look = useRef({ yaw: 0, pitch: 0, vy: { v: 0 }, vp: { v: 0 }, dYaw: 0, dPitch: 0 });
 
   useEffect(() => {
-    if (mode === 'overworld') {
-      camera.position.set(0, 0, 0);
-      yaw.current = 0;
-      pitch.current = 0;
-      resetLook();
-    }
+    const prev = prevMode.current;
+    prevMode.current = mode;
+    // Mounting straight into overworld means we just came back from a planet
+    if (mode !== 'overworld' || prev === 'intro' || prev === 'overworld') return;
+    // Arriving from a transition: back to the eyepiece, keep the current heading and settle from there
+    _euler.setFromQuaternion(camera.quaternion, 'YXZ');
+    const l = look.current;
+    l.yaw = Math.atan2(Math.sin(_euler.y), Math.cos(_euler.y));
+    l.pitch = clamp(_euler.x, -1.3, 1.3);
+    l.vy.v = l.vp.v = l.dYaw = l.dPitch = 0;
+    dragLook.yaw = dragLook.pitch = 0;
+    camera.position.set(0, 0, 0);
   }, [camera, mode]);
 
-  useFrame((state) => {
-    if (mode !== 'overworld') return;
+  useFrame(({ clock, size }, delta) => {
+    if (mode !== 'intro' && mode !== 'overworld') return;
+    const dt = Math.min(delta, 0.1);
+    const l = look.current;
+    const { isTouch, reducedMotion } = useAppStore.getState();
 
-    const store = useAppStore.getState();
-    const useGyro = gyroState.active;
-    const useFps = lookState.active;
-
-    if (useFps) {
-      yaw.current = lookState.yaw;
-      pitch.current = lookState.pitch;
-    } else if (store.isTouch || useGyro) {
-      const range = Math.PI * 0.85;
-      const ty = useGyro ? gyroState.yaw : -store.pointer.x * (range / 2);
-      const tp = useGyro ? gyroState.pitch : store.pointer.y * (range / 3);
-      yaw.current = THREE.MathUtils.lerp(yaw.current, ty, 0.18);
-      pitch.current = THREE.MathUtils.lerp(pitch.current, tp, 0.18);
-    }
-
-    const euler = new THREE.Euler(pitch.current, yaw.current, 0, 'YXZ');
-    camera.quaternion.setFromEuler(euler);
-
-    // Always-on hover detection — pick the planet whose orbital position
-    // is closest to camera-forward right now.
-    const t = state.clock.elapsedTime;
-    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-    const toPlanet = new THREE.Vector3();
-    let bestId: string | null = null;
-    let bestAngle = HOVER_ANGLE;
-    for (const planet of planets) {
-      const [x, y, z] = getOrbitalPosition(planet, t);
-      toPlanet.set(x, y, z).normalize();
-      const dot = THREE.MathUtils.clamp(forward.dot(toPlanet), -1, 1);
-      const angle = Math.acos(dot);
-      if (angle < bestAngle) {
-        bestAngle = angle;
-        bestId = planet.id;
+    let ty = 0;
+    let tp = 0;
+    if (mode === 'intro') {
+      const t = clock.elapsedTime;
+      if (!reducedMotion) {
+        ty = Math.sin(t * 0.07) * 0.05 + Math.sin(t * 0.031 + 1.3) * 0.025;
+        tp = Math.sin(t * 0.053 + 0.7) * 0.025;
+      }
+    } else {
+      if (!isTouch && pointerState.seen) {
+        ty = -pointerState.x * MOUSE_YAW;
+        tp = pointerState.y * MOUSE_PITCH;
+      }
+      // Drag offsets: grabbing the sky, so positive dx swings the view left
+      dragLook.yaw = clamp(dragLook.yaw, -MAX_YAW - ty, MAX_YAW - ty);
+      dragLook.pitch = clamp(dragLook.pitch, -MAX_PITCH - tp, MAX_PITCH - tp);
+      if (!isTouch && !dragLook.dragging) {
+        const k = Math.exp(-0.7 * dt);
+        dragLook.yaw *= k;
+        dragLook.pitch *= k;
       }
     }
-    if (bestId !== store.hoveredPlanetId) store.setHoveredPlanet(bestId);
+
+    const smooth = mode === 'intro' ? 1.6 : 0.45;
+    l.yaw = smoothDamp(l.yaw, ty, l.vy, smooth, dt);
+    l.pitch = smoothDamp(l.pitch, tp, l.vp, smooth, dt);
+    const dk = 1 - Math.exp(-14 * dt);
+    const dy = mode === 'overworld' ? dragLook.yaw : 0;
+    const dp = mode === 'overworld' ? dragLook.pitch : 0;
+    l.dYaw += (dy - l.dYaw) * dk;
+    l.dPitch += (dp - l.dPitch) * dk;
+
+    _euler.set(l.pitch + l.dPitch, l.yaw + l.dYaw, 0, 'YXZ');
+    camera.quaternion.setFromEuler(_euler);
+
+    const fov = responsiveFov(size.width / Math.max(size.height, 1));
+    if (Math.abs(camera.fov - fov) > 0.01) {
+      camera.fov += (fov - camera.fov) * (1 - Math.exp(-3 * dt));
+      camera.updateProjectionMatrix();
+    }
   });
 
   return null;

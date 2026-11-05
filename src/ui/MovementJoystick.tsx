@@ -1,106 +1,111 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, type CSSProperties } from 'react';
+import { joystickState } from '@/state/runtime';
 import { useAppStore } from '@/state/useAppStore';
-import { joystickState } from '@/hooks/useJoystick';
+import { planetById } from '@/data/content';
+import { SAFE, useNarrow } from './primitives';
 
-const RADIUS = 60;
+const SIZE = 112;
+const RADIUS = 40;
 
+const reset = () => {
+  joystickState.x = 0;
+  joystickState.y = 0;
+  joystickState.active = false;
+};
+
+/** Touch-only movement pad. Writes joystickState; no React state per move. */
 const MovementJoystick = () => {
   const isTouch = useAppStore((s) => s.isTouch);
   const mode = useAppStore((s) => s.mode);
+  const focused = useAppStore((s) => s.focusedBeaconId);
+  const readerOpen = useAppStore((s) => s.readerOpen);
+  const accent = planetById(useAppStore((s) => s.activePlanetId))?.accent;
+  const narrow = useNarrow();
+  // the bottom sheet covers the pad on phones
+  const covered = !!focused && narrow;
+  const active = isTouch && mode === 'planet' && !readerOpen;
 
-  const padRef = useRef<HTMLDivElement>(null);
-  const knobOffset = useRef({ x: 0, y: 0 });
-  const activePointer = useRef<number | null>(null);
-  const [, force] = useState(0);
+  const pad = useRef<HTMLDivElement>(null);
+  const knob = useRef<HTMLDivElement>(null);
+  const pointer = useRef<number | null>(null);
 
   useEffect(() => {
-    const pad = padRef.current;
-    if (!pad) return;
-
-    const onDown = (e: PointerEvent) => {
-      if (activePointer.current !== null) return;
-      pad.setPointerCapture(e.pointerId);
-      activePointer.current = e.pointerId;
-      joystickState.active = true;
-      knobOffset.current = { x: 0, y: 0 };
-      force((n) => n + 1);
+    if (!active) return reset;
+    const el = pad.current;
+    if (!el) return;
+    const setKnob = (x: number, y: number, snap: boolean) => {
+      if (!knob.current) return;
+      knob.current.style.transition = snap ? 'transform 180ms cubic-bezier(0.22, 1, 0.36, 1)' : 'none';
+      knob.current.style.transform = `translate(${x}px, ${y}px)`;
     };
-
-    const onMove = (e: PointerEvent) => {
-      if (activePointer.current !== e.pointerId) return;
-      const rect = pad.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-      let dx = e.clientX - cx;
-      let dy = e.clientY - cy;
+    const move = (e: PointerEvent) => {
+      if (pointer.current !== e.pointerId) return;
+      const r = el.getBoundingClientRect();
+      let dx = e.clientX - (r.left + r.width / 2);
+      let dy = e.clientY - (r.top + r.height / 2);
       const d = Math.hypot(dx, dy);
       if (d > RADIUS) {
         dx = (dx / d) * RADIUS;
         dy = (dy / d) * RADIUS;
       }
-      knobOffset.current = { x: dx, y: dy };
       joystickState.x = dx / RADIUS;
       joystickState.y = dy / RADIUS;
-      force((n) => n + 1);
+      setKnob(dx, dy, false);
     };
-
-    const onUp = (e: PointerEvent) => {
-      if (activePointer.current !== e.pointerId) return;
-      pad.releasePointerCapture(e.pointerId);
-      activePointer.current = null;
-      knobOffset.current = { x: 0, y: 0 };
-      joystickState.x = 0;
-      joystickState.y = 0;
-      joystickState.active = false;
-      force((n) => n + 1);
+    const down = (e: PointerEvent) => {
+      if (pointer.current !== null) return;
+      e.preventDefault();
+      el.setPointerCapture(e.pointerId);
+      pointer.current = e.pointerId;
+      joystickState.active = true;
+      el.dataset.active = 'true';
+      move(e);
     };
-
-    pad.addEventListener('pointerdown', onDown);
-    pad.addEventListener('pointermove', onMove);
-    pad.addEventListener('pointerup', onUp);
-    pad.addEventListener('pointercancel', onUp);
+    const up = (e: PointerEvent) => {
+      if (pointer.current !== e.pointerId) return;
+      pointer.current = null;
+      el.dataset.active = 'false';
+      reset();
+      setKnob(0, 0, true);
+    };
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
     return () => {
-      pad.removeEventListener('pointerdown', onDown);
-      pad.removeEventListener('pointermove', onMove);
-      pad.removeEventListener('pointerup', onUp);
-      pad.removeEventListener('pointercancel', onUp);
+      el.removeEventListener('pointerdown', down);
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+      pointer.current = null;
+      reset();
     };
-  }, []);
+  }, [active]);
 
-  if (!isTouch || mode !== 'planet') return null;
+  if (!active) return null;
 
   return (
     <div
-      ref={padRef}
-      className="fixed bottom-8 left-8 z-30 rounded-full glass touch-none select-none pointer-events-auto"
-      style={{
-        width: RADIUS * 2 + 32,
-        height: RADIUS * 2 + 32,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
+      ref={pad}
+      role="presentation"
+      aria-hidden="true"
+      data-active="false"
+      className="group pointer-events-auto absolute z-20 flex touch-none select-none items-center justify-center rounded-full animate-fade-in"
+      style={
+        {
+          width: SIZE,
+          height: SIZE,
+          left: SAFE.left,
+          bottom: `calc(${SAFE.bottom} + 64px)`,
+          opacity: covered ? 0 : 1,
+          pointerEvents: covered ? 'none' : 'auto',
+          '--accent': accent,
+          transition: 'opacity 250ms cubic-bezier(0.22, 1, 0.36, 1)',
+        } as CSSProperties
+      }
     >
-      <div
-        className="rounded-full border border-cosmos-accent/40"
-        style={{
-          width: RADIUS * 2,
-          height: RADIUS * 2,
-          position: 'relative',
-        }}
-      >
-        <div
-          className="absolute rounded-full bg-cosmos-accent/60"
-          style={{
-            width: 36,
-            height: 36,
-            left: '50%',
-            top: '50%',
-            transform: `translate(calc(-50% + ${knobOffset.current.x}px), calc(-50% + ${knobOffset.current.y}px))`,
-            transition: activePointer.current === null ? 'transform 120ms ease-out' : 'none',
-          }}
-        />
-      </div>
+      <div className="absolute inset-0 rounded-full border border-white/20 bg-space/30 transition-colors duration-200 group-data-[active=true]:border-[color-mix(in_srgb,var(--accent)_60%,transparent)]" />
+      <div ref={knob} className="h-10 w-10 rounded-full bg-ink/85 shadow-[0_4px_16px_rgba(0,0,0,0.4)]" />
     </div>
   );
 };

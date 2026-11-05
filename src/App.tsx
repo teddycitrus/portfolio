@@ -1,45 +1,32 @@
-import { Suspense, lazy, useEffect } from 'react';
+import { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import OverworldScene from '@/scenes/overworld/OverworldScene';
-import Crosshair from '@/ui/Crosshair';
-import PlanetHud from '@/ui/PlanetHud';
-import GlobalInput from '@/ui/GlobalInput';
-import MovementJoystick from '@/ui/MovementJoystick';
-import TransitionFade from '@/ui/TransitionFade';
-
-const PlanetSurfaceScene = lazy(() => import('@/scenes/planet/PlanetSurfaceScene'));
-const TransitionScene = lazy(() => import('@/scenes/transition/TransitionScene'));
-
-const prefetchScenes = () => {
-  void import('@/scenes/planet/PlanetSurfaceScene');
-  void import('@/scenes/transition/TransitionScene');
-};
+import PlanetSurfaceScene from '@/scenes/planet/PlanetSurfaceScene';
+import TransitionController from '@/scenes/transition/TransitionController';
+import Effects from '@/scenes/Effects';
+import UiRoot from '@/ui/UiRoot';
+import { useInputBridge } from '@/hooks/useInputBridge';
 
 const App = () => {
-  useEffect(() => {
-    prefetchScenes();
-  }, []);
+  useInputBridge();
 
   return (
-    <div className="fixed inset-0 bg-cosmos-deep">
+    <div className="fixed inset-0 bg-space">
       <Canvas
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
-        dpr={[1, 2]}
-        camera={{ position: [0, 0, 0], fov: 75, near: 0.1, far: 600 }}
+        dpr={[1, 1.75]}
+        camera={{ position: [0, 0, 0], fov: 60, near: 0.1, far: 800 }}
+        aria-hidden="true"
       >
-        <color attach="background" args={['#04060f']} />
-        <OverworldScene />
+        <color attach="background" args={['#05070d']} />
         <Suspense fallback={null}>
+          <OverworldScene />
           <PlanetSurfaceScene />
-          <TransitionScene />
+          <TransitionController />
+          <Effects />
         </Suspense>
       </Canvas>
-
-      <Crosshair />
-      <PlanetHud />
-      <MovementJoystick />
-      <TransitionFade />
-      <GlobalInput />
+      <UiRoot />
     </div>
   );
 };

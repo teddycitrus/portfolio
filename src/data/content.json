@@ -1,238 +1,341 @@
 {
+  "profile": {
+    "name": "John Mannully",
+    "role": "Full-stack and AI developer",
+    "tagline": "I build software that sees, listens and reacts in real time: computer vision, voice agents and live 3D interfaces.",
+    "location": "Ontario, Canada",
+    "email": "johnmannul@gmail.com"
+  },
   "planets": [
     {
-      "id": "skills",
-      "title": "Skills",
-      "subtitle": "Languages, libraries, and tools",
-      "color": "#7ad7ff",
-      "accent": "#a8e8ff",
-      "position": [18, 4, -6],
-      "radius": 2.4,
-      "time": "noon",
-      "style": "oceanic",
-      "palette": ["#3a6fa8", "#a8e8ff", "#0a1f3c"],
-      "orbitPeriod": 110,
-      "surface": {
-        "atmosphere": "#1b3a5e",
-        "ground": "#0f2034",
-        "skyTop": "#0a1530",
-        "skyBottom": "#1d4d80"
-      },
-      "beacons": [
-        {
-          "id": "skill-ts",
-          "label": "TypeScript",
-          "position": [-3, 0.6, 1],
-          "kind": "badge",
-          "content": {
-            "level": "Advanced",
-            "description": "Strict-mode type design, generics, and ergonomic API surfaces."
-          }
-        },
-        {
-          "id": "skill-react",
-          "label": "React",
-          "position": [2.6, 0.4, 2.2],
-          "kind": "badge",
-          "content": {
-            "level": "Advanced",
-            "description": "Hooks, suspense, R3F, performance profiling."
-          }
-        },
-        {
-          "id": "skill-three",
-          "label": "Three.js / R3F",
-          "position": [0, 0.5, -3.4],
-          "kind": "badge",
-          "content": {
-            "level": "Advanced",
-            "description": "Custom shaders, post-processing, scene optimisation."
-          }
-        },
-        {
-          "id": "skill-node",
-          "label": "Node.js",
-          "position": [3.2, 0.4, -2.0],
-          "kind": "badge",
-          "content": {
-            "level": "Proficient",
-            "description": "REST/GraphQL services, streaming, build tooling."
-          }
-        },
-        {
-          "id": "skill-py",
-          "label": "Python",
-          "position": [-2.8, 0.4, -2.4],
-          "kind": "badge",
-          "content": {
-            "level": "Proficient",
-            "description": "Data pipelines, ML prototyping, scripting."
-          }
-        }
-      ]
-    },
-    {
       "id": "about",
-      "title": "About Me",
-      "subtitle": "The path so far",
-      "color": "#ffb37a",
-      "accent": "#ffd6b3",
-      "position": [-20, -2, -10],
-      "radius": 2.2,
+      "index": 1,
+      "title": "About",
+      "subtitle": "Who I am",
+      "summary": "IB Diploma student in Ontario building full-stack and AI software.",
+      "color": "#e0875a",
+      "accent": "#ffc49e",
+      "position": [-20.1, 3, -22.3],
+      "radius": 2.4,
       "time": "dusk",
       "style": "rocky",
-      "palette": ["#c87850", "#f5d6a8", "#3a1e10"],
-      "orbitPeriod": 145,
-      "surface": {
-        "atmosphere": "#5e2f1b",
-        "ground": "#2a160a",
-        "skyTop": "#1a0a05",
-        "skyBottom": "#7a3a1c"
-      },
+      "palette": ["#b8653f", "#f2c99a", "#3a1c10"],
+      "surface": { "ground": "#3a1e12", "atmosphere": "#7a3420" },
       "beacons": [
         {
-          "id": "about-bio",
+          "id": "about-hello",
           "label": "Hello",
-          "position": [-2.4, 0.6, 1.6],
-          "kind": "story",
+          "kind": "profile",
           "content": {
-            "heading": "I build interactive worlds.",
-            "body": "Engineer and designer focused on the seam where 3D rendering, performant web, and storytelling meet."
+            "heading": "I'm John.",
+            "body": "I'm a high school developer who likes hard technical problems. Most of what I build turns live input like a webcam feed, a voice or a news wire into something a person can act on right away. Hackathons are where I ship fastest, and a few of those builds have won."
           }
         },
         {
-          "id": "about-origin",
-          "label": "Origin",
-          "position": [2.6, 0.5, 1.0],
-          "kind": "story",
+          "id": "about-education",
+          "label": "Education",
+          "kind": "profile",
           "content": {
-            "heading": "Started with games",
-            "body": "Cut my teeth modding indie games, then graduated to real-time graphics and product engineering."
+            "heading": "Saint Francis Xavier Catholic Secondary School",
+            "body": "Senior in the IB Diploma Programme. Computer science courses: ICS3U1 and ICS4U1.",
+            "facts": [
+              { "label": "Top-six average", "value": "97.7%" },
+              { "label": "SAT", "value": "1570" },
+              { "label": "ICS3U1", "value": "96%" },
+              { "label": "ICS4U1", "value": "99%" }
+            ]
           }
         },
         {
-          "id": "about-now",
-          "label": "Now",
-          "position": [0.4, 0.6, -3.2],
-          "kind": "story",
+          "id": "about-focus",
+          "label": "Focus",
+          "kind": "profile",
           "content": {
-            "heading": "What I do today",
-            "body": "Design and ship rich web experiences, tools for creators, and small interactive narratives."
+            "heading": "What I'm working toward",
+            "body": "Full-stack development with a growing AI/ML specialization. I'm most interested in systems that combine realtime interfaces, automation, voice and computer vision, and in evaluating whether AI output is actually good."
           }
         }
       ]
     },
     {
       "id": "projects",
+      "index": 2,
       "title": "Projects",
-      "subtitle": "Selected works",
-      "color": "#b078ff",
-      "accent": "#d6b3ff",
-      "position": [4, -6, -22],
-      "radius": 2.6,
+      "subtitle": "Things I've built",
+      "summary": "Accessibility tooling, supply-chain intelligence, AI ad evaluation and agent security.",
+      "color": "#8a5cf0",
+      "accent": "#cbb4ff",
+      "position": [0, 1.5, -32],
+      "radius": 3.6,
       "time": "night",
       "style": "gas-giant",
-      "palette": ["#7a4cb0", "#d6b3ff", "#3e1d5e"],
-      "orbitPeriod": 95,
-      "surface": {
-        "atmosphere": "#3b1b5e",
-        "ground": "#1a0a2a",
-        "skyTop": "#100525",
-        "skyBottom": "#4a1c80"
-      },
+      "palette": ["#5a3aa8", "#d2bcff", "#1e0f3e"],
+      "rings": true,
+      "surface": { "ground": "#170c2a", "atmosphere": "#3b1b6e" },
       "beacons": [
         {
-          "id": "proj-celestial",
-          "label": "Personal Portfolio",
-          "position": [-3, 0.5, 1.4],
-          "kind": "project",
-          "content": {
-            "heading": "Personal Portfolio",
-            "description": "This very portfolio. A telescope POV that lets visitors orbit, lock, and explore planets of work.",
-            "video": "https://www.youtube.com/embed/dQw4w9WgXcQ",
-            "links": [
-              { "label": "GitHub", "url": "https://github.com/teddycitrus/portfolio" },
-              { "label": "Live", "url": "https://johnmannully.vercel.app/" }
-            ]
-          }
-        },
-        {
-          "id": "proj-aurora",
-          "label": "Aurora",
-          "position": [2.4, 0.5, 1.6],
+          "id": "proj-iris",
+          "label": "Iris",
           "kind": "project",
           "content": {
             "heading": "Iris",
-            "description": "An accessibility-focused hands-free computer control system that uses real-time eye tracking and offline voice recognition to enable clicking, scrolling, and typing without physical input.",
-            "video": "https://youtu.be/ZL2roGYZErk",
+            "tagline": "Hands-free computer control with your eyes, mouth and voice.",
+            "period": "Feb 2025",
+            "description": "An accessibility tool that turns a webcam feed and speech into full computer control, so people who can't use a mouse or keyboard can still click, scroll, switch tabs and type.",
+            "highlights": [
+              "Real-time eye and mouth tracking mapped to clicks, scrolling and tab switching.",
+              "Offline speech recognition types dictated text, so motion and voice work as one interface.",
+              "Built at Hack The Valley X. Won the Future Impact category and placed 4th overall."
+            ],
+            "stack": ["Python", "OpenCV", "MediaPipe", "Vosk", "PyAutoGUI"],
+            "videoId": "ZL2roGYZErk",
+            "award": "Hack The Valley X, Future Impact winner",
+            "links": [{ "label": "GitHub", "url": "https://github.com/teddycitrus/iris-application" }]
+          }
+        },
+        {
+          "id": "proj-eureka",
+          "label": "Eureka",
+          "kind": "project",
+          "content": {
+            "heading": "Eureka",
+            "tagline": "Supply-chain risk intelligence on a live 3D globe.",
+            "period": "May 2026",
+            "description": "Maps supplier and logistics exposure onto an interactive globe. It scores breaking news against a company's supplier graph and briefs decision-makers through AI voice agents they can question in plain English.",
+            "highlights": [
+              "News events are scored against supplier graphs to surface exposure before it becomes a disruption.",
+              "Voice agents brief people by phone and answer follow-up questions about their risk.",
+              "Built for EurekaHacks 2026 at Waterloo's Accelerator Centre."
+            ],
+            "stack": ["Next.js", "TypeScript", "Three.js", "Gemini API", "Twilio", "ElevenLabs"],
+            "videoId": "A2EZWu-5rUs",
             "links": [
-              { "label": "GitHub", "url": "https://github.com/teddycitrus/iris-application/blob/main/main.py" }
+              { "label": "Live site", "url": "https://eureka-049.vercel.app" },
+              { "label": "GitHub", "url": "https://github.com/teddycitrus/eureka" }
             ]
           }
         },
         {
-          "id": "proj-tide",
-          "label": "Tide",
-          "position": [0, 0.5, -3.2],
+          "id": "proj-nora",
+          "label": "Nora",
           "kind": "project",
           "content": {
-            "heading": "Iris 2.0",
-            "description": "A supply chain risk intelligence platform that maps supplier and logistics data onto a live 3D globe and lets users query their exposure through a plain-English voice agent, no dashboards required.",
-            "video": "https://youtu.be/A2EZWu-5rUs?si=DDb2YWlYsQclZK0x",
+            "heading": "Nora",
+            "tagline": "An evaluation layer for AI-generated ad creative.",
+            "period": "Jul 2026",
+            "description": "Paste a Shopify URL and Nora extracts the brand's visual DNA, then scores candidate ad images on five explainable axes and filters out off-brand variants. The same evaluator is exposed as an MCP tool so agents can grade their own work.",
+            "highlights": [
+              "Pulls palette and typography from a brand's homepage and compares generated ads against real product photos.",
+              "Five explainable scoring axes instead of a single opaque number.",
+              "Built on top of Olivia (cresva.ai) and exposed to agents over MCP."
+            ],
+            "stack": ["TypeScript", "Wasp", "Replicate", "sharp", "chroma-js", "React Three Fiber"],
             "links": [
-              { "label": "GitHub", "url": "https://github.com/teddycitrus/eureka-iris" }
+              { "label": "Live site", "url": "https://nora-olivia-client.fly.dev/" },
+              { "label": "GitHub", "url": "https://github.com/teddycitrus/olivia_aide" }
             ]
+          }
+        },
+        {
+          "id": "proj-shieldclaw",
+          "label": "ShieldClaw",
+          "kind": "project",
+          "content": {
+            "heading": "ShieldClaw",
+            "tagline": "Identity, policy and human approval for AI agents.",
+            "period": "2026",
+            "description": "A security control plane for OpenClaw. Every AI agent gets its own machine identity, every request is checked against policy, risky actions go to a human for approval, and sensitive data is redacted before the agent sees it.",
+            "highlights": [
+              "FastAPI proxy in front of OpenClaw with per-agent Auth0 identities.",
+              "Scope checks and fine-grained authorization through OpenFGA policies.",
+              "Team build that won at Hack Canada 2026."
+            ],
+            "stack": ["Python", "FastAPI", "Auth0", "OpenFGA", "TypeScript"],
+            "award": "Hack Canada 2026 winner",
+            "team": true,
+            "links": [{ "label": "GitHub", "url": "https://github.com/adamhjouj/ShieldClaw" }]
           }
         }
       ]
     },
     {
-      "id": "contacts",
-      "title": "Contacts",
-      "subtitle": "Find me out there",
-      "color": "#7affc4",
-      "accent": "#b3ffd6",
-      "position": [-12, 6, 18],
-      "radius": 2.0,
+      "id": "awards",
+      "index": 3,
+      "title": "Awards",
+      "subtitle": "Wins and recognition",
+      "summary": "Hackathon wins and programming competition results.",
+      "color": "#e8b23a",
+      "accent": "#ffe09a",
+      "position": [12.2, 5, -31.7],
+      "radius": 2.6,
       "time": "dawn",
-      "style": "forested",
-      "palette": ["#3e9c5e", "#b3ffd6", "#1b3a26"],
-      "orbitPeriod": 130,
-      "surface": {
-        "atmosphere": "#1b5e3f",
-        "ground": "#0a2a1c",
-        "skyTop": "#051a10",
-        "skyBottom": "#1c7a4a"
-      },
+      "style": "molten",
+      "palette": ["#c8861e", "#ffe2a0", "#3a1a06"],
+      "surface": { "ground": "#2e1c0c", "atmosphere": "#8a5418" },
       "beacons": [
         {
-          "id": "contact-linkedin",
-          "label": "LinkedIn",
-          "position": [-2.2, 0.5, 1.4],
+          "id": "award-htv",
+          "label": "Hack The Valley X",
+          "kind": "award",
+          "content": {
+            "event": "Hack The Valley X",
+            "result": "Future Impact winner, 4th overall",
+            "year": "2025",
+            "project": "Iris",
+            "description": "Iris, a hands-free computer control system, won the Future Impact category at UTSC's hackathon and placed 4th overall."
+          }
+        },
+        {
+          "id": "award-hackcanada",
+          "label": "Hack Canada",
+          "kind": "award",
+          "content": {
+            "event": "Hack Canada 2026",
+            "result": "Winner",
+            "year": "2026",
+            "project": "ShieldClaw",
+            "description": "ShieldClaw, an authentication and security layer for AI agents, was one of the winning projects."
+          }
+        },
+        {
+          "id": "award-peo",
+          "label": "PEO Challenge",
+          "kind": "award",
+          "content": {
+            "event": "Professional Engineers Ontario Challenge",
+            "result": "1st place",
+            "description": "First place in the PEO competitive programming challenge."
+          }
+        },
+        {
+          "id": "award-ccc",
+          "label": "Waterloo CCC",
+          "kind": "award",
+          "content": {
+            "event": "Canadian Computing Competition",
+            "result": "Distinction",
+            "year": "2024",
+            "description": "Distinction in the University of Waterloo's Canadian Computing Competition."
+          }
+        }
+      ]
+    },
+    {
+      "id": "skills",
+      "index": 4,
+      "title": "Skills",
+      "subtitle": "Languages and tools",
+      "summary": "The languages, frameworks and APIs I build with.",
+      "color": "#3f8fd8",
+      "accent": "#a6dcff",
+      "position": [-12.3, -4, -33.8],
+      "radius": 2.8,
+      "time": "noon",
+      "style": "oceanic",
+      "palette": ["#2f6aa8", "#bfe6ff", "#081a36"],
+      "surface": { "ground": "#14283c", "atmosphere": "#2b5f8e" },
+      "beacons": [
+        {
+          "id": "skill-languages",
+          "label": "Languages",
+          "kind": "skills",
+          "content": {
+            "heading": "Languages",
+            "items": ["Python", "Java", "C++", "JavaScript", "TypeScript"]
+          }
+        },
+        {
+          "id": "skill-web",
+          "label": "Web and 3D",
+          "kind": "skills",
+          "content": {
+            "heading": "Web and 3D",
+            "items": ["React", "Next.js", "Node.js", "Flask", "Three.js", "React Three Fiber"]
+          }
+        },
+        {
+          "id": "skill-ai",
+          "label": "AI and vision",
+          "kind": "skills",
+          "content": {
+            "heading": "AI and vision",
+            "items": ["OpenCV", "MediaPipe", "Vosk", "Gemini API", "Replicate"]
+          }
+        },
+        {
+          "id": "skill-voice-data",
+          "label": "Voice and data",
+          "kind": "skills",
+          "content": {
+            "heading": "Voice and data",
+            "items": ["Vapi", "ElevenLabs", "Twilio", "MongoDB", "Convex"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "contact",
+      "index": 5,
+      "title": "Contact",
+      "subtitle": "Get in touch",
+      "summary": "Email, GitHub, Devpost and socials.",
+      "color": "#3fbf86",
+      "accent": "#aef0cf",
+      "position": [19.5, -3, -20.1],
+      "radius": 2.0,
+      "time": "twilight",
+      "style": "forested",
+      "palette": ["#2f8a58", "#bff2d6", "#0a2418"],
+      "surface": { "ground": "#0e2418", "atmosphere": "#1d5a40" },
+      "beacons": [
+        {
+          "id": "contact-email",
+          "label": "Email",
           "kind": "link",
           "content": {
-            "url": "https://www.linkedin.com/in/john-mannully/",
-            "description": "Professional profile and history."
+            "url": "mailto:johnmannul@gmail.com",
+            "handle": "johnmannul@gmail.com",
+            "description": "The fastest way to reach me."
           }
         },
         {
           "id": "contact-github",
           "label": "GitHub",
-          "position": [2.4, 0.5, 1.4],
           "kind": "link",
           "content": {
             "url": "https://github.com/teddycitrus",
-            "description": "Open source and prototypes."
+            "handle": "teddycitrus",
+            "description": "Code for most of my projects."
+          }
+        },
+        {
+          "id": "contact-devpost",
+          "label": "Devpost",
+          "kind": "link",
+          "content": {
+            "url": "https://devpost.com/teddycitrus",
+            "handle": "teddycitrus",
+            "description": "Hackathon submissions, demos and write-ups."
+          }
+        },
+        {
+          "id": "contact-linkedin",
+          "label": "LinkedIn",
+          "kind": "link",
+          "content": {
+            "url": "https://www.linkedin.com/in/john-mannully/",
+            "handle": "john-mannully",
+            "description": "Professional profile."
           }
         },
         {
           "id": "contact-x",
           "label": "X",
-          "position": [0, 0.5, -3.0],
           "kind": "link",
           "content": {
             "url": "https://x.com/Jeffelo15",
-            "description": "Short-form thoughts and demos."
+            "handle": "@Jeffelo15",
+            "description": "Short updates and demos."
           }
         }
       ]

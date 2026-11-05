@@ -1,65 +1,120 @@
-import { Suspense, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useThree } from '@react-three/fiber';
+import * as THREE from 'three';
 import { useAppStore } from '@/state/useAppStore';
-import { planetById } from '@/data/content';
-import { skyPresets, getSunDirection } from '@/data/skyPresets';
+import { getBeaconPosition, planetById } from '@/data/content';
+import { buildSky } from '@/data/skyPresets';
+import type { Planet, Vec3 } from '@/types/content';
 import SkyDome from './SkyDome';
-import Terrain from './Terrain';
+import Terrain, { terrainHeight } from './Terrain';
 import Vegetation from './Vegetation';
-import Beacon from './Beacon';
-import PlanetCamera from './PlanetCamera';
-import Starfield from '../overworld/Starfield';
+import Beacon, { BEACON_HEIGHT } from './Beacon';
+import PlanetCamera, { type SurfaceBeacon } from './PlanetCamera';
 
-const PlanetSurfaceScene = () => {
-  const activeId = useAppStore((s) => s.activePlanetId);
-  const mode = useAppStore((s) => s.mode);
-  const planet = useMemo(() => (activeId ? planetById(activeId) : undefined), [activeId]);
+const SHADOW_EXTENT = 34;
+const SUN_DISTANCE = 70;
 
-  const exclusionPoints = useMemo<Array<[number, number]>>(() => {
-    if (!planet) return [];
-    return planet.beacons.map((b) => [b.position[0], b.position[2]] as [number, number]);
-  }, [planet]);
+const Surface = ({ planet }: { planet: Planet }) => {
+  const scene = useThree((s) => s.scene);
+  const reducedMotion = useAppStore((s) => s.reducedMotion);
+  const sun = useRef<THREE.DirectionalLight>(null);
+  const sky = useMemo(() => buildSky(planet), [planet]);
+  // soft fill from the spawn side so monument faces read when backlit
+  const fillPos = useMemo<Vec3>(() => [-sky.lightDir.x * 30, 18, 40], [sky]);
 
-  const preset = useMemo(() => (planet ? skyPresets[planet.time] : skyPresets.night), [planet]);
-  const sunDir = useMemo(() => getSunDirection(preset).multiplyScalar(40), [preset]);
+  const beacons = useMemo<SurfaceBeacon[]>(
+    () =>
+      planet.beacons.map((b, i) => {
+        const [x, , z] = getBeaconPosition(planet, i);
+        return { id: b.id, position: [x, terrainHeight(x, z), z] as Vec3, height: BEACON_HEIGHT[b.kind] };
+      }),
+    [planet],
+  );
+  const clearings = useMemo(
+    () => beacons.map((b) => [b.position[0], b.position[2]] as [number, number]),
+    [beacons],
+  );
 
-  if (!planet || mode === 'overworld') return null;
+  // exponential fog matching the sky horizon; removed on unmount so the overworld stays clear
+  useEffect(() => {
+    scene.fog = new THREE.FogExp2(sky.fogColor.getHex(), sky.fogDensity);
+    return () => {
+      scene.fog = null;
+    };
+  }, [scene, sky]);
+
+  useLayoutEffect(() => {
+    const l = sun.current;
+    if (!l) return;
+    l.position.copy(sky.lightDir).multiplyScalar(SUN_DISTANCE);
+    l.target.position.set(0, 0, 0);
+    l.target.updateMatrixWorld();
+    const cam = l.shadow.camera;
+    cam.left = cam.bottom = -SHADOW_EXTENT;
+    cam.right = cam.top = SHADOW_EXTENT;
+    cam.near = 1;
+    cam.far = SUN_DISTANCE * 2;
+    cam.updateProjectionMatrix();
+  }, [sky]);
 
   return (
-    <Suspense fallback={null}>
-      <ambientLight intensity={preset.ambientIntensity} color={preset.ambientColor} />
+    <>
+      <hemisphereLight args={[sky.hemiSky, sky.hemiGround, sky.hemiIntensity]} />
       <directionalLight
-        position={[sunDir.x, Math.max(sunDir.y, 4), sunDir.z]}
-        intensity={preset.sunLightIntensity}
-        color={preset.sunLightColor}
+        ref={sun}
+        color={sky.lightColor}
+        intensity={sky.lightIntensity}
         castShadow
-      />
-      {/* Planet-tinted fill light from below to keep ground readable */}
-      <directionalLight
-        position={[-sunDir.x * 0.5, 2, -sunDir.z * 0.5]}
-        intensity={0.25}
-        color={planet.color}
-      />
-      <fog attach="fog" args={[preset.fogColor, preset.fogNear, preset.fogFar]} />
-
-      <SkyDome preset={preset} />
-      {preset.starOpacity > 0 && (
-        <Starfield count={1500} radius={170} opacity={preset.starOpacity} />
-      )}
-
-      <Terrain ground={planet.surface.ground} atmosphere={planet.surface.atmosphere} />
-      <Vegetation
-        ground={planet.surface.ground}
-        accent={planet.accent}
-        exclusionPoints={exclusionPoints}
+        shadow-mapSize={[2048, 2048]}
+        shadow-bias={-0.0004}
+        shadow-normalBias={0.03}
+        shadow-radius={4}
       />
 
-      {planet.beacons.map((b) => (
-        <Beacon key={b.id} beacon={b} accent={planet.accent} />
+      <directionalLight position={fillPos} color={sky.hemiSky} intensity={sky.lightIntensity * 0.3} />
+
+      <SkyDome sky={sky} reducedMotion={reducedMotion} />
+      <Terrain planet={planet} sky={sky} />
+      <Vegetation planet={planet} beacons={clearings} reducedMotion={reducedMotion} />
+
+      {planet.beacons.map((b, i) => (
+        <Beacon
+          key={b.id}
+          beacon={b}
+          planet={planet}
+          index={i}
+          position={beacons[i].position}
+          reducedMotion={reducedMotion}
+        />
       ))}
 
-      <PlanetCamera />
-    </Suspense>
+      <PlanetCamera planetId={planet.id} beacons={beacons} />
+    </>
   );
+};
+
+/**
+ * Planet surface. Renders in 'planet' and through 'transitioning-out' so the
+ * launch is visible; PlanetCamera only drives the camera in 'planet'.
+ */
+const PlanetSurfaceScene = () => {
+  const gl = useThree((s) => s.gl);
+  const mode = useAppStore((s) => s.mode);
+  const activeId = useAppStore((s) => s.activePlanetId);
+  const planet = useMemo(() => planetById(activeId), [activeId]);
+
+  // enable soft shadows once, before any surface material compiles
+  useLayoutEffect(() => {
+    if (!gl.shadowMap.enabled || gl.shadowMap.type !== THREE.PCFSoftShadowMap) {
+      gl.shadowMap.enabled = true;
+      gl.shadowMap.type = THREE.PCFSoftShadowMap;
+      gl.shadowMap.needsUpdate = true;
+    }
+  }, [gl]);
+
+  const show = (mode === 'planet' || mode === 'transitioning-out') && !!planet;
+  if (!show || !planet) return null;
+  return <Surface key={planet.id} planet={planet} />;
 };
 
 export default PlanetSurfaceScene;

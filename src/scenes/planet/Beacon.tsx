@@ -1,319 +1,360 @@
-import { useMemo, useRef, useState } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useEffect, useMemo, useRef } from 'react';
+import { useFrame, type ThreeEvent } from '@react-three/fiber';
+import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
-import { Billboard, Html, Text } from '@react-three/drei';
-import type {
-  BadgeContent,
-  Beacon as BeaconType,
-  LinkContent,
-  ProjectContent,
-  StoryContent,
-} from '@/types/content';
+import type { Beacon as BeaconData, BeaconKind, Planet, Vec3 } from '@/types/content';
+import { useAppStore } from '@/state/useAppStore';
+import { dragLook } from '@/state/runtime';
 
-interface Props {
-  beacon: BeaconType;
-  accent: string;
-}
+export const LABEL_FONT =
+  'https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-mono@5/files/ibm-plex-mono-latin-500-normal.woff';
 
-const PANEL_VISIBLE = 11;
-const PANEL_HIDE = 12; // hysteresis
-const VIDEO_VISIBLE = 4;
-const VIDEO_HIDE = 5.5;
-const TITLE_FADE_NEAR = 8;
-const TITLE_FADE_FAR = 16;
-
-const ROCK_COUNT = 6;
-
-const seedRandom = (id: string) => {
-  let h = 0;
-  for (let i = 0; i < id.length; i += 1) {
-    h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
-  }
-  return (n: number) => {
-    const x = Math.sin(h + n * 1.31) * 10000;
-    return x - Math.floor(x);
-  };
+/** Approximate monument height per kind, used for labels and screen-size estimates. */
+export const BEACON_HEIGHT: Record<BeaconKind, number> = {
+  project: 3.9,
+  award: 3.2,
+  skills: 2.5,
+  link: 2.9,
+  profile: 2.6,
 };
 
-interface RockSpec {
-  ox: number;
-  oy: number;
-  oz: number;
-  size: number;
-  bobPhase: number;
-  bobAmp: number;
-  rotSpeed: number;
-  rotAxis: THREE.Vector3;
-  geomKind: number;
-}
-
-/* ---------- info-panel content per beacon kind ---------- */
-
-const PanelHeading = ({ children, accent }: { children: React.ReactNode; accent: string }) => (
-  <h3 className="text-base font-medium mb-2" style={{ color: accent }}>
-    {children}
-  </h3>
-);
-
-const Tag = ({ children, accent }: { children: React.ReactNode; accent: string }) => (
-  <span
-    className="inline-block px-2 py-0.5 rounded-full text-[10px] uppercase tracking-widest mb-2"
-    style={{ color: accent, background: `${accent}1c`, border: `1px solid ${accent}55` }}
-  >
-    {children}
-  </span>
-);
-
-const renderPanel = (
-  beacon: BeaconType,
-  accent: string,
-  showVideo: boolean,
-): React.ReactNode => {
-  const c = beacon.content;
-  switch (beacon.kind) {
-    case 'badge': {
-      const data = c as BadgeContent;
-      return (
-        <>
-          <PanelHeading accent={accent}>{beacon.label}</PanelHeading>
-          <Tag accent={accent}>{data.level}</Tag>
-          <p className="text-white/85 text-[11px] leading-relaxed">{data.description}</p>
-        </>
-      );
-    }
-    case 'story': {
-      const data = c as StoryContent;
-      return (
-        <>
-          <PanelHeading accent={accent}>{data.heading}</PanelHeading>
-          <p className="text-white/85 text-[11px] leading-relaxed">{data.body}</p>
-        </>
-      );
-    }
-    case 'project': {
-      const data = c as ProjectContent;
-      return (
-        <>
-          <PanelHeading accent={accent}>{data.heading}</PanelHeading>
-          {data.video && showVideo && (
-            <div
-              className="aspect-video rounded overflow-hidden mb-2 bg-black"
-              style={{ border: `1px solid ${accent}33` }}
-            >
-              <iframe
-                src={data.video}
-                title={data.heading}
-                className="w-full h-full"
-                allow="accelerometer; clipboard-write; encrypted-media; picture-in-picture"
-                allowFullScreen
-              />
-            </div>
-          )}
-          <p className="text-white/85 text-[11px] leading-relaxed">{data.description}</p>
-          {data.links.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {data.links.map((l) => (
-                <a
-                  key={l.url + l.label}
-                  href={l.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="px-2 py-1 rounded text-[10px] uppercase tracking-widest"
-                  style={{ color: accent, border: `1px solid ${accent}55` }}
-                >
-                  {l.label} ↗
-                </a>
-              ))}
-            </div>
-          )}
-        </>
-      );
-    }
-    case 'link': {
-      const data = c as LinkContent;
-      return (
-        <>
-          <PanelHeading accent={accent}>{beacon.label}</PanelHeading>
-          <p className="text-white/85 text-[11px] leading-relaxed mb-2">{data.description}</p>
-          <a
-            href={data.url}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-block px-3 py-1.5 rounded text-[10px] uppercase tracking-widest"
-            style={{ color: accent, border: `1px solid ${accent}` }}
-          >
-            Open {beacon.label} ↗
-          </a>
-        </>
-      );
-    }
-  }
+const KIND_LABEL: Record<BeaconKind, string> = {
+  project: 'PROJECT',
+  award: 'AWARD',
+  skills: 'SKILLS',
+  link: 'LINK',
+  profile: 'ABOUT',
 };
 
-/* ---------- floating rocks ---------- */
+/* ---------- shared resources ---------- */
 
-const Rock = ({ spec, accent }: { spec: RockSpec; accent: string }) => {
-  const meshRef = useRef<THREE.Mesh>(null);
-
-  useFrame((state) => {
-    if (!meshRef.current) return;
-    const t = state.clock.elapsedTime;
-    meshRef.current.position.y = spec.oy + Math.sin(t * 0.9 + spec.bobPhase) * spec.bobAmp;
-    meshRef.current.rotateOnAxis(spec.rotAxis, spec.rotSpeed * 0.016);
+const poolMaterial = (color: THREE.Color) =>
+  new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    fog: false,
+    uniforms: { uColor: { value: color }, uIntensity: { value: 0.5 } },
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uColor;
+      uniform float uIntensity;
+      varying vec2 vUv;
+      void main() {
+        float d = length(vUv - 0.5) * 2.0;
+        float a = exp(-d * d * 4.5) * (1.0 - smoothstep(0.85, 1.0, d));
+        gl_FragColor = vec4(uColor * a * uIntensity, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `,
   });
 
-  // Random geometry per rock for variety (icos / dodec / octa)
-  let geometry: React.ReactNode;
-  if (spec.geomKind < 0.34) {
-    geometry = <icosahedronGeometry args={[spec.size, 0]} />;
-  } else if (spec.geomKind < 0.67) {
-    geometry = <dodecahedronGeometry args={[spec.size, 0]} />;
-  } else {
-    geometry = <octahedronGeometry args={[spec.size, 0]} />;
-  }
+const damp = (cur: number, target: number, rate: number, dt: number) =>
+  cur + (target - cur) * (1 - Math.exp(-rate * dt));
 
-  return (
-    <mesh ref={meshRef} position={[spec.ox, spec.oy, spec.oz]}>
-      {geometry}
-      <meshStandardMaterial
-        color="#5a5a62"
-        emissive={accent}
-        emissiveIntensity={0.18}
-        roughness={0.85}
-        metalness={0.15}
-        flatShading
-      />
+interface BeaconProps {
+  beacon: BeaconData;
+  planet: Planet;
+  index: number;
+  /** World position at ground level */
+  position: Vec3;
+  reducedMotion?: boolean;
+}
+
+const Beacon = ({ beacon, planet, index, position, reducedMotion }: BeaconProps) => {
+  const kind = beacon.kind;
+  const height = BEACON_HEIGHT[kind];
+  const floater = useRef<THREE.Group>(null);
+  const label = useRef<THREE.Mesh>(null);
+  const sub = useRef<THREE.Mesh>(null);
+  const ring = useRef<THREE.Mesh>(null);
+  const state = useRef({ focus: 0, label: 0, ring: 0 });
+
+  // face the spawn side so seams and faces read from the walkway
+  const yaw = useMemo(() => Math.atan2(-position[0], 5 - position[2]), [position]);
+
+  const mats = useMemo(() => {
+    const accent = new THREE.Color(planet.accent);
+    const gold = new THREE.Color('#d8b46a').lerp(accent, 0.2);
+    const stoneColor = new THREE.Color('#8c8780').lerp(new THREE.Color(planet.palette[0]), 0.18);
+    const stone = new THREE.MeshStandardMaterial({ color: stoneColor, roughness: 0.72, metalness: 0.05, flatShading: true });
+    const plinth = new THREE.MeshStandardMaterial({ color: stoneColor.clone().multiplyScalar(0.8), roughness: 0.9 });
+    const metal = new THREE.MeshStandardMaterial({
+      color: kind === 'award' ? gold : stoneColor.clone().lerp(accent, 0.25),
+      roughness: 0.35,
+      metalness: 0.55,
+    });
+    const seamBase = (kind === 'award' ? gold.clone().lerp(accent, 0.3) : accent.clone());
+    const seam = new THREE.MeshBasicMaterial({ color: seamBase.clone() });
+    const pool = poolMaterial(kind === 'award' ? gold.clone() : accent.clone());
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: seamBase.clone().multiplyScalar(1.4),
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+    return { stone, plinth, metal, seam, seamBase, pool, ringMat };
+  }, [planet, kind]);
+
+  useEffect(
+    () => () => {
+      Object.values(mats).forEach((m) => m instanceof THREE.Material && m.dispose());
+      document.body.style.cursor = '';
+    },
+    [mats],
+  );
+
+  useFrame(({ camera, clock }, delta) => {
+    const dt = Math.min(delta, 0.05);
+    const s = state.current;
+    const t = clock.elapsedTime;
+    const focused = useAppStore.getState().focusedBeaconId === beacon.id;
+    s.focus = damp(s.focus, focused ? 1 : 0, 4, dt);
+
+    const dx = camera.position.x - position[0];
+    const dz = camera.position.z - position[2];
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    const near = 1 - THREE.MathUtils.smoothstep(dist, 5, 17);
+    s.label = damp(s.label, Math.max(0.22 + near * 0.6, s.focus), 5, dt);
+
+    const breathe = reducedMotion ? 0 : Math.sin(t * 1.1 + index * 1.7) * 0.5 + 0.5;
+    const glow = 0.95 + breathe * 0.3 + s.focus * 1.5;
+    mats.seam.color.copy(mats.seamBase).multiplyScalar(glow);
+    mats.pool.uniforms.uIntensity.value = 0.13 + breathe * 0.04 + s.focus * 0.3;
+
+    if (floater.current && !reducedMotion) {
+      floater.current.rotation.y = t * 0.25 + index;
+      floater.current.position.y = Math.sin(t * 0.7 + index) * 0.06;
+    }
+
+    // expanding ground ring while focused
+    if (ring.current) {
+      const phase = (t * 0.45 + index * 0.3) % 1;
+      const k = reducedMotion ? 0.6 : phase;
+      ring.current.scale.setScalar(0.9 + k * 1.8);
+      (ring.current.material as THREE.MeshBasicMaterial).opacity = s.focus * (1 - k) * 0.4;
+      ring.current.visible = s.focus > 0.01;
+    }
+
+    const op = s.label;
+    for (const m of [label.current, sub.current]) {
+      if (!m) continue;
+      const txt = m as THREE.Mesh & { fillOpacity: number; outlineOpacity: number };
+      txt.fillOpacity = m === sub.current ? op * 0.75 : op;
+      txt.outlineOpacity = op * 0.35;
+      m.visible = op > 0.01;
+    }
+  });
+
+  const onClick = (e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation();
+    if (dragLook.travel >= 6) return;
+    const s = useAppStore.getState();
+    s.glideToBeacon(beacon.id);
+    s.setFocusedBeacon(beacon.id);
+  };
+
+  const seamStrip = (h: number, y: number, z: number, w = 0.028, tilt = 0) => (
+    <mesh material={mats.seam} position={[0, y, z]} rotation={[tilt, 0, 0]}>
+      <boxGeometry args={[w, h, 0.012]} />
     </mesh>
   );
-};
 
-/* ---------- main beacon component ---------- */
+  /**
+   * Seam on the front of a tapered prism centred at cy. k is the ratio between
+   * face distance and radius (cos(pi/n) for a face, 1 for an edge).
+   */
+  const faceSeam = (rTop: number, rBot: number, H: number, cy: number, len: number, k: number, w = 0.026) => {
+    const r = (rTop + rBot) / 2;
+    return seamStrip(len, cy, r * k + 0.01, w, -Math.atan(((rBot - rTop) * k) / H));
+  };
 
-const Beacon = ({ beacon, accent }: Props) => {
-  const groupRef = useRef<THREE.Group>(null);
-  const titleRef = useRef<THREE.Object3D>(null);
-  const [showPanel, setShowPanel] = useState(false);
-  const [showVideo, setShowVideo] = useState(false);
-  const [titleOp, setTitleOp] = useState(0);
-
-  const { camera } = useThree();
-
-  const rocks = useMemo<RockSpec[]>(() => {
-    const r = seedRandom(beacon.id);
-    const out: RockSpec[] = [];
-    for (let i = 0; i < ROCK_COUNT; i += 1) {
-      const angle = (i / ROCK_COUNT) * Math.PI * 2 + r(i + 1) * 0.6;
-      const radius = 0.5 + r(i + 7) * 0.9;
-      const ox = Math.cos(angle) * radius;
-      const oz = Math.sin(angle) * radius;
-      const oy = 1.0 + r(i + 13) * 1.7; // 1.0..2.7
-      const size = 0.22 + r(i + 23) * 0.32;
-      const bobPhase = r(i + 31) * Math.PI * 2;
-      const bobAmp = 0.15 + r(i + 41) * 0.22;
-      const rotAxis = new THREE.Vector3(
-        r(i + 53) - 0.5,
-        r(i + 61) - 0.5,
-        r(i + 67) - 0.5,
-      ).normalize();
-      const rotSpeed = 0.2 + r(i + 71) * 0.35;
-      out.push({ ox, oy, oz, size, bobPhase, bobAmp, rotAxis, rotSpeed, geomKind: r(i + 83) });
-    }
-    return out;
-  }, [beacon.id]);
-
-  useFrame(() => {
-    // XZ distance from player to beacon centre
-    const dx = camera.position.x - beacon.position[0];
-    const dz = camera.position.z - beacon.position[2];
-    const d = Math.hypot(dx, dz);
-
-    // Hysteresis-gated visibility — avoid panel flap at the threshold
-    if (d < PANEL_VISIBLE && !showPanel) setShowPanel(true);
-    else if (d > PANEL_HIDE && showPanel) setShowPanel(false);
-    if (d < VIDEO_VISIBLE && !showVideo) setShowVideo(true);
-    else if (d > VIDEO_HIDE && showVideo) setShowVideo(false);
-
-    // Title fade — quantised to 10 steps so we don't churn the React tree
-    const target = THREE.MathUtils.clamp(
-      (TITLE_FADE_FAR - d) / (TITLE_FADE_FAR - TITLE_FADE_NEAR),
-      0,
-      1,
-    );
-    const stepped = Math.round(target * 10) / 10;
-    if (stepped !== titleOp) setTitleOp(stepped);
-  });
+  let body: JSX.Element;
+  switch (kind) {
+    case 'project':
+      body = (
+        <group>
+          <mesh material={mats.stone} position={[0, 1.7, 0]} rotation={[0, Math.PI / 4, 0]} castShadow receiveShadow>
+            <cylinderGeometry args={[0.2, 0.34, 3.4, 4, 1]} />
+          </mesh>
+          <mesh material={mats.metal} position={[0, 3.52, 0]} rotation={[0, Math.PI / 4, 0]} castShadow>
+            <coneGeometry args={[0.2, 0.32, 4]} />
+          </mesh>
+          {faceSeam(0.2, 0.34, 3.4, 1.7, 2.9, Math.SQRT1_2)}
+          <group ref={floater}>
+            <mesh material={mats.seam} position={[0, 3.95, 0]}>
+              <octahedronGeometry args={[0.09, 0]} />
+            </mesh>
+          </group>
+        </group>
+      );
+      break;
+    case 'award':
+      body = (
+        <group>
+          <mesh material={mats.stone} position={[0, 1.15, 0]} castShadow receiveShadow>
+            <cylinderGeometry args={[0.2, 0.26, 2.3, 8]} />
+          </mesh>
+          <mesh material={mats.metal} position={[0, 2.36, 0]} castShadow>
+            <cylinderGeometry args={[0.3, 0.22, 0.12, 8]} />
+          </mesh>
+          {faceSeam(0.2, 0.26, 2.3, 1.15, 1.9, 1, 0.022)}
+          <group ref={floater} position={[0, 0, 0]}>
+            <group position={[0, 2.78, 0]} rotation={[1.3, 0, 0.1]}>
+              <mesh material={mats.metal} castShadow>
+                <torusGeometry args={[0.42, 0.016, 8, 72]} />
+              </mesh>
+              <mesh material={mats.seam} scale={0.8}>
+                <torusGeometry args={[0.42, 0.006, 6, 96]} />
+              </mesh>
+            </group>
+            <mesh material={mats.seam} position={[0, 2.78, 0]}>
+              <sphereGeometry args={[0.055, 16, 12]} />
+            </mesh>
+          </group>
+        </group>
+      );
+      break;
+    case 'skills':
+      body = (
+        <group>
+          {(
+            [
+              [-0.38, 0.12, 1.5],
+              [0.36, 0.2, 2.1],
+              [0.02, -0.36, 1.15],
+            ] as const
+          ).map(([x, z, h], i) => (
+            <group key={i} position={[x, 0, z]}>
+              <mesh material={mats.stone} position={[0, h / 2, 0]} castShadow receiveShadow>
+                <boxGeometry args={[0.28, h, 0.28]} />
+              </mesh>
+              <mesh material={mats.seam} position={[0, h + 0.012, 0]}>
+                <boxGeometry args={[0.2, 0.02, 0.2]} />
+              </mesh>
+              {seamStrip(h * 0.75, h * 0.45, 0.145, 0.022)}
+            </group>
+          ))}
+          <group ref={floater}>
+            <mesh material={mats.seam} position={[0, 2.45, 0]} rotation={[Math.PI / 2, 0, 0]}>
+              <torusGeometry args={[0.16, 0.012, 6, 48]} />
+            </mesh>
+          </group>
+        </group>
+      );
+      break;
+    case 'link':
+      body = (
+        <group>
+          <group scale={[0.62, 1.7, 1]}>
+            <mesh material={mats.metal} castShadow>
+              <torusGeometry args={[0.95, 0.045, 8, 64, Math.PI]} />
+            </mesh>
+            <mesh material={mats.seam} position={[0, 0, 0.05]}>
+              <torusGeometry args={[0.95, 0.008, 6, 96, Math.PI]} />
+            </mesh>
+          </group>
+          <mesh material={mats.stone} position={[0, 1.25, -0.15]} castShadow>
+            <cylinderGeometry args={[0.025, 0.04, 2.5, 6]} />
+          </mesh>
+          <group ref={floater}>
+            <mesh material={mats.seam} position={[0, 2.62, -0.15]}>
+              <sphereGeometry args={[0.06, 14, 10]} />
+            </mesh>
+          </group>
+          <mesh material={mats.seam} position={[0, 1.05, 0]}>
+            <octahedronGeometry args={[0.06, 0]} />
+          </mesh>
+        </group>
+      );
+      break;
+    default:
+      body = (
+        <group rotation={[0, 0, 0.035]}>
+          <group scale={[1.15, 1, 0.55]}>
+            <mesh material={mats.stone} position={[0, 1.2, 0]} rotation={[0, Math.PI / 4, 0]} castShadow receiveShadow>
+              <cylinderGeometry args={[0.3, 0.42, 2.4, 4, 1]} />
+            </mesh>
+          </group>
+          {faceSeam(0.3, 0.42, 2.4, 1.15, 1.7, Math.SQRT1_2 * 0.55, 0.02)}
+          <group ref={floater}>
+            <mesh material={mats.seam} position={[0, 2.75, 0]}>
+              <octahedronGeometry args={[0.06, 0]} />
+            </mesh>
+          </group>
+        </group>
+      );
+  }
 
   return (
-    <group
-      ref={groupRef}
-      position={[beacon.position[0], 0, beacon.position[2]]}
-    >
-      {/* faint ground accent so the cluster has a footprint */}
-      <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.4, 1.6, 32]} />
-        <meshBasicMaterial
-          color={accent}
-          transparent
-          opacity={0.18}
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-          side={THREE.DoubleSide}
-        />
+    <group position={position}>
+      <group rotation={[0, yaw, 0]}>
+        {/* plinth */}
+        <mesh material={mats.plinth} position={[0, 0.04, 0]} receiveShadow castShadow>
+          <cylinderGeometry args={[0.85, 0.95, 0.14, 8]} />
+        </mesh>
+        <group position={[0, 0.1, 0]}>{body}</group>
+      </group>
+
+      {/* soft light pool and focus ring */}
+      <mesh material={mats.pool} position={[0, 0.06, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={2}>
+        <planeGeometry args={[6, 6]} />
+      </mesh>
+      <mesh ref={ring} material={mats.ringMat} position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={3}>
+        <ringGeometry args={[1.0, 1.035, 96]} />
       </mesh>
 
-      {/* Floating rock cluster */}
-      {rocks.map((spec, i) => (
-        <Rock key={i} spec={spec} accent={accent} />
-      ))}
-
-      {/* Soft point light in the centre of the cluster */}
-      <pointLight position={[0, 1.8, 0]} color={accent} intensity={0.7} distance={5} decay={2} />
-
-      {/* Title — visible from far, fades with distance */}
-      <Billboard position={[0, 3.4, 0]}>
+      <Billboard position={[0, height + 0.55, 0]}>
         <Text
-          ref={titleRef as React.MutableRefObject<THREE.Object3D>}
-          fontSize={0.34}
-          color={accent}
+          ref={label}
+          font={LABEL_FONT}
+          fontSize={0.24}
+          letterSpacing={0.16}
+          color="#f3eee6"
           anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.012}
-          outlineColor="#04060f"
-          fillOpacity={titleOp}
-          outlineOpacity={titleOp * 0.7}
-          letterSpacing={0.08}
+          anchorY="bottom"
+          outlineWidth={0.006}
+          outlineColor="#0a0c12"
+          fillOpacity={0}
         >
           {beacon.label.toUpperCase()}
         </Text>
+        <Text
+          ref={sub}
+          font={LABEL_FONT}
+          fontSize={0.1}
+          letterSpacing={0.3}
+          color={planet.accent}
+          anchorX="center"
+          anchorY="top"
+          position={[0, -0.06, 0]}
+          fillOpacity={0}
+        >
+          {`${String(index + 1).padStart(2, '0')}  ${KIND_LABEL[kind]}`}
+        </Text>
       </Billboard>
 
-      {/* Info panel — only mounted when player is near. Heavy iframe gated
-          tighter so it doesn't load until you're really close. */}
-      {showPanel && (
-        <Billboard position={[0, 1.6, 0]}>
-          <Html
-            transform
-            distanceFactor={6}
-            zIndexRange={[100, 0]}
-            style={{
-              width: 320,
-              pointerEvents: 'auto',
-              userSelect: 'text',
-            }}
-          >
-            <div
-              className="rounded-lg p-4 backdrop-blur-md"
-              style={{
-                background: 'rgba(8, 12, 24, 0.78)',
-                border: `1px solid ${accent}44`,
-                boxShadow: `0 4px 24px ${accent}22`,
-              }}
-            >
-              {renderPanel(beacon, accent, showVideo)}
-            </div>
-          </Html>
-        </Billboard>
-      )}
+      {/* generous invisible hit volume */}
+      <mesh
+        position={[0, height / 2, 0]}
+        visible={false}
+        onClick={onClick}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          document.body.style.cursor = 'pointer';
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = '';
+        }}
+      >
+        <cylinderGeometry args={[1.3, 1.3, height + 1.4, 12]} />
+      </mesh>
     </group>
   );
 };
