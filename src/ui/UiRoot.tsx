@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react';
+import { useAppStore } from '@/state/useAppStore';
 import Intro from './Intro';
 import OverworldHud from './OverworldHud';
 import PlanetHud from './PlanetHud';
@@ -10,16 +12,40 @@ import TransitionVeil from './TransitionVeil';
  * DOM layer above the canvas. The container ignores pointer events so drags
  * and clicks reach the canvas; interactive children opt back in.
  */
-const UiRoot = () => (
-  <div className="pointer-events-none fixed inset-0 z-10 select-none overflow-hidden text-ink [&_input]:select-text [&_main]:select-text [&_aside]:select-text">
-    <Intro />
-    <OverworldHud />
-    <PlanetHud />
-    <MovementJoystick />
-    <BeaconPanel />
-    <TransitionVeil />
-    <Reader />
-  </div>
-);
+const UiRoot = () => {
+  // without WebGL the reader is the whole site
+  const noWebGL = useAppStore((s) => s.noWebGL);
+  const root = useRef<HTMLDivElement>(null);
+
+  // scale HUD chrome a little past 1920px wide so it does not look tiny on 2560+
+  useEffect(() => {
+    const apply = () => {
+      const z = Math.min(1.3, Math.max(1, window.innerWidth / 1920));
+      root.current?.style.setProperty('--hud-zoom', z.toFixed(3));
+    };
+    apply();
+    window.addEventListener('resize', apply);
+    return () => window.removeEventListener('resize', apply);
+  }, []);
+
+  return (
+    <div
+      ref={root}
+      className="pointer-events-none fixed inset-0 z-10 select-none overflow-hidden text-ink [&_aside]:select-text [&_main]:select-text"
+    >
+      {!noWebGL && (
+        <>
+          <Intro />
+          <OverworldHud />
+          <PlanetHud />
+          <MovementJoystick />
+          <BeaconPanel />
+          <TransitionVeil />
+        </>
+      )}
+      <Reader />
+    </div>
+  );
+};
 
 export default UiRoot;

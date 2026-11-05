@@ -32,6 +32,11 @@ export interface SkyPreset {
   hemiIntensity: number;
   fogDensity: number;
   starOpacity: number;
+  /** Rim/fill glow on monument stone (night needs most) */
+  rim: number;
+  /** In-world label ink and its soft dark halo (light ink survives bloom on bright skies) */
+  labelInk: string;
+  labelHalo: string;
   cloudOpacity: number;
   cloudColor: string;
   /** Sister planet hanging in the sky */
@@ -42,28 +47,31 @@ export interface SkyPreset {
 
 export const skyPresets: Record<PlanetTime, SkyPreset> = {
   noon: {
-    zenith: '#2c5a94',
-    upper: '#6a98c8',
-    horizon: '#a8c0d4',
-    glow: '#f4ead8',
-    glowStrength: 0.18,
+    zenith: '#17478c',
+    upper: '#4a82c2',
+    horizon: '#a4c2da',
+    glow: '#fbe6c4',
+    glowStrength: 0.2,
     halo: '#fff4e0',
     haloStrength: 0.35,
     sunDir: [0.5, 0.46, -0.73],
-    sunColor: '#fff3dc',
+    sunColor: '#ffeccc',
     sunDisc: 5,
     sunSize: 0.014,
-    lightColor: '#ffeccc',
-    lightIntensity: 2.3,
-    hemiSky: '#b4cce4',
-    hemiGround: '#68746e',
-    hemiIntensity: 1.35,
-    fogDensity: 0.0095,
+    lightColor: '#ffe2b8',
+    lightIntensity: 3.3,
+    hemiSky: '#9cbce4',
+    hemiGround: '#8a7c62',
+    hemiIntensity: 1.6,
+    fogDensity: 0.0062,
     starOpacity: 0,
-    cloudOpacity: 0.5,
+    rim: 0.25,
+    labelInk: '#fbfaf6',
+    labelHalo: '#101a26',
+    cloudOpacity: 0.42,
     cloudColor: '#ffffff',
-    moonDir: [-0.32, 0.28, -0.9],
-    moonSize: 0.07,
+    moonDir: [-0.32, 0.42, -0.85],
+    moonSize: 0.068,
   },
   dawn: {
     zenith: '#28345a',
@@ -73,7 +81,8 @@ export const skyPresets: Record<PlanetTime, SkyPreset> = {
     glowStrength: 0.55,
     halo: '#ffd0a0',
     haloStrength: 0.55,
-    sunDir: [0.66, 0.15, -0.74],
+    // low and toward the right edge so the disc sits below and outside the label row
+    sunDir: [0.74, 0.09, -0.67],
     sunColor: '#ffc690',
     sunDisc: 4,
     sunSize: 0.016,
@@ -81,13 +90,16 @@ export const skyPresets: Record<PlanetTime, SkyPreset> = {
     lightIntensity: 2.2,
     hemiSky: '#8c96c0',
     hemiGround: '#3a2a28',
-    hemiIntensity: 0.75,
-    fogDensity: 0.0155,
+    hemiIntensity: 1.5,
+    fogDensity: 0.0145,
     starOpacity: 0.12,
+    rim: 0.35,
+    labelInk: '#fdf8f0',
+    labelHalo: '#1e120a',
     cloudOpacity: 0.55,
     cloudColor: '#ffd8bc',
-    moonDir: [-0.3, 0.29, -0.9],
-    moonSize: 0.08,
+    moonDir: [-0.3, 0.42, -0.86],
+    moonSize: 0.075,
   },
   dusk: {
     zenith: '#1c1836',
@@ -105,13 +117,16 @@ export const skyPresets: Record<PlanetTime, SkyPreset> = {
     lightIntensity: 2.0,
     hemiSky: '#7a5a82',
     hemiGround: '#2c1814',
-    hemiIntensity: 0.7,
+    hemiIntensity: 1.4,
     fogDensity: 0.016,
     starOpacity: 0.3,
+    rim: 0.4,
+    labelInk: '#fbf1e6',
+    labelHalo: '#1a0c08',
     cloudOpacity: 0.6,
     cloudColor: '#ffb48c',
-    moonDir: [0.3, 0.27, -0.9],
-    moonSize: 0.085,
+    moonDir: [0.3, 0.42, -0.86],
+    moonSize: 0.078,
   },
   twilight: {
     zenith: '#0b1532',
@@ -130,13 +145,16 @@ export const skyPresets: Record<PlanetTime, SkyPreset> = {
     lightDir: [0.6, 0.32, -0.74],
     hemiSky: '#5a74aa',
     hemiGround: '#18202c',
-    hemiIntensity: 0.85,
-    fogDensity: 0.017,
+    hemiIntensity: 1.6,
+    fogDensity: 0.016,
     starOpacity: 0.55,
+    rim: 0.7,
+    labelInk: '#f2f6fa',
+    labelHalo: '#060a14',
     cloudOpacity: 0.35,
     cloudColor: '#9aaad0',
-    moonDir: [-0.3, 0.28, -0.9],
-    moonSize: 0.085,
+    moonDir: [-0.3, 0.42, -0.86],
+    moonSize: 0.078,
   },
   night: {
     zenith: '#060a1c',
@@ -155,13 +173,16 @@ export const skyPresets: Record<PlanetTime, SkyPreset> = {
     lightIntensity: 1.5,
     hemiSky: '#46529a',
     hemiGround: '#1a1c36',
-    hemiIntensity: 1.05,
-    fogDensity: 0.017,
+    hemiIntensity: 1.9,
+    fogDensity: 0.016,
     starOpacity: 1,
+    rim: 1,
+    labelInk: '#f2eefc',
+    labelHalo: '#05060e',
     cloudOpacity: 0.22,
     cloudColor: '#6a78b8',
-    moonDir: [0.28, 0.3, -0.9],
-    moonSize: 0.1,
+    moonDir: [0.3, 0.43, -0.85],
+    moonSize: 0.085,
   },
 };
 
@@ -187,6 +208,10 @@ export interface ResolvedSky {
   fogColor: THREE.Color;
   fogDensity: number;
   starOpacity: number;
+  rim: number;
+  rimColor: THREE.Color;
+  labelInk: string;
+  labelHalo: string;
   cloudOpacity: number;
   cloudColor: THREE.Color;
   moonDir: THREE.Vector3;
@@ -198,6 +223,25 @@ export interface ResolvedSky {
 }
 
 const c = (hex: string) => new THREE.Color(hex);
+
+/**
+ * Sister planet placement per planet (by index): azimuth from -Z in degrees
+ * (positive = right), elevation in degrees, angular-size multiplier. Each world
+ * hangs it somewhere different, clear of its sun and above the label row.
+ */
+const MOON_SLOTS: Record<number, [number, number, number]> = {
+  1: [31, 23, 1.05],
+  2: [14, 29, 1.0],
+  3: [-33, 21, 0.9],
+  4: [-8, 31, 0.75],
+  5: [-21, 24, 1.1],
+};
+
+const moonFromSlot = (az: number, el: number) => {
+  const a = (az * Math.PI) / 180;
+  const e = (el * Math.PI) / 180;
+  return new THREE.Vector3(Math.sin(a) * Math.cos(e), Math.sin(e), -Math.cos(a) * Math.cos(e));
+};
 const cache = new Map<string, ResolvedSky>();
 
 /** Resolve the planet's time-of-day preset, tinted toward its atmosphere and accent. */
@@ -241,12 +285,19 @@ export const buildSky = (planet: Planet): ResolvedSky => {
     hemiGround: c(p.hemiGround).lerp(c(planet.surface.ground), 0.3),
     hemiIntensity: p.hemiIntensity,
     fogColor: horizon.clone(),
-    fogDensity: p.fogDensity,
+    // lava fields read as dark rock under a thinner haze
+    fogDensity: p.fogDensity * (planet.style === 'molten' ? 0.8 : 1),
     starOpacity: p.starOpacity,
+    rim: p.rim,
+    labelInk: p.labelInk,
+    labelHalo: p.labelHalo,
+    rimColor: c(p.hemiSky).lerp(accent, 0.5),
     cloudOpacity: p.cloudOpacity,
     cloudColor: c(p.cloudColor).lerp(accent, 0.1),
-    moonDir: new THREE.Vector3(...p.moonDir).normalize(),
-    moonSize: p.moonSize,
+    moonDir: MOON_SLOTS[planet.index]
+      ? moonFromSlot(MOON_SLOTS[planet.index][0], MOON_SLOTS[planet.index][1])
+      : new THREE.Vector3(...p.moonDir).normalize(),
+    moonSize: p.moonSize * (MOON_SLOTS[planet.index]?.[2] ?? 1),
     moonColors,
     moonAtmosphere: accent.clone().lerp(horizon, 0.3),
     moonRings: !!planet.rings,

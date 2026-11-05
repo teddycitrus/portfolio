@@ -9,7 +9,9 @@ import { AccentDot, ArrowIcon, CloseIcon, EASE, SAFE, cx, usePresence } from './
 const sectionId = (id: string) => `reader-${id}`;
 const entryId = (id: string) => `reader-entry-${id}`;
 
-const contactLinks = planets.flatMap((p) => p.beacons).filter((b): b is Extract<Beacon, { kind: 'link' }> => b.kind === 'link');
+const contactLinks = planets
+  .flatMap((p) => p.beacons)
+  .filter((b): b is Extract<Beacon, { kind: 'link' }> => b.kind === 'link');
 
 const SectionBody = ({ planet, onProject }: { planet: Planet; onProject: (beaconId: string) => void }) => {
   const b = planet.beacons;
@@ -25,7 +27,9 @@ const SectionBody = ({ planet, onProject }: { planet: Planet; onProject: (beacon
         <div className="space-y-10">
           {profiles.map((p) => (
             <article key={p.id} id={entryId(p.id)} className="space-y-4">
-              <h3 className="font-display text-[26px] font-normal leading-tight text-ink md:text-[28px]">{p.content.heading}</h3>
+              <h3 className="font-display text-[26px] font-normal leading-tight text-ink md:text-[28px]">
+                {p.content.heading}
+              </h3>
               <p className="text-[16px] leading-[1.75] text-ink/85">{p.content.body}</p>
               {p.content.facts && p.content.facts.length > 0 && (
                 <div className="pt-2">
@@ -50,7 +54,11 @@ const SectionBody = ({ planet, onProject }: { planet: Planet; onProject: (beacon
       {awards.length > 0 && (
         <ol className="border-t border-line">
           {awards.map((a) => (
-            <li key={a.id} id={entryId(a.id)} className="grid gap-x-8 gap-y-2 border-b border-line py-6 sm:grid-cols-[88px_1fr]">
+            <li
+              key={a.id}
+              id={entryId(a.id)}
+              className="grid gap-x-8 gap-y-2 border-b border-line py-6 sm:grid-cols-[88px_1fr]"
+            >
               <p className="font-mono text-[13px] text-ink-muted sm:pt-1.5">{a.content.year ?? ''}</p>
               <div className="space-y-2">
                 <p className="label">{a.content.event}</p>
@@ -93,10 +101,12 @@ const SectionBody = ({ planet, onProject }: { planet: Planet; onProject: (beacon
               <a
                 href={l.content.url}
                 {...linkProps(l.content.url)}
-                className="group grid grid-cols-[1fr_auto] items-center gap-x-6 gap-y-1 border-b border-line py-5 sm:grid-cols-[140px_1fr_auto]"
+                className="group grid grid-cols-[1fr_auto] items-center gap-x-6 gap-y-1.5 border-b border-line py-5 sm:grid-cols-[160px_1fr_auto]"
               >
-                <span className="font-display text-[24px] leading-none text-ink">{l.label}</span>
-                <span className="col-span-2 row-start-2 text-[14px] text-ink-muted sm:col-span-1 sm:row-start-1">
+                <span className="col-start-1 row-start-1 font-display text-[24px] leading-none text-ink">
+                  {l.label}
+                </span>
+                <span className="col-span-2 col-start-1 row-start-2 text-[14px] text-ink-muted sm:col-span-1 sm:col-start-2 sm:row-start-1">
                   <span className="block font-mono text-[13px] text-ink transition-colors duration-200 group-hover:text-[var(--accent)]">
                     {l.content.handle}
                   </span>
@@ -120,19 +130,28 @@ const Reader = () => {
   const section = useAppStore((s) => s.readerSection);
   const closeReader = useAppStore((s) => s.closeReader);
   const isTouch = useAppStore((s) => s.isTouch);
+  const noWebGL = useAppStore((s) => s.noWebGL);
   const { mounted, visible } = usePresence(open, 350);
   const [current, setCurrent] = useState<string>(planets[0]?.id ?? '');
 
   const scroller = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDivElement>(null);
-  const closeBtn = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
+  const tabs = useRef<HTMLElement>(null);
+  const tabRow = useRef<HTMLOListElement>(null);
 
-  // focus close on open, restore on close
+  /** Space the sticky mobile tabs take at the top of the scroller. */
+  const topOffset = () => {
+    const t = tabs.current;
+    if (!t || t.offsetParent === null) return 24;
+    return t.offsetHeight + (parseFloat(getComputedStyle(t).top) || 0) + 16;
+  };
+
+  // focus the dialog on open (Tab then reaches Close first), restore on close
   useEffect(() => {
     if (!open) return;
     returnFocus.current = document.activeElement as HTMLElement | null;
-    const r = requestAnimationFrame(() => closeBtn.current?.focus({ preventScroll: true }));
+    const r = requestAnimationFrame(() => dialog.current?.focus({ preventScroll: true }));
     return () => {
       cancelAnimationFrame(r);
       const el = returnFocus.current;
@@ -147,7 +166,7 @@ const Reader = () => {
     const sc = scroller.current;
     if (!sc) return;
     if (el) {
-      sc.scrollTop = el.offsetTop - 24;
+      sc.scrollTop = el.offsetTop - topOffset();
       setCurrent(section!);
     } else sc.scrollTop = 0;
   }, [open, mounted, section]);
@@ -157,7 +176,9 @@ const Reader = () => {
     if (!mounted || !scroller.current) return;
     const io = new IntersectionObserver(
       (entries) => {
-        const hit = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        const hit = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
         if (hit) setCurrent(hit.target.id.replace('reader-', ''));
       },
       { root: scroller.current, rootMargin: '-30% 0px -60% 0px' },
@@ -169,22 +190,35 @@ const Reader = () => {
     return () => io.disconnect();
   }, [mounted]);
 
+  // keep the active mobile tab in view
+  useEffect(() => {
+    const row = tabRow.current;
+    const btn = row?.querySelector<HTMLElement>('[aria-current="true"]');
+    if (!row || !btn) return;
+    const l = btn.offsetLeft - 16;
+    const r = btn.offsetLeft + btn.offsetWidth + 16 - row.clientWidth;
+    if (row.scrollLeft > l) row.scrollTo({ left: l, behavior: 'smooth' });
+    else if (row.scrollLeft < r) row.scrollTo({ left: r, behavior: 'smooth' });
+  }, [current]);
+
   if (!mounted) return null;
 
   const goTo = (id: string) => {
     const el = document.getElementById(id);
     const sc = scroller.current;
-    if (el && sc) sc.scrollTo({ top: el.offsetTop - 24, behavior: 'smooth' });
+    if (el && sc) sc.scrollTo({ top: el.offsetTop - topOffset(), behavior: 'smooth' });
   };
 
   // focus trap-lite: keep Tab inside the dialog
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key !== 'Tab' || !dialog.current) return;
-    const items = dialog.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), iframe');
+    const items = [...dialog.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), iframe')].filter(
+      (el) => el.offsetParent !== null,
+    );
     if (!items.length) return;
     const first = items[0];
     const last = items[items.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
+    if (e.shiftKey && (document.activeElement === first || document.activeElement === dialog.current)) {
       e.preventDefault();
       last.focus();
     } else if (!e.shiftKey && document.activeElement === last) {
@@ -201,8 +235,9 @@ const Reader = () => {
       role="dialog"
       aria-modal="true"
       aria-label={`${profile.name}, portfolio`}
+      tabIndex={-1}
       onKeyDown={onKeyDown}
-      className="pointer-events-auto absolute inset-0 z-[60]"
+      className="pointer-events-auto absolute inset-0 z-[60] outline-none"
       style={{ '--accent': currentPlanet?.accent ?? '#e9eef7' } as CSSProperties}
     >
       <div
@@ -211,18 +246,27 @@ const Reader = () => {
         style={{ opacity: visible ? 1 : 0, transition: `opacity 350ms ${EASE}` }}
       />
 
-      <button
-        ref={closeBtn}
-        type="button"
-        onClick={closeReader}
-        aria-label="Close page"
-        className="panel absolute z-10 inline-flex h-10 items-center gap-2 rounded-full pl-3.5 pr-4 text-[13px] font-medium text-ink transition-[opacity,border-color] duration-300 ease-out hover:border-[rgba(233,238,247,0.28)]"
-        style={{ top: SAFE.top, right: SAFE.right, opacity: visible ? 1 : 0 }}
-      >
-        <CloseIcon className="h-3.5 w-3.5 text-ink-muted" />
-        Close
-        {!isTouch && <kbd className="kbd ml-0.5 hidden md:inline-flex">Esc</kbd>}
-      </button>
+      {!noWebGL && (
+        <>
+          {/* keeps the floating Close legible over scrolling text on phones */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-space via-space/80 to-transparent lg:hidden"
+            style={{ height: `calc(${SAFE.top} + 64px)`, opacity: visible ? 1 : 0 }}
+          />
+          <button
+            type="button"
+            onClick={closeReader}
+            aria-label="Close page"
+            className="panel absolute z-20 inline-flex h-10 items-center gap-2 rounded-full pl-3.5 pr-4 text-[13px] font-medium text-ink transition-[opacity,border-color] duration-300 ease-out hover:border-[rgba(233,238,247,0.28)]"
+            style={{ top: SAFE.top, right: SAFE.right, opacity: visible ? 1 : 0 }}
+          >
+            <CloseIcon className="h-3.5 w-3.5 text-ink-muted" />
+            Close
+            {!isTouch && <kbd className="kbd ml-0.5 hidden md:inline-flex">Esc</kbd>}
+          </button>
+        </>
+      )}
 
       <div
         ref={scroller}
@@ -233,7 +277,7 @@ const Reader = () => {
           transition: `opacity 400ms ${EASE}, transform 500ms ${EASE}`,
         }}
       >
-        <div className="relative mx-auto grid max-w-[1120px] lg:grid-cols-[180px_minmax(0,720px)] lg:justify-center lg:gap-16">
+        <div className="relative mx-auto grid max-w-[1120px] grid-cols-1 lg:grid-cols-[180px_minmax(0,720px)] lg:justify-center lg:gap-16">
           <nav aria-label="Sections" className="hidden lg:block">
             <ol className="sticky top-0 space-y-1 pt-[148px]">
               {planets.map((p) => {
@@ -249,7 +293,7 @@ const Reader = () => {
                         on ? 'text-ink' : 'text-ink-faint hover:text-ink-muted',
                       )}
                     >
-                      <span className="w-5 font-mono text-[11px]">{String(p.index).padStart(2, '0')}</span>
+                      <span className="w-5 font-mono text-[11px]">{String(p.index).padStart(2, '0')}</span>{' '}
                       <span>{p.title}</span>
                       <AccentDot className={cx('transition-opacity duration-200', on ? 'opacity-100' : 'opacity-0')} />
                     </button>
@@ -260,17 +304,28 @@ const Reader = () => {
           </nav>
 
           <main
-            className="px-[max(24px,env(safe-area-inset-left))] pb-32 pt-[calc(max(20px,env(safe-area-inset-top))+76px)] md:px-10 lg:px-0 lg:pt-32"
+            className={cx(
+              'px-[max(24px,env(safe-area-inset-left))] pb-32 md:px-10 lg:px-0 lg:pt-32',
+              noWebGL
+                ? 'pt-[calc(max(20px,env(safe-area-inset-top))+28px)]'
+                : 'pt-[calc(max(20px,env(safe-area-inset-top))+76px)]',
+            )}
           >
-            <header className="border-b border-line pb-12">
+            <header className="border-line pb-12 lg:border-b">
               <p className="label">
-                {profile.location && <>{profile.location} <span className="text-ink-faint">/</span> </>}
+                {profile.location && (
+                  <>
+                    {profile.location} <span className="text-ink-faint">/</span>{' '}
+                  </>
+                )}
                 {profile.role}
               </p>
               <h1 className="mt-5 font-display text-[56px] font-normal leading-[0.95] tracking-[-0.02em] text-ink md:text-[80px]">
                 {profile.name}
               </h1>
-              <p className="mt-6 max-w-[38ch] text-[19px] leading-[1.55] text-ink-muted md:text-[21px]">{profile.tagline}</p>
+              <p className="mt-6 max-w-[38ch] text-[19px] leading-[1.55] text-ink-muted md:text-[21px]">
+                {profile.tagline}
+              </p>
               <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2">
                 {contactLinks.map((l) => (
                   <li key={l.id}>
@@ -286,6 +341,41 @@ const Reader = () => {
                 ))}
               </ul>
             </header>
+
+            {/* section tabs for phones and tablets; the side nav takes over at lg */}
+            <nav
+              ref={tabs}
+              aria-label="Sections"
+              className="sticky z-[5] -mx-[max(24px,env(safe-area-inset-left))] border-y border-line bg-space/80 backdrop-blur-md md:-mx-10 lg:hidden"
+              style={{ top: noWebGL ? 0 : `calc(${SAFE.top} + 48px)` }}
+            >
+              <ol
+                ref={tabRow}
+                className="scrollbar-thin flex gap-1 overflow-x-auto px-[max(16px,env(safe-area-inset-left))] py-2 md:px-8"
+              >
+                {planets.map((p) => {
+                  const on = current === p.id;
+                  return (
+                    <li key={p.id} className="shrink-0" style={{ '--accent': p.accent } as CSSProperties}>
+                      <button
+                        type="button"
+                        onClick={() => goTo(sectionId(p.id))}
+                        aria-current={on ? 'true' : undefined}
+                        className={cx(
+                          'flex h-9 items-center gap-2 rounded-full px-3 text-[14px] transition-colors duration-200',
+                          on ? 'bg-white/[0.07] text-ink' : 'text-ink-muted',
+                        )}
+                      >
+                        <AccentDot
+                          className={cx('transition-opacity duration-200', on ? 'opacity-100' : 'opacity-40')}
+                        />
+                        {p.title}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            </nav>
 
             {planets.map((p) => (
               <section
@@ -303,25 +393,33 @@ const Reader = () => {
                       <span className="text-ink-faint">/</span>
                       <span>{p.subtitle}</span>
                     </p>
-                    <h2 id={`${sectionId(p.id)}-title`} className="mt-3 font-display text-[44px] font-normal leading-none text-ink md:text-[52px]">
+                    <h2
+                      id={`${sectionId(p.id)}-title`}
+                      className="mt-3 font-display text-[44px] font-normal leading-none text-ink md:text-[52px]"
+                    >
                       {p.title}
                     </h2>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => visitPlanet(p.id)}
-                    className="group inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-line px-3.5 text-[13px] font-medium text-ink-muted transition-colors duration-200 hover:border-[color-mix(in_srgb,var(--accent)_60%,transparent)] hover:text-ink"
-                  >
-                    Visit planet
-                    <ArrowIcon className="text-[var(--accent)] transition-transform duration-200 ease-out group-hover:translate-x-0.5" />
-                  </button>
+                  {!noWebGL && (
+                    <button
+                      type="button"
+                      onClick={() => visitPlanet(p.id)}
+                      className="group inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-line px-3.5 text-[13px] font-medium text-ink-muted transition-colors duration-200 hover:border-[color-mix(in_srgb,var(--accent)_60%,transparent)] hover:text-ink"
+                    >
+                      Visit planet
+                      <ArrowIcon className="text-[var(--accent)] transition-transform duration-200 ease-out group-hover:translate-x-0.5" />
+                    </button>
+                  )}
                 </div>
                 <SectionBody planet={p} onProject={(bid) => goTo(entryId(bid))} />
               </section>
             ))}
 
-            <footer className="pt-8 font-mono text-[12px] text-ink-faint">
-              {profile.name} / {new Date().getFullYear()}
+            <footer className="space-y-2 pt-8 font-mono text-[12px] text-ink-faint">
+              {noWebGL && <p>The interactive version needs WebGL.</p>}
+              <p>
+                {profile.name} / {new Date().getFullYear()}
+              </p>
             </footer>
           </main>
         </div>

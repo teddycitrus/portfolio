@@ -59,7 +59,7 @@ export const useInputBridge = (): void => {
 
     /* ---- keyboard ---- */
     const onKeyDown = (e: KeyboardEvent) => {
-      if (isTypingTarget(e.target)) return;
+      if (isTypingTarget(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
       keyboardState[e.code] = true;
       const s = store();
 

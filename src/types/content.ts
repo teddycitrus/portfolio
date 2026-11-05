@@ -25,6 +25,8 @@ export interface ProjectContent {
   stack: string[];
   /** YouTube video id, rendered as an embed */
   videoId?: string;
+  /** Poster image for the video; defaults to the YouTube thumbnail */
+  poster?: string;
   award?: string;
   team?: boolean;
   links: ExternalLink[];

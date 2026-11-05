@@ -2,10 +2,12 @@ import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useAppStore } from '@/state/useAppStore';
-import { beaconScreen, dragLook, isKeyDown, joystickState } from '@/state/runtime';
-import { getBeaconViewPoint, SURFACE_HEAD_HEIGHT, SURFACE_SPAWN } from '@/data/content';
+import { beaconScreen, dragLook, joystickState, keyboardState } from '@/state/runtime';
+import { BEACON_VIEW_DISTANCE, getBeaconViewPoint, SURFACE_HEAD_HEIGHT, SURFACE_SPAWN } from '@/data/content';
 import type { Vec3 } from '@/types/content';
-import { terrainHeight } from './Terrain';
+import type { HeightFn } from './Terrain';
+import { LABEL_ANCHOR } from './Beacon';
+import { arrivalPulse } from './surfaceState';
 
 export interface SurfaceBeacon {
   id: string;
@@ -17,7 +19,6 @@ export interface SurfaceBeacon {
 
 const WALK_SPEED = 3.4;
 const RUN_SPEED = 6.8;
-export const WALK_RADIUS = 30;
 const PITCH_LIMIT = 0.6;
 const SETTLE_MS = 900;
 const SETTLE_RISE = 2.5;
@@ -30,24 +31,40 @@ const GAZE_DWELL = 0.45;
 const STICKY_RELEASE = 7;
 const BEACON_COLLIDE = 1.15;
 const EDGE_INSET = 48;
+/** Resting gaze sits slightly above level so monuments fill more of the frame */
+const PITCH_BIAS = 0.1;
+/** Docked content panel on wide screens; the glide leaves the beacon clear of it */
+const PANEL_WIDTH = 420;
+const GLIDE_DISTANCE = 6;
+/** Gaze focus stays off this long after the arrival settle */
+const GAZE_LOCKOUT_MS = 1500;
+/** Discovery pulse starts this long after the settle */
+const PULSE_DELAY_MS = 600;
+/** Portrait screens: frame the whole beacon arc from further back */
+const PORTRAIT_ASPECT = 0.8;
+const PORTRAIT_PITCH_BIAS = 0.03;
 
 const damp = (rate: number, dt: number) => 1 - Math.exp(-rate * dt);
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
 const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 
-const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+/** Two-key check without the rest-array allocation of isKeyDown */
+const kd = (a: string, b: string) => keyboardState[a] === true || keyboardState[b] === true;
 
 interface PlanetCameraProps {
   planetId: string;
   beacons: SurfaceBeacon[];
+  /** Ground height for this planet's style */
+  ground: HeightFn;
+  walkRadius: number;
 }
 
 /**
  * First-person walker for the planet surface. Owns the camera only in
  * mode 'planet'; TransitionController owns it in the transition modes.
  */
-const PlanetCamera = ({ planetId, beacons }: PlanetCameraProps) => {
+const PlanetCamera = ({ planetId, beacons, ground, walkRadius }: PlanetCameraProps) => {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const size = useThree((s) => s.size);
   const mode = useAppStore((s) => s.mode);
@@ -62,6 +79,7 @@ const PlanetCamera = ({ planetId, beacons }: PlanetCameraProps) => {
     settleStart: -1,
     glideId: null as string | null,
     glideT: 0,
+    glideStart: 0,
     from: new THREE.Vector3(),
     to: new THREE.Vector3(),
     fromYaw: 0,
@@ -73,7 +91,12 @@ const PlanetCamera = ({ planetId, beacons }: PlanetCameraProps) => {
     dismissed: null as string | null,
     gazeId: null as string | null,
     gazeTime: 0,
+    gazeUnlock: 0,
+    bias: PITCH_BIAS,
   });
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
+  useEffect(() => () => void (arrivalPulse.start = -1), []);
   const euler = useRef(new THREE.Euler(0, 0, 0, 'YXZ'));
   const v3 = useRef(new THREE.Vector3());
 
@@ -105,13 +128,29 @@ const PlanetCamera = ({ planetId, beacons }: PlanetCameraProps) => {
     s.dismissed = null;
     s.gazeId = null;
     s.gazeTime = 0;
-    const ground = terrainHeight(SURFACE_SPAWN[0], SURFACE_SPAWN[2]) + SURFACE_HEAD_HEIGHT;
-    s.y = ground + (reduced ? 0 : SETTLE_RISE);
-    s.settleStart = reduced ? -1 : performance.now();
-    camera.position.set(SURFACE_SPAWN[0], s.y, SURFACE_SPAWN[2]);
-    euler.current.set(reduced ? 0 : -0.12, 0, 0);
+    // portrait: step back along +Z until every beacon fits the narrow horizontal view
+    let sz = SURFACE_SPAWN[2];
+    const { width, height } = sizeRef.current;
+    const aspect = width / Math.max(1, height);
+    s.bias = PITCH_BIAS;
+    if (aspect < PORTRAIT_ASPECT) {
+      const half = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * aspect) - 0.05;
+      const t = Math.tan(Math.max(0.1, half));
+      for (const b of beacons) sz = Math.max(sz, Math.abs(b.position[0]) / t + b.position[2]);
+      sz = Math.min(sz, walkRadius - 1);
+      s.bias = PORTRAIT_PITCH_BIAS;
+    }
+    const gy = ground(SURFACE_SPAWN[0], sz) + SURFACE_HEAD_HEIGHT;
+    s.y = gy + (reduced ? 0 : SETTLE_RISE);
+    const now = performance.now();
+    s.settleStart = reduced ? -1 : now;
+    const settleEnd = now + (reduced ? 0 : SETTLE_MS);
+    s.gazeUnlock = settleEnd + GAZE_LOCKOUT_MS;
+    arrivalPulse.start = settleEnd + PULSE_DELAY_MS;
+    camera.position.set(SURFACE_SPAWN[0], s.y, sz);
+    euler.current.set(reduced ? s.bias : s.bias - 0.12, 0, 0);
     camera.quaternion.setFromEuler(euler.current);
-  }, [mode, planetId, camera]);
+  }, [mode, planetId, camera, beacons, ground, walkRadius]);
 
   useFrame((_, delta) => {
     if (mode !== 'planet') return;
@@ -132,10 +171,14 @@ const PlanetCamera = ({ planetId, beacons }: PlanetCameraProps) => {
     /* ---- input ---- */
     let ix = 0;
     let iz = 0;
-    if (isKeyDown('KeyW', 'ArrowUp')) iz -= 1;
-    if (isKeyDown('KeyS', 'ArrowDown')) iz += 1;
-    if (isKeyDown('KeyD', 'ArrowRight')) ix += 1;
-    if (isKeyDown('KeyA', 'ArrowLeft')) ix -= 1;
+    const kw = kd('KeyW', 'ArrowUp');
+    const ks = kd('KeyS', 'ArrowDown');
+    const kr = kd('KeyD', 'ArrowRight');
+    const kl = kd('KeyA', 'ArrowLeft');
+    if (kw) iz -= 1;
+    if (ks) iz += 1;
+    if (kr) ix += 1;
+    if (kl) ix -= 1;
     if (joystickState.active) {
       ix += joystickState.x;
       iz += joystickState.y;
@@ -149,7 +192,7 @@ const PlanetCamera = ({ planetId, beacons }: PlanetCameraProps) => {
     if (store.readerOpen) ix = iz = 0;
 
     /* ---- glide ---- */
-    if (store.glideBeaconId && (moving || isKeyDown(...MOVE_KEYS))) {
+    if (store.glideBeaconId && (moving || kw || ks || kr || kl)) {
       s.glideId = null;
       store.clearGlide();
     } else if (store.glideBeaconId && store.glideBeaconId !== s.glideId) {
@@ -157,18 +200,34 @@ const PlanetCamera = ({ planetId, beacons }: PlanetCameraProps) => {
       if (!b) {
         store.clearGlide();
       } else {
+        // same line as the shared view point, but a little further back so the whole
+        // monument and its label fit the frame
         const vp = getBeaconViewPoint(b.position);
+        vp[0] = b.position[0] + (vp[0] - b.position[0]) * (GLIDE_DISTANCE / BEACON_VIEW_DISTANCE);
+        vp[2] = b.position[2] + (vp[2] - b.position[2]) * (GLIDE_DISTANCE / BEACON_VIEW_DISTANCE);
         s.glideId = b.id;
         s.glideT = 0;
+        s.glideStart = performance.now();
         s.from.copy(pos);
-        s.to.set(vp[0], terrainHeight(vp[0], vp[2]) + SURFACE_HEAD_HEIGHT, vp[2]);
+        s.to.set(vp[0], ground(vp[0], vp[2]) + SURFACE_HEAD_HEIGHT, vp[2]);
         s.fromYaw = s.yaw;
         const dx = b.position[0] - vp[0];
         const dz = b.position[2] - vp[2];
-        s.toYaw = s.yaw + wrapAngle(Math.atan2(-dx, -dz) - s.yaw);
+        let face = Math.atan2(-dx, -dz);
+        // wide desktop: turn a little right so the beacon sits left of centre, clear of the panel
+        const w = size.width;
+        if (w / size.height > 1.2 && w >= 900) {
+          const tanH = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * (w / size.height);
+          face -= Math.atan(((Math.min(PANEL_WIDTH, w * 0.34) / 2) / (w / 2)) * tanH) * 0.9;
+        }
+        s.toYaw = s.yaw + wrapAngle(face - s.yaw);
         s.fromPitch = s.pitch;
         const mid = b.position[1] + b.height * 0.55;
-        s.toPitch = THREE.MathUtils.clamp(Math.atan2(mid - s.to.y, Math.hypot(dx, dz)), -PITCH_LIMIT, PITCH_LIMIT);
+        s.toPitch = THREE.MathUtils.clamp(
+          Math.atan2(mid - s.to.y, Math.hypot(dx, dz)) - s.bias,
+          -PITCH_LIMIT,
+          PITCH_LIMIT,
+        );
         s.vx = s.vz = 0;
         s.settleStart = -1;
         s.sticky = b.id;
@@ -177,7 +236,8 @@ const PlanetCamera = ({ planetId, beacons }: PlanetCameraProps) => {
     }
 
     if (s.glideId) {
-      s.glideT = reduced ? 1 : Math.min(1, s.glideT + dt / GLIDE_S);
+      // wall-clock based so slow frames never stretch the glide
+      s.glideT = reduced ? 1 : Math.min(1, (performance.now() - s.glideStart) / (GLIDE_S * 1000));
       const k = easeInOut(s.glideT);
       pos.lerpVectors(s.from, s.to, k);
       s.yaw = s.fromYaw + (s.toYaw - s.fromYaw) * k;
@@ -192,12 +252,12 @@ const PlanetCamera = ({ planetId, beacons }: PlanetCameraProps) => {
     } else {
       /* ---- look: drag right turns the view left, drag down tilts up ---- */
       dragLook.pitch = THREE.MathUtils.clamp(dragLook.pitch, -PITCH_LIMIT, PITCH_LIMIT);
-      const kl = damp(reduced ? 30 : 14, dt);
-      s.yaw += (dragLook.yaw - s.yaw) * kl;
-      s.pitch += (dragLook.pitch - s.pitch) * kl;
+      const kLook = damp(reduced ? 30 : 14, dt);
+      s.yaw += (dragLook.yaw - s.yaw) * kLook;
+      s.pitch += (dragLook.pitch - s.pitch) * kLook;
 
       /* ---- walk ---- */
-      const speed = isKeyDown('ShiftLeft', 'ShiftRight') ? RUN_SPEED : WALK_SPEED;
+      const speed = kd('ShiftLeft', 'ShiftRight') ? RUN_SPEED : WALK_SPEED;
       const sin = Math.sin(s.yaw);
       const cos = Math.cos(s.yaw);
       // forward (-z local) = (-sin, -cos); right = (cos, -sin)
@@ -220,11 +280,11 @@ const PlanetCamera = ({ planetId, beacons }: PlanetCameraProps) => {
         }
       }
       const r = Math.hypot(pos.x, pos.z);
-      if (r > WALK_RADIUS) {
+      if (r > walkRadius) {
         const nx = pos.x / r;
         const nz = pos.z / r;
-        pos.x = nx * WALK_RADIUS;
-        pos.z = nz * WALK_RADIUS;
+        pos.x = nx * walkRadius;
+        pos.z = nz * walkRadius;
         const radial = s.vx * nx + s.vz * nz;
         if (radial > 0) {
           s.vx -= radial * nx;
@@ -235,22 +295,23 @@ const PlanetCamera = ({ planetId, beacons }: PlanetCameraProps) => {
       const sp = Math.hypot(s.vx, s.vz);
       if (!reduced && sp > 0.2) s.bob += dt * sp * 1.9;
       const bobAmt = reduced ? 0 : Math.min(1, sp / WALK_SPEED) * 0.022;
-      const ground = terrainHeight(pos.x, pos.z) + SURFACE_HEAD_HEIGHT;
-      const targetY = ground + Math.sin(s.bob * 2) * bobAmt + (1 - settleE) * SETTLE_RISE;
+      const gh = ground(pos.x, pos.z) + SURFACE_HEAD_HEIGHT;
+      const targetY = gh + Math.sin(s.bob * 2) * bobAmt + (1 - settleE) * SETTLE_RISE;
       s.y += (targetY - s.y) * (settle < 1 ? 1 : damp(10, dt));
       pos.y = s.y;
     }
 
     const settlePitch = (1 - settleE) * -0.12;
-    euler.current.set(s.pitch + settlePitch, s.yaw, 0, 'YXZ');
+    const viewPitch = s.pitch + s.bias + settlePitch;
+    euler.current.set(viewPitch, s.yaw, 0, 'YXZ');
     camera.quaternion.setFromEuler(euler.current);
     camera.updateMatrixWorld();
 
     /* ---- focus detection ---- */
     if (settle >= 1 && !s.glideId) {
-      const fx = -Math.sin(s.yaw) * Math.cos(s.pitch);
-      const fy = Math.sin(s.pitch);
-      const fz = -Math.cos(s.yaw) * Math.cos(s.pitch);
+      const fx = -Math.sin(s.yaw) * Math.cos(viewPitch);
+      const fy = Math.sin(viewPitch);
+      const fz = -Math.cos(s.yaw) * Math.cos(viewPitch);
       let nearId: string | null = null;
       let nearD = Infinity;
       let gazeId: string | null = null;
@@ -292,7 +353,8 @@ const PlanetCamera = ({ planetId, beacons }: PlanetCameraProps) => {
         s.gazeId = gazeId;
         s.gazeTime = 0;
       } else if (gazeId) s.gazeTime += dt;
-      const gaze = gazeId && s.gazeTime >= GAZE_DWELL ? gazeId : null;
+      // explicit lockout after arrival, so the centre beacon never pops open on its own
+      const gaze = gazeId && s.gazeTime >= GAZE_DWELL && performance.now() > s.gazeUnlock ? gazeId : null;
 
       let next: string | null = prox ?? gaze;
       if (s.sticky) {
@@ -321,7 +383,8 @@ const PlanetCamera = ({ planetId, beacons }: PlanetCameraProps) => {
     for (const b of beacons) {
       const info = beaconScreen[b.id];
       if (!info) continue;
-      p.set(b.position[0], b.position[1] + b.height * 0.55, b.position[2]).applyMatrix4(camera.matrixWorldInverse);
+      // anchored at the in-world label above the monument top
+      p.set(b.position[0], b.position[1] + b.height + LABEL_ANCHOR, b.position[2]).applyMatrix4(camera.matrixWorldInverse);
       const depth = -p.z;
       info.size = depth > 0.1 ? (b.height / (depth * tanHalf * 2)) * h : 0;
       let sx: number;

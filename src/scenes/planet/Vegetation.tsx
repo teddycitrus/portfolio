@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Planet, PlanetStyle } from '@/types/content';
 import { SURFACE_SPAWN } from '@/data/content';
-import { fbm2, noise2, terrainHeight, terrainPalette } from './Terrain';
+import { fbm2, heightFor, ISLAND_RADIUS, MESA_RADIUS, noise2, terrainPalette } from './Terrain';
 
 /* ---------- deterministic rng ---------- */
 
@@ -110,11 +110,17 @@ const crystalCluster = () => {
 const basaltCluster = () => {
   const parts: THREE.BufferGeometry[] = [];
   const rnd = mulberry(77);
-  for (let i = 0; i < 6; i += 1) {
-    const a = (i / 6) * Math.PI * 2;
-    const r = i === 0 ? 0 : 0.55;
-    const h = 0.6 + rnd() * 1.6 + (i === 0 ? 0.8 : 0);
-    const g = new THREE.CylinderGeometry(0.3, 0.32, h, 6).translate(Math.cos(a) * r, h / 2, Math.sin(a) * r);
+  // hex-packed centres: one core ring of 6 plus a partial outer ring
+  const cells: Array<[number, number]> = [[0, 0]];
+  for (let i = 0; i < 6; i += 1) cells.push([Math.cos((i / 6) * Math.PI * 2) * 0.54, Math.sin((i / 6) * Math.PI * 2) * 0.54]);
+  for (let i = 0; i < 5; i += 1) cells.push([Math.cos((i / 6) * Math.PI * 2 + 0.52) * 0.94, Math.sin((i / 6) * Math.PI * 2 + 0.52) * 0.94]);
+  for (let i = 0; i < cells.length; i += 1) {
+    const [cx, cz] = cells[i];
+    const d = Math.hypot(cx, cz);
+    // tallest in the middle, stepping down outward, tops slightly tilted
+    const h = Math.max(0.12, 0.75 - d * 0.5 + (rnd() - 0.5) * 0.35);
+    const g = new THREE.CylinderGeometry(0.27, 0.29, h + 0.4, 6).translate(0, (h - 0.4) / 2, 0);
+    g.rotateX((rnd() - 0.5) * 0.12).rotateZ((rnd() - 0.5) * 0.12).translate(cx, 0, cz);
     g.deleteAttribute('uv');
     parts.push(paint(g, i % 2 ? '#e8e8e8' : '#ffffff'));
   }
@@ -202,6 +208,12 @@ interface Layer {
   /** sink into the ground by this fraction of scale (for rocks on slopes) */
   sink: number;
   tiltJitter: number;
+  /** Also scatter this many in the spawn foreground (bottom corners of the opening view) */
+  fg?: number;
+  fgScale?: [number, number];
+  foreground?: boolean;
+  /** May stand in shallow water along the shore (oceanic rocks) */
+  wet?: boolean;
 }
 
 const C = (hex: string | THREE.Color, mix?: string, t = 0) => {
@@ -227,6 +239,7 @@ const buildLayers = (planet: Planet, time: { value: number }): Layer[] => {
         geo: bladeTuft(7, 0.55, 0.035, 0.25, 1),
         mat: grassMat(),
         count: 1700,
+        fg: 16, fgScale: [1.0, 1.5],
         minR: 2,
         maxR: 55,
         scale: [0.7, 1.3],
@@ -254,6 +267,7 @@ const buildLayers = (planet: Planet, time: { value: number }): Layer[] => {
         geo: rock(0, 0.6, 3),
         mat: rockMat(),
         count: 90,
+        fg: 7, fgScale: [0.2, 0.45],
         minR: 5,
         maxR: 50,
         scale: [0.15, 0.6],
@@ -269,11 +283,12 @@ const buildLayers = (planet: Planet, time: { value: number }): Layer[] => {
         geo: bladeTuft(4, 1.1, 0.025, 0.18, 2),
         mat: grassMat(0.09),
         count: 1100,
+        fg: 12, fgScale: [0.7, 1.1],
         minR: 3,
-        maxR: 55,
+        maxR: 30,
         scale: [0.6, 1.25],
-        colorA: C('#b8b49a', p1, 0.2),
-        colorB: C('#8a9a7c', p0, 0.2),
+        colorA: C('#8e9a6c', p1, 0.1),
+        colorB: C('#5e7a52', p0, 0.1),
         clump: 0.85,
       },
       {
@@ -293,12 +308,14 @@ const buildLayers = (planet: Planet, time: { value: number }): Layer[] => {
         ...base,
         geo: rock(1, 0.7, 5),
         mat: rockMat(),
-        count: 60,
+        count: 70,
+        fg: 6, fgScale: [0.22, 0.5],
         minR: 14,
-        maxR: 70,
+        maxR: 34,
+        wet: true,
         scale: [0.6, 2.4],
         clear: 1.5,
-        colorA: C(pal.rock, '#8a9498', 0.4),
+        colorA: C(pal.rock, '#a8a69c', 0.6),
         colorB: C(pal.rock),
         shadow: true,
         sink: 0.3,
@@ -310,6 +327,7 @@ const buildLayers = (planet: Planet, time: { value: number }): Layer[] => {
         geo: rock(1, 0.65, 7),
         mat: rockMat(),
         count: 280,
+        fg: 7, fgScale: [0.2, 0.5],
         minR: 5,
         maxR: 80,
         scale: [0.25, 2.2],
@@ -325,6 +343,7 @@ const buildLayers = (planet: Planet, time: { value: number }): Layer[] => {
         geo: bladeTuft(9, 0.32, 0.03, 0.45, 4),
         mat: grassMat(0.18),
         count: 700,
+        fg: 14, fgScale: [1.0, 1.6],
         minR: 2,
         maxR: 50,
         scale: [0.6, 1.4],
@@ -355,6 +374,7 @@ const buildLayers = (planet: Planet, time: { value: number }): Layer[] => {
           { sway: 0, tip: accent.clone().multiplyScalar(1.4), tipStart: 0.5, tipEnd: 1.6 },
         ),
         count: 210,
+        fg: 5, fgScale: [0.22, 0.42],
         minR: 6,
         maxR: 70,
         scale: [0.4, 1.6],
@@ -370,6 +390,7 @@ const buildLayers = (planet: Planet, time: { value: number }): Layer[] => {
         geo: bladeTuft(6, 0.3, 0.03, 0.35, 6),
         mat: grassMat(0.12),
         count: 900,
+        fg: 14, fgScale: [1.0, 1.5],
         minR: 2,
         maxR: 45,
         scale: [0.6, 1.3],
@@ -395,17 +416,34 @@ const buildLayers = (planet: Planet, time: { value: number }): Layer[] => {
         ...base,
         geo: basaltCluster(),
         mat: patchMaterial(std({ flatShading: true, roughness: 0.8 }), time, { sway: 0 }),
-        count: 130,
-        minR: 16,
-        maxR: 80,
-        scale: [0.35, 1.1],
+        count: 55,
+        minR: 15,
+        maxR: 70,
+        scale: [0.6, 1.3],
         clear: 1.5,
-        colorA: C('#2a2624', p2, 0.25),
-        colorB: C('#3c342e', p0, 0.1),
-        clump: 0.85,
+        colorA: C('#2e2824', p2, 0.25),
+        colorB: C('#40362e', p0, 0.12),
+        clump: 0.9,
         shadow: true,
-        sink: 0.1,
-        tiltJitter: 0.12,
+        sink: 0.2,
+        tiltJitter: 0.1,
+      },
+      {
+        ...base,
+        // low lava-rock outcrops, the dominant silhouette
+        geo: rock(1, 0.5, 29),
+        mat: rockMat(),
+        count: 120,
+        fg: 7, fgScale: [0.22, 0.5],
+        minR: 9,
+        maxR: 75,
+        scale: [0.4, 2.0],
+        clear: 1,
+        colorA: C('#3a2e26', p2, 0.2),
+        colorB: C('#5a4636', p0, 0.15),
+        clump: 0.8,
+        shadow: true,
+        sink: 0.3,
       },
       {
         ...base,
@@ -418,6 +456,7 @@ const buildLayers = (planet: Planet, time: { value: number }): Layer[] => {
           { sway: 0, flicker: true },
         ),
         count: 220,
+        fg: 6,
         minR: 4,
         maxR: 45,
         scale: [0.6, 1.4],
@@ -438,21 +477,13 @@ const buildLayers = (planet: Planet, time: { value: number }): Layer[] => {
         colorB: C(pal.low, p1, 0.08),
         sink: 0.2,
       },
-      {
-        ...base,
-        geo: bladeTuft(5, 0.28, 0.025, 0.4, 8),
-        mat: grassMat(0.1),
-        count: 350,
-        minR: 3,
-        maxR: 40,
-        scale: [0.6, 1.2],
-        colorA: C('#5a4c40', p1, 0.1),
-        colorB: C('#3a302a'),
-        clump: 0.8,
-      },
     ],
   };
-  return byStyle[planet.style]();
+  return byStyle[planet.style]().flatMap((l) =>
+    l.fg
+      ? [l, { ...l, count: l.fg, fg: undefined, foreground: true, clump: 0, scale: l.fgScale ?? l.scale }]
+      : [l],
+  );
 };
 
 /* ---------- placement ---------- */
@@ -472,8 +503,18 @@ const fillInstances = (
   layer: Layer,
   beacons: Array<[number, number]>,
   seed: number,
+  style: PlanetStyle,
 ) => {
   const rnd = mulberry(seed);
+  const H = heightFor(style);
+  // islands and mesas: keep props on the land / platform
+  const maxR =
+    style === 'oceanic'
+      ? Math.min(layer.maxR, ISLAND_RADIUS + (layer.wet ? 6 : 1))
+      : style === 'gas-giant'
+        ? Math.min(layer.maxR, MESA_RADIUS - 2)
+        : layer.maxR;
+  const minY = style === 'oceanic' ? (layer.wet ? -0.8 : 0.3) : style === 'gas-giant' ? -0.8 : -Infinity;
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const e = new THREE.Euler();
@@ -482,25 +523,42 @@ const fillInstances = (
   const c = new THREE.Color();
   const [sx, , sz] = SURFACE_SPAWN;
   let placed = 0;
-  for (let tries = 0; tries < layer.count * 8 && placed < layer.count; tries += 1) {
-    const r = Math.sqrt(layer.minR ** 2 + rnd() * (layer.maxR ** 2 - layer.minR ** 2));
-    const a = rnd() * Math.PI * 2;
-    const x = Math.cos(a) * r;
-    const z = Math.sin(a) * r;
-    const patch = fbm2(x * 0.07 + seed * 0.01, z * 0.07, 3);
-    if (rnd() > 1 - layer.clump + layer.clump * Math.pow(patch * 1.5, 3)) continue;
-    if (Math.hypot(x - sx, z - sz) < 1.6 + layer.clear) continue;
+  const fgr = layer.foreground;
+  for (let tries = 0; tries < layer.count * 30 && placed < layer.count; tries += 1) {
+    let x: number;
+    let z: number;
+    let r: number;
+    if (fgr) {
+      // a fan in front of the spawn, biased to the left and right edges of the view
+      const side = rnd() < 0.5 ? -1 : 1;
+      const th = side * (0.3 + rnd() * 0.45);
+      const d = 2.4 + rnd() * 3.2;
+      x = sx + Math.sin(th) * d;
+      z = sz - Math.cos(th) * d;
+      r = Math.hypot(x, z);
+    } else {
+      r = Math.sqrt(Math.min(layer.minR, maxR - 1) ** 2 + rnd() * (maxR ** 2 - Math.min(layer.minR, maxR - 1) ** 2));
+      const a = rnd() * Math.PI * 2;
+      x = Math.cos(a) * r;
+      z = Math.sin(a) * r;
+      const patch = fbm2(x * 0.07 + seed * 0.01, z * 0.07, 3);
+      if (rnd() > 1 - layer.clump + layer.clump * Math.pow(patch * 1.5, 3)) continue;
+      if (Math.hypot(x - sx, z - sz) < 1.6 + layer.clear) continue;
+    }
+    const pathClear = fgr ? 0.55 : PATH_CLEAR + layer.clear * 0.5;
     let blocked = false;
     for (const [bx, bz] of beacons) {
-      if (Math.hypot(x - bx, z - bz) < BEACON_CLEAR + layer.clear) blocked = true;
-      else if (segDist(x, z, sx, sz, bx, bz) < PATH_CLEAR + layer.clear * 0.5) blocked = true;
+      if (Math.hypot(x - bx, z - bz) < BEACON_CLEAR + (fgr ? 0 : layer.clear)) blocked = true;
+      else if (segDist(x, z, sx, sz, bx, bz) < pathClear) blocked = true;
       if (blocked) break;
     }
     if (blocked) continue;
+    const gy = H(x, z);
+    if (gy < minY || (style === 'oceanic' && layer.wet && gy > 1.4)) continue;
     let k = layer.scale[0] + Math.pow(rnd(), 1.8) * (layer.scale[1] - layer.scale[0]);
     // big props stay modest near the walkway so the monuments read first
-    if (layer.clear >= 1) k *= 0.45 + 0.55 * Math.min(1, Math.max(0, (r - 6) / 18));
-    p.set(x, terrainHeight(x, z) - layer.sink * k, z);
+    if (!fgr && layer.clear >= 1) k *= 0.45 + 0.55 * Math.min(1, Math.max(0, (r - 6) / 18));
+    p.set(x, gy - layer.sink * k, z);
     e.set((rnd() - 0.5) * layer.tiltJitter, rnd() * Math.PI * 2, (rnd() - 0.5) * layer.tiltJitter);
     q.setFromEuler(e);
     s.set(k * (0.85 + rnd() * 0.3), k, k * (0.85 + rnd() * 0.3));
@@ -514,6 +572,65 @@ const fillInstances = (
   mesh.instanceMatrix.needsUpdate = true;
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   mesh.computeBoundingSphere();
+};
+
+/* ---------- rising embers (molten): GPU-animated points, no per-frame CPU work ---------- */
+
+const EMBER_COUNT = 260;
+
+const buildEmbers = (color: THREE.Color, time: { value: number }) => {
+  const rnd = mulberry(4242);
+  const pos = new Float32Array(EMBER_COUNT * 3);
+  const seed = new Float32Array(EMBER_COUNT * 2);
+  for (let i = 0; i < EMBER_COUNT; i += 1) {
+    const r = 3 + Math.sqrt(rnd()) * 34;
+    const a = rnd() * Math.PI * 2;
+    const x = Math.cos(a) * r;
+    const z = Math.sin(a) * r;
+    pos.set([x, heightFor('molten')(x, z), z], i * 3);
+    seed.set([rnd(), 0.5 + rnd()], i * 2);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aSeed', new THREE.BufferAttribute(seed, 2));
+  geo.computeBoundingSphere();
+  const mat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    fog: false,
+    uniforms: { uTime: time, uColor: { value: color } },
+    vertexShader: /* glsl */ `
+      uniform float uTime;
+      attribute vec2 aSeed;
+      varying float vA;
+      void main() {
+        float life = fract(aSeed.x + uTime * 0.07 * aSeed.y);
+        vec3 p = position;
+        p.y += life * 7.0;
+        p.x += sin(uTime * 0.6 + aSeed.x * 40.0) * 0.5 * life;
+        p.z += cos(uTime * 0.5 + aSeed.x * 31.0) * 0.5 * life;
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        vA = smoothstep(0.0, 0.1, life) * (1.0 - smoothstep(0.55, 1.0, life));
+        gl_PointSize = clamp(90.0 / -mv.z, 1.0, 6.0) * aSeed.y;
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uColor;
+      varying float vA;
+      void main() {
+        float d = length(gl_PointCoord - 0.5) * 2.0;
+        float a = (1.0 - smoothstep(0.2, 1.0, d)) * vA;
+        gl_FragColor = vec4(uColor * a, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `,
+  });
+  const pts = new THREE.Points(geo, mat);
+  pts.raycast = () => undefined;
+  return pts;
 };
 
 interface VegetationProps {
@@ -530,13 +647,28 @@ const Vegetation = ({ planet, beacons, reducedMotion }: VegetationProps) => {
     const seed = seedOf(planet.id);
     return buildLayers(planet, time).map((layer, i) => {
       const mesh = new THREE.InstancedMesh(layer.geo, layer.mat, layer.count);
-      fillInstances(mesh, layer, beacons, seed + i * 101);
+      fillInstances(mesh, layer, beacons, seed + i * 101, planet.style);
       mesh.castShadow = layer.shadow;
       mesh.receiveShadow = true;
       mesh.raycast = () => undefined;
       return mesh;
     });
   }, [planet, beacons, time]);
+
+  const embers = useMemo(
+    () =>
+      planet.style === 'molten'
+        ? buildEmbers(new THREE.Color('#ff8a3a').lerp(new THREE.Color(planet.accent), 0.25).multiplyScalar(2.2), time)
+        : null,
+    [planet, time],
+  );
+  useEffect(
+    () => () => {
+      embers?.geometry.dispose();
+      (embers?.material as THREE.Material | undefined)?.dispose();
+    },
+    [embers],
+  );
 
   useEffect(
     () => () =>
@@ -557,6 +689,7 @@ const Vegetation = ({ planet, beacons, reducedMotion }: VegetationProps) => {
       {meshes.map((m, i) => (
         <primitive key={i} object={m} />
       ))}
+      {embers && <primitive object={embers} />}
     </group>
   );
 };

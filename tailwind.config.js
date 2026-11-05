@@ -19,7 +19,7 @@ export default {
         ink: {
           DEFAULT: '#e9eef7',
           muted: '#9aa5b8',
-          faint: '#5d6779',
+          faint: '#7c879a',
         },
         line: 'rgba(233, 238, 247, 0.12)',
       },

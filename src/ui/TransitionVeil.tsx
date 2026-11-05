@@ -1,13 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { planetById } from '@/data/content';
+import { buildSky } from '@/data/skyPresets';
+import type { Planet } from '@/types/content';
 import { useAppStore } from '@/state/useAppStore';
-import {
-  ENTER_VEIL_START,
-  EXIT_VEIL_START,
-  REDUCED_TOTAL,
-  VEIL_FADE_IN,
-  VEIL_LIFT,
-} from '@/state/timing';
+import { ENTER_VEIL_START, EXIT_VEIL_START, REDUCED_TOTAL, VEIL_FADE_IN, VEIL_LIFT } from '@/state/timing';
 import { EASE } from './primitives';
 
 const SPACE = '#05070d';
@@ -73,12 +69,15 @@ const TransitionVeil = () => {
     const prio = reduced ? 'important' : '';
     const cover = reduced ? REDUCED_FADE : v.coverMs;
     const tint = reduced ? REDUCED_FADE : v.tintMs;
-    root.current?.style.setProperty('transition', `opacity ${cover}ms ${v.cover ? 'cubic-bezier(0.4, 0, 0.6, 1)' : EASE}`, prio);
+    root.current?.style.setProperty(
+      'transition',
+      `opacity ${cover}ms ${v.cover ? 'cubic-bezier(0.4, 0, 0.6, 1)' : EASE}`,
+      prio,
+    );
     tintEl.current?.style.setProperty('transition', `opacity ${tint}ms ${EASE}`, prio);
   }, [reduced, v]);
 
   const planet = planetById(v.planetId);
-  const color = planet?.color ?? SPACE;
 
   return (
     <div
@@ -93,23 +92,29 @@ const TransitionVeil = () => {
     >
       <div
         ref={tintEl}
-        className="absolute inset-0 flex flex-col items-center justify-center"
-        style={{
-          opacity: v.tint,
-          background: `radial-gradient(ellipse 120% 90% at 50% 55%, color-mix(in srgb, ${color} 72%, ${SPACE}) 0%, color-mix(in srgb, ${color} 34%, ${SPACE}) 42%, ${SPACE} 100%)`,
-        }}
-      >
-        {planet && (
-          <div className="text-center" style={{ transform: v.cover ? 'none' : 'translateY(6px)', transition: `transform 900ms ${EASE}` }}>
-            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-white/70">
-              {String(planet.index).padStart(2, '0')} / {planet.subtitle}
-            </p>
-            <p className="mt-3 font-display text-[56px] leading-none text-white md:text-[72px]">{planet.title}</p>
-          </div>
-        )}
-      </div>
+        className="absolute inset-0"
+        style={{ opacity: v.tint, background: planet ? skyGradient(planet) : SPACE }}
+      />
     </div>
   );
+};
+
+/**
+ * The destination sky (zenith to horizon, sRGB from the same preset the
+ * surface uses) so the cut lands on matching colours, with a faint accent
+ * glow where the horizon will be.
+ */
+const gradients = new Map<string, string>();
+const skyGradient = (planet: Planet): string => {
+  const hit = gradients.get(planet.id);
+  if (hit) return hit;
+  const sky = buildSky(planet);
+  const hex = (c: { getHexString: () => string }) => `#${c.getHexString()}`;
+  const g =
+    `radial-gradient(ellipse 90% 55% at 50% 62%, color-mix(in srgb, ${planet.accent} 22%, transparent) 0%, transparent 70%), ` +
+    `linear-gradient(180deg, ${hex(sky.zenith)} 0%, ${hex(sky.upper)} 38%, ${hex(sky.horizon)} 72%, ${hex(sky.fogColor)} 100%)`;
+  gradients.set(planet.id, g);
+  return g;
 };
 
 export default TransitionVeil;

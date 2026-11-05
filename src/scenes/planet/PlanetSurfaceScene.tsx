@@ -6,9 +6,10 @@ import { getBeaconPosition, planetById } from '@/data/content';
 import { buildSky } from '@/data/skyPresets';
 import type { Planet, Vec3 } from '@/types/content';
 import SkyDome from './SkyDome';
-import Terrain, { terrainHeight } from './Terrain';
+import Terrain, { heightFor, walkRadiusFor } from './Terrain';
+import Surroundings from './Surroundings';
 import Vegetation from './Vegetation';
-import Beacon, { BEACON_HEIGHT } from './Beacon';
+import Beacon, { beaconHeight } from './Beacon';
 import PlanetCamera, { type SurfaceBeacon } from './PlanetCamera';
 
 const SHADOW_EXTENT = 34;
@@ -17,18 +18,24 @@ const SUN_DISTANCE = 70;
 const Surface = ({ planet }: { planet: Planet }) => {
   const scene = useThree((s) => s.scene);
   const reducedMotion = useAppStore((s) => s.reducedMotion);
+  const isTouch = useAppStore((s) => s.isTouch);
+  const ground = useMemo(() => heightFor(planet.style), [planet.style]);
+  const walkRadius = walkRadiusFor(planet.style);
   const sun = useRef<THREE.DirectionalLight>(null);
   const sky = useMemo(() => buildSky(planet), [planet]);
   // soft fill from the spawn side so monument faces read when backlit
   const fillPos = useMemo<Vec3>(() => [-sky.lightDir.x * 30, 18, 40], [sky]);
+  const fillColor = useMemo(() => sky.hemiSky.clone().lerp(sky.lightColor, 0.45), [sky]);
+  // backlit skies (sun in front of the spawn view) need a stronger fill
+  const fillIntensity = sky.lightIntensity * (sky.lightDir.z < -0.3 ? 0.7 : 0.45);
 
   const beacons = useMemo<SurfaceBeacon[]>(
     () =>
       planet.beacons.map((b, i) => {
         const [x, , z] = getBeaconPosition(planet, i);
-        return { id: b.id, position: [x, terrainHeight(x, z), z] as Vec3, height: BEACON_HEIGHT[b.kind] };
+        return { id: b.id, position: [x, ground(x, z), z] as Vec3, height: beaconHeight(b) };
       }),
-    [planet],
+    [planet, ground],
   );
   const clearings = useMemo(
     () => beacons.map((b) => [b.position[0], b.position[2]] as [number, number]),
@@ -65,16 +72,16 @@ const Surface = ({ planet }: { planet: Planet }) => {
         color={sky.lightColor}
         intensity={sky.lightIntensity}
         castShadow
-        shadow-mapSize={[2048, 2048]}
+        shadow-mapSize={isTouch ? [1024, 1024] : [2048, 2048]}
         shadow-bias={-0.0004}
         shadow-normalBias={0.03}
-        shadow-radius={4}
       />
 
-      <directionalLight position={fillPos} color={sky.hemiSky} intensity={sky.lightIntensity * 0.3} />
+      <directionalLight position={fillPos} color={fillColor} intensity={fillIntensity} />
 
       <SkyDome sky={sky} reducedMotion={reducedMotion} />
-      <Terrain planet={planet} sky={sky} />
+      <Terrain planet={planet} sky={sky} reducedMotion={reducedMotion} />
+      <Surroundings planet={planet} sky={sky} reducedMotion={reducedMotion} />
       <Vegetation planet={planet} beacons={clearings} reducedMotion={reducedMotion} />
 
       {planet.beacons.map((b, i) => (
@@ -84,11 +91,15 @@ const Surface = ({ planet }: { planet: Planet }) => {
           planet={planet}
           index={i}
           position={beacons[i].position}
+          rim={sky.rim}
+          rimColor={sky.rimColor}
+          labelInk={sky.labelInk}
+          labelHalo={sky.labelHalo}
           reducedMotion={reducedMotion}
         />
       ))}
 
-      <PlanetCamera planetId={planet.id} beacons={beacons} />
+      <PlanetCamera planetId={planet.id} beacons={beacons} ground={ground} walkRadius={walkRadius} />
     </>
   );
 };

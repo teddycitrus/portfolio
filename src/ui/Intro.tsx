@@ -1,7 +1,7 @@
 import type { CSSProperties, KeyboardEvent } from 'react';
 import { profile } from '@/data/content';
 import { useAppStore } from '@/state/useAppStore';
-import { ArrowIcon, Button, EASE, SAFE, usePresence } from './primitives';
+import { ArrowIcon, Button, EASE, Kbd, SAFE, usePresence } from './primitives';
 
 /** Keep Enter/Space on these buttons from reaching the global intro shortcut. */
 const ownKeys = (e: KeyboardEvent) => {
@@ -36,10 +36,14 @@ const Intro = () => {
         style={{ opacity: visible ? 1 : 0, transition: `opacity 700ms ${EASE}` }}
       />
 
-      <div className="relative w-full max-w-[640px] pb-14 md:ml-[clamp(0px,6vw,112px)] md:pb-0">
+      <div className="relative w-full max-w-[640px] pb-2 md:ml-[clamp(0px,6vw,112px)] md:pb-0">
         <p className="label mb-6 flex flex-wrap gap-x-3" style={step(0)}>
-          {profile.location && <span>{profile.location}</span>}
-          {profile.location && <span aria-hidden="true" className="text-ink-faint">/</span>}
+          {profile.location && <span className="max-sm:hidden">{profile.location}</span>}
+          {profile.location && (
+            <span aria-hidden="true" className="text-ink-faint max-sm:hidden">
+              /
+            </span>
+          )}
           <span>{profile.role}</span>
         </p>
         <h1
@@ -52,7 +56,10 @@ const Intro = () => {
             </span>
           ))}
         </h1>
-        <p className="mt-6 max-w-[36ch] text-[17px] leading-[1.55] text-ink-muted md:mt-8 md:text-[19px]" style={step(2)}>
+        <p
+          className="mt-6 max-w-[36ch] text-[17px] leading-[1.55] text-ink-muted md:mt-8 md:text-[19px]"
+          style={step(2)}
+        >
           {profile.tagline}
         </p>
         <div className="mt-8 flex flex-wrap items-center gap-3 md:mt-10" style={step(3)}>
@@ -73,14 +80,32 @@ const Intro = () => {
             Read as a page
           </Button>
         </div>
+        <p
+          className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] text-ink-muted md:mt-12"
+          style={step(4)}
+        >
+          {isTouch ? (
+            <>
+              <span>Drag to look</span>
+              <span aria-hidden="true" className="h-3 w-px bg-white/15" />
+              <span>Tap a planet to land</span>
+            </>
+          ) : (
+            <>
+              <span>Move the mouse to look</span>
+              <span aria-hidden="true" className="h-3 w-px bg-white/15" />
+              <span>Click a planet to land</span>
+              <span aria-hidden="true" className="h-3 w-px bg-white/15" />
+              <span className="inline-flex items-center gap-1.5">
+                <Kbd>1</Kbd>
+                <span className="text-ink-faint">to</span>
+                <Kbd>5</Kbd>
+                <span>jump</span>
+              </span>
+            </>
+          )}
+        </p>
       </div>
-
-      <p
-        className="label absolute normal-case tracking-[0.04em]"
-        style={{ ...step(4), left: SAFE.left, right: SAFE.right, bottom: SAFE.bottom }}
-      >
-        {isTouch ? 'Drag to look. Tap a planet.' : 'Move the mouse to look. Click a planet to land. Keys 1-5 jump.'}
-      </p>
     </section>
   );
 };

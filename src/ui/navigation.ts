@@ -4,7 +4,15 @@ import { useAppStore } from '@/state/useAppStore';
 
 let cancelPending: (() => void) | null = null;
 
-const focusBeacon = (id: string) => {
+/**
+ * Beacon whose panel should take keyboard focus when it opens. Set only for
+ * deliberate actions (click, Enter), never for gaze or proximity focus.
+ */
+export const panelFocusIntent = { id: null as string | null };
+
+/** Glide to a beacon and open its panel. `takeFocus` moves focus to the panel heading. */
+export const openBeacon = (id: string, takeFocus = true) => {
+  panelFocusIntent.id = takeFocus ? id : null;
   const s = useAppStore.getState();
   s.glideToBeacon(id);
   s.setFocusedBeacon(id);
@@ -15,13 +23,13 @@ const focusBeacon = (id: string) => {
  * Arrival resets glide/focus in the store, so the beacon is focused after
  * the mode settles on the target planet.
  */
-export const visitPlanet = (planetId: string, beaconId?: string) => {
+export const visitPlanet = (planetId: string, beaconId?: string, takeFocus = false) => {
   cancelPending?.();
   cancelPending = null;
   const s = useAppStore.getState();
   if (s.readerOpen) s.closeReader();
   if (s.mode === 'planet' && s.activePlanetId === planetId) {
-    if (beaconId) focusBeacon(beaconId);
+    if (beaconId) openBeacon(beaconId, takeFocus);
     return;
   }
   s.travelTo(planetId);
@@ -33,7 +41,7 @@ export const visitPlanet = (planetId: string, beaconId?: string) => {
       // let the veil start lifting before the camera glides
       timer = window.setTimeout(() => {
         const now = useAppStore.getState();
-        if (now.mode === 'planet' && now.activePlanetId === planetId) focusBeacon(beaconId);
+        if (now.mode === 'planet' && now.activePlanetId === planetId) openBeacon(beaconId, takeFocus);
       }, 350);
     } else if (st.mode === 'overworld' || (st.mode === 'planet' && st.activePlanetId !== planetId)) {
       unsub();

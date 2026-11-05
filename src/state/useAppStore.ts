@@ -25,8 +25,11 @@ interface AppState {
   readerSection: string | null;
   isTouch: boolean;
   reducedMotion: boolean;
+  /** WebGL failed or is missing: the reader becomes the whole site */
+  noWebGL: boolean;
 
   start: () => void;
+  setNoWebGL: () => void;
   setHoveredPlanet: (id: string | null) => void;
   setFocusedBeacon: (id: string | null) => void;
   glideToBeacon: (id: string) => void;
@@ -58,10 +61,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   readerSection: null,
   isTouch: false,
   reducedMotion: false,
+  noWebGL: false,
 
   start: () => {
     if (get().mode === 'intro') set({ mode: 'overworld' });
   },
+  setNoWebGL: () => set({ noWebGL: true, readerOpen: true, readerSection: null }),
   setHoveredPlanet: (id) => set({ hoveredPlanetId: id }),
   setFocusedBeacon: (id) => {
     if (get().focusedBeaconId !== id) set({ focusedBeaconId: id });
@@ -71,7 +76,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   setIsTouch: (v) => set({ isTouch: v }),
   setReducedMotion: (v) => set({ reducedMotion: v }),
   openReader: (section = null) => set({ readerOpen: true, readerSection: section }),
-  closeReader: () => set({ readerOpen: false }),
+  closeReader: () => {
+    if (!get().noWebGL) set({ readerOpen: false });
+  },
 
   travelTo: (planetId) => {
     const s = get();

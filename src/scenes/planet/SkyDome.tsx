@@ -70,7 +70,7 @@ const skyFrag = /* glsl */ `
     float mu = dot(dir, uSunDir);
     vec2 az = normalize(dir.xz + 1e-5);
     vec2 sunAz = normalize(uSunDir.xz + 1e-5);
-    float side = dot(az, sunAz) * 0.5 + 0.5;
+    float side = clamp(dot(az, sunAz) * 0.5 + 0.5, 0.0, 1.0);
 
     // horizon glow toward the sun azimuth
     float band = exp(-abs(h - max(uSunDir.y, -0.05) * 0.3) * 7.0);
@@ -102,6 +102,8 @@ const skyFrag = /* glsl */ `
 
     // dither against banding
     col += (hash12(gl_FragCoord.xy + fract(uTime) * 61.0) - 0.5) / 255.0;
+    // never hand negative or NaN values to the post chain (bloom would spread them)
+    col = max(col, vec3(0.0));
     gl_FragColor = vec4(col, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -152,7 +154,7 @@ const moonFrag = /* glsl */ `
     col = mix(col, uHaze, uHazeAmount);
     // soft limb
     float alpha = smoothstep(0.0, 0.08, dot(n, vView));
-    gl_FragColor = vec4(col, alpha);
+    gl_FragColor = vec4(max(col, vec3(0.0)), alpha);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }
@@ -182,6 +184,16 @@ const ringVert = /* glsl */ `
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
+
+/** Hoisted so the per-frame traverse allocates no closure */
+const unfogStar = (o: THREE.Object3D) => {
+  const m = (o as THREE.Mesh).material as (THREE.Material & { fog?: boolean }) | undefined;
+  if (m && (m.fog || m.depthWrite)) {
+    m.fog = false;
+    m.depthWrite = false;
+    m.needsUpdate = true;
+  }
+};
 
 interface SkyDomeProps {
   sky: ResolvedSky;
@@ -281,14 +293,7 @@ const SkyDome = ({ sky, reducedMotion }: SkyDomeProps) => {
     // the starfield is owned elsewhere; keep it unfogged and behind the sister planet
     const s = stars.current;
     if (s) {
-      s.traverse((o) => {
-        const m = (o as THREE.Mesh).material as (THREE.Material & { fog?: boolean }) | undefined;
-        if (m && (m.fog || m.depthWrite)) {
-          m.fog = false;
-          m.depthWrite = false;
-          m.needsUpdate = true;
-        }
-      });
+      s.traverse(unfogStar);
     }
   });
 

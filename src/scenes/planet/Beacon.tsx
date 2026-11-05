@@ -5,18 +5,65 @@ import * as THREE from 'three';
 import type { Beacon as BeaconData, BeaconKind, Planet, Vec3 } from '@/types/content';
 import { useAppStore } from '@/state/useAppStore';
 import { dragLook } from '@/state/runtime';
+import { arrivalPulse } from './surfaceState';
 
-export const LABEL_FONT =
-  'https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-mono@5/files/ibm-plex-mono-latin-500-normal.woff';
+export const LABEL_FONT = `${import.meta.env.BASE_URL}fonts/ibm-plex-mono-latin-600-normal.woff`;
 
 /** Approximate monument height per kind, used for labels and screen-size estimates. */
 export const BEACON_HEIGHT: Record<BeaconKind, number> = {
-  project: 3.9,
-  award: 3.2,
+  project: 4.2,
+  award: 3.05,
   skills: 2.5,
-  link: 2.9,
-  profile: 2.6,
+  link: 2.8,
+  profile: 2.9,
 };
+
+/* ---------- meaning: award tiers, project glyphs, skill counts ---------- */
+
+export interface AwardRank {
+  /** 1 = winner / 1st place, 2 = placed, 3 = distinction */
+  tier: 1 | 2 | 3;
+  /** Category win (e.g. Future Impact) gets its own crown */
+  category: boolean;
+}
+
+export const awardRank = (b: BeaconData): AwardRank => {
+  if (b.kind !== 'award') return { tier: 2, category: false };
+  const r = b.content.result.toLowerCase();
+  if (r.includes('distinction')) return { tier: 3, category: false };
+  if (r.includes('future impact')) return { tier: 1, category: true };
+  if (/winner|1st|first/.test(r)) return { tier: 1, category: false };
+  return { tier: 2, category: false };
+};
+
+const AWARD_TIER: Record<1 | 2 | 3, { pillar: number; metal: string }> = {
+  1: { pillar: 2.3, metal: '#dcb664' },
+  2: { pillar: 2.0, metal: '#c8ccd4' },
+  3: { pillar: 1.65, metal: '#b9865a' },
+};
+
+const skillPillars = (b: BeaconData): Array<[number, number, number]> => {
+  const n = b.kind === 'skills' ? Math.max(3, Math.min(6, b.content.items.length)) : 3;
+  const out: Array<[number, number, number]> = [];
+  for (let i = 0; i < n; i += 1) {
+    const a = (i / n) * Math.PI * 2 + 0.4;
+    const r = n <= 3 ? 0.36 : 0.44;
+    const f = Math.sin(i * 12.9898 + n * 3.7) * 43758.5453;
+    out.push([Math.cos(a) * r, Math.sin(a) * r, 1.1 + (f - Math.floor(f)) * 1.0]);
+  }
+  return out;
+};
+
+/** Monument height for one beacon (labels and HUD anchors sit just above it). */
+export const beaconHeight = (b: BeaconData): number => {
+  if (b.kind === 'award') return AWARD_TIER[awardRank(b).tier].pillar + 0.75;
+  if (b.kind === 'skills') return Math.max(...skillPillars(b).map((p) => p[2])) + 0.55;
+  return BEACON_HEIGHT[b.kind];
+};
+
+/** Label sits this far above the monument top; beaconScreen anchors to its middle. */
+export const LABEL_GAP = 0.3;
+export const LABEL_ANCHOR = LABEL_GAP + 0.25;
 
 const KIND_LABEL: Record<BeaconKind, string> = {
   project: 'PROJECT',
@@ -53,6 +100,25 @@ const poolMaterial = (color: THREE.Color) =>
     `,
   });
 
+type TextMesh = THREE.Mesh & { fillOpacity: number; outlineOpacity: number };
+const setLabel = (m: THREE.Mesh | null, fill: number, outline: number) => {
+  if (!m) return;
+  (m as TextMesh).fillOpacity = fill;
+  (m as TextMesh).outlineOpacity = outline;
+  m.visible = fill > 0.01;
+};
+
+const SHIELD = (() => {
+  const sh = new THREE.Shape();
+  sh.moveTo(-0.15, 0.17);
+  sh.lineTo(0.15, 0.17);
+  sh.lineTo(0.15, 0.0);
+  sh.quadraticCurveTo(0.14, -0.13, 0, -0.22);
+  sh.quadraticCurveTo(-0.14, -0.13, -0.15, 0.0);
+  sh.closePath();
+  return sh;
+})();
+
 const damp = (cur: number, target: number, rate: number, dt: number) =>
   cur + (target - cur) * (1 - Math.exp(-rate * dt));
 
@@ -62,31 +128,84 @@ interface BeaconProps {
   index: number;
   /** World position at ground level */
   position: Vec3;
+  /** Strength of the moonlit/sky rim on the stone (0..1) */
+  rim?: number;
+  rimColor?: THREE.Color;
+  labelInk?: string;
+  labelHalo?: string;
   reducedMotion?: boolean;
 }
 
-const Beacon = ({ beacon, planet, index, position, reducedMotion }: BeaconProps) => {
+/** Unfogged, untonemapped base for the troika labels so they stay crisp at any distance. */
+const labelMaterial = () =>
+  new THREE.MeshBasicMaterial({ fog: false, toneMapped: false, transparent: true, depthWrite: false });
+
+/** Adds a view-angle rim to a standard material so monuments never read as flat silhouettes. */
+const addRim = (m: THREE.MeshStandardMaterial, color: THREE.Color, strength: number) => {
+  m.customProgramCacheKey = () => 'beacon-rim';
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uRim = { value: color.clone().multiplyScalar(strength) };
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform vec3 uRim;')
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        float rimF = pow(1.0 - saturate(dot(normalize(normal), normalize(vViewPosition))), 2.5);
+        totalEmissiveRadiance += uRim * (0.2 + rimF);`,
+      );
+  };
+  return m;
+};
+
+const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, labelInk = '#f3eee6', labelHalo = '#06070c', reducedMotion }: BeaconProps) => {
   const kind = beacon.kind;
-  const height = BEACON_HEIGHT[kind];
+  const height = useMemo(() => beaconHeight(beacon), [beacon]);
+  const rank = useMemo(() => awardRank(beacon), [beacon]);
+  const pillars = useMemo(() => skillPillars(beacon), [beacon]);
+  const glyph = /iris/.test(beacon.id)
+    ? 'eye'
+    : /eureka/.test(beacon.id)
+      ? 'globe'
+      : /nora/.test(beacon.id)
+        ? 'prism'
+        : /shield/.test(beacon.id)
+          ? 'shield'
+          : 'spark';
+  // eye and shield glyphs face the walkway, so they sway instead of spinning
+  const sway = glyph === 'eye' || glyph === 'shield';
   const floater = useRef<THREE.Group>(null);
   const label = useRef<THREE.Mesh>(null);
   const sub = useRef<THREE.Mesh>(null);
   const ring = useRef<THREE.Mesh>(null);
-  const state = useRef({ focus: 0, label: 0, ring: 0 });
+  const labelGroup = useRef<THREE.Group>(null);
+  // labels start legible; the arrival veil hides the first frames anyway
+  const state = useRef({ focus: 0, label: 0.86, ring: 0 });
 
   // face the spawn side so seams and faces read from the walkway
   const yaw = useMemo(() => Math.atan2(-position[0], 5 - position[2]), [position]);
 
   const mats = useMemo(() => {
     const accent = new THREE.Color(planet.accent);
-    const gold = new THREE.Color('#d8b46a').lerp(accent, 0.2);
-    const stoneColor = new THREE.Color('#8c8780').lerp(new THREE.Color(planet.palette[0]), 0.18);
-    const stone = new THREE.MeshStandardMaterial({ color: stoneColor, roughness: 0.72, metalness: 0.05, flatShading: true });
-    const plinth = new THREE.MeshStandardMaterial({ color: stoneColor.clone().multiplyScalar(0.8), roughness: 0.9 });
+    const gold = new THREE.Color(AWARD_TIER[rank.tier].metal).lerp(accent, rank.tier === 1 ? 0.15 : 0.05);
+    const stoneColor = new THREE.Color('#bdb6ac').lerp(new THREE.Color(planet.palette[1]), 0.12);
+    // award pillars take a warm cast from their metal so they read gold against dark rock
+    if (kind === 'award') stoneColor.lerp(gold, 0.22);
+    const rc = rimColor ?? new THREE.Color(planet.accent);
+    const stone = addRim(
+      new THREE.MeshStandardMaterial({ color: stoneColor, roughness: 0.68, metalness: 0.02, flatShading: true }),
+      rc,
+      rim * 0.18,
+    );
+    const plinth = addRim(
+      new THREE.MeshStandardMaterial({ color: stoneColor.clone().multiplyScalar(0.62), roughness: 0.9 }),
+      rc,
+      rim * 0.1,
+    );
     const metal = new THREE.MeshStandardMaterial({
       color: kind === 'award' ? gold : stoneColor.clone().lerp(accent, 0.25),
-      roughness: 0.35,
-      metalness: 0.55,
+      roughness: kind === 'award' ? 0.3 : 0.35,
+      metalness: kind === 'award' ? 0.75 : 0.55,
+      emissive: kind === 'award' ? gold.clone().multiplyScalar(0.12) : new THREE.Color(0),
     });
     const seamBase = (kind === 'award' ? gold.clone().lerp(accent, 0.3) : accent.clone());
     const seam = new THREE.MeshBasicMaterial({ color: seamBase.clone() });
@@ -99,8 +218,8 @@ const Beacon = ({ beacon, planet, index, position, reducedMotion }: BeaconProps)
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     });
-    return { stone, plinth, metal, seam, seamBase, pool, ringMat };
-  }, [planet, kind]);
+    return { stone, plinth, metal, seam, seamBase, pool, ringMat, labelA: labelMaterial(), labelB: labelMaterial() };
+  }, [planet, kind, rim, rimColor, rank]);
 
   useEffect(
     () => () => {
@@ -110,7 +229,7 @@ const Beacon = ({ beacon, planet, index, position, reducedMotion }: BeaconProps)
     [mats],
   );
 
-  useFrame(({ camera, clock }, delta) => {
+  useFrame(({ camera, clock, size }, delta) => {
     const dt = Math.min(delta, 0.05);
     const s = state.current;
     const t = clock.elapsedTime;
@@ -121,15 +240,35 @@ const Beacon = ({ beacon, planet, index, position, reducedMotion }: BeaconProps)
     const dz = camera.position.z - position[2];
     const dist = Math.sqrt(dx * dx + dz * dz);
     const near = 1 - THREE.MathUtils.smoothstep(dist, 5, 17);
-    s.label = damp(s.label, Math.max(0.22 + near * 0.6, s.focus), 5, dt);
+    // never below ~0.6 inside the play area, full when close or focused
+    s.label = damp(s.label, Math.max(0.86 + near * 0.14, s.focus), 5, dt);
+    if (labelGroup.current) {
+      // grow gently with distance (and on narrow screens) so far labels stay readable
+      // narrow screens view the arc from further back, where neighbours sit closer together
+      const k =
+        size.width < 700
+          ? 1.15 * THREE.MathUtils.clamp(0.8 + dist * 0.02, 1, 1.2)
+          : THREE.MathUtils.clamp(0.75 + dist * 0.035, 1, 1.45);
+      labelGroup.current.scale.setScalar(k);
+    }
 
+    // one-off discovery pulse after arrival, beacon by beacon
+    let pop = 0;
+    let popK = 0;
+    if (arrivalPulse.start > 0) {
+      const lt = (performance.now() - arrivalPulse.start) / 1000 - index * 0.28;
+      if (lt > 0 && lt < 1.4) {
+        popK = lt / 1.4;
+        pop = 1 - popK;
+      }
+    }
     const breathe = reducedMotion ? 0 : Math.sin(t * 1.1 + index * 1.7) * 0.5 + 0.5;
-    const glow = 0.95 + breathe * 0.3 + s.focus * 1.5;
+    const glow = 0.95 + breathe * 0.3 + s.focus * 1.5 + pop * 1.2;
     mats.seam.color.copy(mats.seamBase).multiplyScalar(glow);
     mats.pool.uniforms.uIntensity.value = 0.13 + breathe * 0.04 + s.focus * 0.3;
 
     if (floater.current && !reducedMotion) {
-      floater.current.rotation.y = t * 0.25 + index;
+      floater.current.rotation.y = sway ? Math.sin(t * 0.4 + index) * 0.35 : t * 0.25 + index;
       floater.current.position.y = Math.sin(t * 0.7 + index) * 0.06;
     }
 
@@ -137,19 +276,21 @@ const Beacon = ({ beacon, planet, index, position, reducedMotion }: BeaconProps)
     if (ring.current) {
       const phase = (t * 0.45 + index * 0.3) % 1;
       const k = reducedMotion ? 0.6 : phase;
-      ring.current.scale.setScalar(0.9 + k * 1.8);
-      (ring.current.material as THREE.MeshBasicMaterial).opacity = s.focus * (1 - k) * 0.4;
-      ring.current.visible = s.focus > 0.01;
+      let ro = s.focus * (1 - k) * 0.4;
+      let sc = 0.9 + k * 1.8;
+      if (pop * 0.6 > ro) {
+        ro = pop * 0.6;
+        sc = 0.9 + popK * 2.1;
+      }
+      ring.current.scale.setScalar(sc);
+      (ring.current.material as THREE.MeshBasicMaterial).opacity = ro;
+      ring.current.visible = ro > 0.005;
     }
 
     const op = s.label;
-    for (const m of [label.current, sub.current]) {
-      if (!m) continue;
-      const txt = m as THREE.Mesh & { fillOpacity: number; outlineOpacity: number };
-      txt.fillOpacity = m === sub.current ? op * 0.75 : op;
-      txt.outlineOpacity = op * 0.35;
-      m.visible = op > 0.01;
-    }
+    setLabel(label.current, op, op);
+    // the kind line is too small to read on phones; the chip list carries it there
+    setLabel(sub.current, size.width < 700 ? 0 : op * 0.92, op);
   });
 
   const onClick = (e: ThreeEvent<MouseEvent>) => {
@@ -188,67 +329,159 @@ const Beacon = ({ beacon, planet, index, position, reducedMotion }: BeaconProps)
           </mesh>
           {faceSeam(0.2, 0.34, 3.4, 1.7, 2.9, Math.SQRT1_2)}
           <group ref={floater}>
-            <mesh material={mats.seam} position={[0, 3.95, 0]}>
-              <octahedronGeometry args={[0.09, 0]} />
-            </mesh>
+            <group position={[0, 4.0, 0]}>
+              {glyph === 'eye' && (
+                <>
+                  <mesh material={mats.metal} scale={[1.35, 0.8, 1]}>
+                    <torusGeometry args={[0.15, 0.016, 8, 48]} />
+                  </mesh>
+                  <mesh material={mats.seam}>
+                    <sphereGeometry args={[0.06, 16, 12]} />
+                  </mesh>
+                </>
+              )}
+              {glyph === 'globe' && (
+                <>
+                  <mesh material={mats.metal}>
+                    <sphereGeometry args={[0.11, 20, 14]} />
+                  </mesh>
+                  <mesh material={mats.seam} rotation={[Math.PI / 2, 0, 0]}>
+                    <torusGeometry args={[0.15, 0.008, 6, 48]} />
+                  </mesh>
+                  <mesh material={mats.seam} rotation={[0, 0, 0.4]}>
+                    <torusGeometry args={[0.15, 0.006, 6, 48]} />
+                  </mesh>
+                </>
+              )}
+              {glyph === 'prism' && (
+                <>
+                  <mesh material={mats.metal}>
+                    <cylinderGeometry args={[0.13, 0.13, 0.3, 3]} />
+                  </mesh>
+                  <mesh material={mats.seam}>
+                    <cylinderGeometry args={[0.05, 0.05, 0.32, 3]} />
+                  </mesh>
+                </>
+              )}
+              {glyph === 'shield' && (
+                <>
+                  <mesh material={mats.metal} position={[0, 0, -0.02]}>
+                    <extrudeGeometry
+                      args={[SHIELD, { depth: 0.04, bevelEnabled: true, bevelSize: 0.01, bevelThickness: 0.01, bevelSegments: 1 }]}
+                    />
+                  </mesh>
+                  <mesh material={mats.seam} position={[0, 0.01, 0.035]} scale={0.5}>
+                    <shapeGeometry args={[SHIELD]} />
+                  </mesh>
+                </>
+              )}
+              {glyph === 'spark' && (
+                <mesh material={mats.seam}>
+                  <octahedronGeometry args={[0.09, 0]} />
+                </mesh>
+              )}
+            </group>
           </group>
         </group>
       );
       break;
-    case 'award':
+    case 'award': {
+      const P = AWARD_TIER[rank.tier].pillar;
+      const crownY = P + 0.48;
       body = (
         <group>
-          <mesh material={mats.stone} position={[0, 1.15, 0]} castShadow receiveShadow>
-            <cylinderGeometry args={[0.2, 0.26, 2.3, 8]} />
+          <mesh material={mats.stone} position={[0, P / 2, 0]} castShadow receiveShadow>
+            <cylinderGeometry args={[0.2, 0.26, P, 8]} />
           </mesh>
-          <mesh material={mats.metal} position={[0, 2.36, 0]} castShadow>
+          <mesh material={mats.metal} position={[0, P + 0.06, 0]} castShadow>
             <cylinderGeometry args={[0.3, 0.22, 0.12, 8]} />
           </mesh>
-          {faceSeam(0.2, 0.26, 2.3, 1.15, 1.9, 1, 0.022)}
-          <group ref={floater} position={[0, 0, 0]}>
-            <group position={[0, 2.78, 0]} rotation={[1.3, 0, 0.1]}>
-              <mesh material={mats.metal} castShadow>
-                <torusGeometry args={[0.42, 0.016, 8, 72]} />
+          {faceSeam(0.2, 0.26, P, P / 2, P * 0.82, 1, 0.022)}
+          <group ref={floater}>
+            {rank.tier === 1 && !rank.category && (
+              // winner: a level golden halo
+              <group position={[0, crownY, 0]} rotation={[1.3, 0, 0.1]}>
+                <mesh material={mats.metal} castShadow>
+                  <torusGeometry args={[0.42, 0.018, 8, 72]} />
+                </mesh>
+                <mesh material={mats.seam} scale={0.8}>
+                  <torusGeometry args={[0.42, 0.006, 6, 96]} />
+                </mesh>
+              </group>
+            )}
+            {rank.category && (
+              // category win: an armillary of two crossed rings around a star
+              <group position={[0, crownY, 0]}>
+                <mesh material={mats.metal} rotation={[0, 0, 0.5]}>
+                  <torusGeometry args={[0.32, 0.014, 8, 64]} />
+                </mesh>
+                <mesh material={mats.metal} rotation={[0, Math.PI / 2, -0.5]}>
+                  <torusGeometry args={[0.32, 0.014, 8, 64]} />
+                </mesh>
+                <mesh material={mats.seam} rotation={[Math.PI / 2, 0, 0]}>
+                  <torusGeometry args={[0.32, 0.005, 6, 64]} />
+                </mesh>
+              </group>
+            )}
+            {rank.tier === 2 && (
+              <group position={[0, crownY, 0]} rotation={[1.3, 0, 0.1]}>
+                <mesh material={mats.metal}>
+                  <torusGeometry args={[0.3, 0.014, 8, 64]} />
+                </mesh>
+              </group>
+            )}
+            {rank.tier === 3 && (
+              // distinction: a small upright medal
+              <group position={[0, crownY - 0.05, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                <mesh material={mats.metal}>
+                  <cylinderGeometry args={[0.16, 0.16, 0.03, 32]} />
+                </mesh>
+                <mesh material={mats.seam} position={[0, 0.017, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                  <ringGeometry args={[0.1, 0.12, 32]} />
+                </mesh>
+              </group>
+            )}
+            {rank.category ? (
+              <mesh material={mats.seam} position={[0, crownY, 0]}>
+                <octahedronGeometry args={[0.075, 0]} />
               </mesh>
-              <mesh material={mats.seam} scale={0.8}>
-                <torusGeometry args={[0.42, 0.006, 6, 96]} />
-              </mesh>
-            </group>
-            <mesh material={mats.seam} position={[0, 2.78, 0]}>
-              <sphereGeometry args={[0.055, 16, 12]} />
-            </mesh>
+            ) : (
+              rank.tier !== 3 && (
+                <mesh material={mats.seam} position={[0, crownY, 0]}>
+                  <sphereGeometry args={[0.055, 16, 12]} />
+                </mesh>
+              )
+            )}
           </group>
         </group>
       );
       break;
-    case 'skills':
+    }
+    case 'skills': {
+      const w = pillars.length > 4 ? 0.22 : 0.28;
+      const top = Math.max(...pillars.map((p) => p[2]));
       body = (
         <group>
-          {(
-            [
-              [-0.38, 0.12, 1.5],
-              [0.36, 0.2, 2.1],
-              [0.02, -0.36, 1.15],
-            ] as const
-          ).map(([x, z, h], i) => (
+          {pillars.map(([x, z, h], i) => (
             <group key={i} position={[x, 0, z]}>
               <mesh material={mats.stone} position={[0, h / 2, 0]} castShadow receiveShadow>
-                <boxGeometry args={[0.28, h, 0.28]} />
+                <boxGeometry args={[w, h, w]} />
               </mesh>
               <mesh material={mats.seam} position={[0, h + 0.012, 0]}>
-                <boxGeometry args={[0.2, 0.02, 0.2]} />
+                <boxGeometry args={[w * 0.7, 0.02, w * 0.7]} />
               </mesh>
-              {seamStrip(h * 0.75, h * 0.45, 0.145, 0.022)}
+              {seamStrip(h * 0.75, h * 0.45, w / 2 + 0.005, 0.02)}
             </group>
           ))}
           <group ref={floater}>
-            <mesh material={mats.seam} position={[0, 2.45, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <mesh material={mats.seam} position={[0, top + 0.35, 0]} rotation={[Math.PI / 2, 0, 0]}>
               <torusGeometry args={[0.16, 0.012, 6, 48]} />
             </mesh>
           </group>
         </group>
       );
       break;
+    }
     case 'link':
       body = (
         <group>
@@ -310,30 +543,36 @@ const Beacon = ({ beacon, planet, index, position, reducedMotion }: BeaconProps)
         <ringGeometry args={[1.0, 1.035, 96]} />
       </mesh>
 
-      <Billboard position={[0, height + 0.55, 0]}>
+      <Billboard ref={labelGroup} position={[0, height + LABEL_GAP, 0]}>
         <Text
           ref={label}
+          material={mats.labelA}
           font={LABEL_FONT}
-          fontSize={0.24}
+          fontSize={0.27}
           letterSpacing={0.16}
-          color="#f3eee6"
+          color={labelInk}
           anchorX="center"
           anchorY="bottom"
-          outlineWidth={0.006}
-          outlineColor="#0a0c12"
+          position={[0, 0.2, 0]}
+          outlineWidth={0.015}
+          outlineBlur={0}
+          outlineColor={labelHalo}
           fillOpacity={0}
         >
           {beacon.label.toUpperCase()}
         </Text>
         <Text
           ref={sub}
+          material={mats.labelB}
           font={LABEL_FONT}
-          fontSize={0.1}
-          letterSpacing={0.3}
-          color={planet.accent}
+          fontSize={0.13}
+          letterSpacing={0.24}
+          color={new THREE.Color(labelInk).getHSL({ h: 0, s: 0, l: 0 }).l < 0.4 ? labelInk : planet.accent}
           anchorX="center"
-          anchorY="top"
-          position={[0, -0.06, 0]}
+          anchorY="bottom"
+          outlineWidth={0.012}
+          outlineBlur={0}
+          outlineColor={labelHalo}
           fillOpacity={0}
         >
           {`${String(index + 1).padStart(2, '0')}  ${KIND_LABEL[kind]}`}

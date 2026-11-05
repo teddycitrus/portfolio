@@ -1,13 +1,16 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useAppStore, type SceneMode } from '@/state/useAppStore';
 import { dragLook, pointerState } from '@/state/runtime';
+import { getIntroYaw, setOverworldView } from '@/data/content';
 
-const MOUSE_YAW = 0.32;
-const MOUSE_PITCH = 0.18;
+const MOUSE_YAW = 0.12;
+const MOUSE_PITCH = 0.07;
 const MAX_YAW = 0.9;
 const MAX_PITCH = 0.5;
+/** Seconds for the intro composition to swing onto the centred system. */
+const SWING_TIME = 1.4;
 
 /** Vertical fov that keeps the planet arc readable: 60 on landscape, up to 80 on portrait. */
 export const responsiveFov = (aspect: number): number =>
@@ -36,6 +39,16 @@ const TelescopeCamera = () => {
   const mode = useAppStore((s) => s.mode);
   const prevMode = useRef<SceneMode | null>(null);
   const look = useRef({ yaw: 0, pitch: 0, vy: { v: 0 }, vp: { v: 0 }, dYaw: 0, dPitch: 0 });
+  // swing: 0 = intro composition, 1 = centred overworld (linear progress, eased when applied)
+  const frame = useRef({ swing: useAppStore.getState().mode === 'intro' ? 0 : 1, aspect: 0 });
+  const size = useThree((s) => s.size);
+
+  useLayoutEffect(() => {
+    const f = frame.current;
+    if (f.aspect === 0) f.aspect = size.width / Math.max(size.height, 1);
+    const e = 1 - Math.pow(1 - f.swing, 3);
+    setOverworldView(f.aspect, responsiveFov(f.aspect), e);
+  }, [size]);
 
   useEffect(() => {
     const prev = prevMode.current;
@@ -45,16 +58,17 @@ const TelescopeCamera = () => {
     // Arriving from a transition: back to the eyepiece, keep the current heading and settle from there
     _euler.setFromQuaternion(camera.quaternion, 'YXZ');
     const l = look.current;
-    l.yaw = Math.atan2(Math.sin(_euler.y), Math.cos(_euler.y));
-    l.pitch = clamp(_euler.x, -1.3, 1.3);
+    // The cut happens under the veil, so start only a short tilt above the system and settle onto it
+    l.yaw = clamp(Math.atan2(Math.sin(_euler.y), Math.cos(_euler.y)), -0.25, 0.25);
+    l.pitch = clamp(_euler.x, -0.3, 0.3);
     l.vy.v = l.vp.v = l.dYaw = l.dPitch = 0;
     dragLook.yaw = dragLook.pitch = 0;
     camera.position.set(0, 0, 0);
   }, [camera, mode]);
 
-  useFrame(({ clock, size }, delta) => {
+  useFrame(({ clock }, delta) => {
     if (mode !== 'intro' && mode !== 'overworld') return;
-    const dt = Math.min(delta, 0.1);
+    const dt = Math.min(delta, 0.25);
     const l = look.current;
     const { isTouch, reducedMotion } = useAppStore.getState();
 
@@ -81,6 +95,16 @@ const TelescopeCamera = () => {
       }
     }
 
+    // Layout: smoothed aspect (portrait blend) and the intro-to-overworld swing share one ease
+    const f = frame.current;
+    const aspect = size.width / Math.max(size.height, 1);
+    f.aspect += (aspect - f.aspect) * (1 - Math.exp(-5 * dt));
+    if (Math.abs(aspect - f.aspect) < 1e-3) f.aspect = aspect;
+    if (mode === 'overworld' && f.swing < 1) f.swing = reducedMotion ? 1 : Math.min(1, f.swing + dt / SWING_TIME);
+    const swing = 1 - Math.pow(1 - f.swing, 3);
+    setOverworldView(f.aspect, responsiveFov(f.aspect), swing);
+    const introYaw = getIntroYaw() * (1 - swing);
+
     const smooth = mode === 'intro' ? 1.6 : 0.45;
     l.yaw = smoothDamp(l.yaw, ty, l.vy, smooth, dt);
     l.pitch = smoothDamp(l.pitch, tp, l.vp, smooth, dt);
@@ -90,10 +114,10 @@ const TelescopeCamera = () => {
     l.dYaw += (dy - l.dYaw) * dk;
     l.dPitch += (dp - l.dPitch) * dk;
 
-    _euler.set(l.pitch + l.dPitch, l.yaw + l.dYaw, 0, 'YXZ');
+    _euler.set(l.pitch + l.dPitch, l.yaw + l.dYaw + introYaw, 0, 'YXZ');
     camera.quaternion.setFromEuler(_euler);
 
-    const fov = responsiveFov(size.width / Math.max(size.height, 1));
+    const fov = responsiveFov(aspect);
     if (Math.abs(camera.fov - fov) > 0.01) {
       camera.fov += (fov - camera.fov) * (1 - Math.exp(-3 * dt));
       camera.updateProjectionMatrix();

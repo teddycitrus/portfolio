@@ -6,6 +6,7 @@ import PlanetNode from './PlanetNode';
 import TelescopeCamera from './TelescopeCamera';
 import SpaceBackdrop from './SpaceBackdrop';
 import Sun, { SUN_DIRECTION } from './Sun';
+import Constellations from './Constellations';
 import { planets, getOrbitalPosition } from '@/data/content';
 import { useAppStore } from '@/state/useAppStore';
 import { planetScreen } from '@/state/runtime';
@@ -71,7 +72,7 @@ const OverworldScene = () => {
   const show = mode === 'intro' || mode === 'overworld' || mode === 'transitioning-in';
 
   useEffect(() => {
-    if (mode !== 'overworld') document.body.style.cursor = '';
+    if (mode !== 'overworld' && mode !== 'intro') document.body.style.cursor = '';
   }, [mode]);
 
   useEffect(() => {
@@ -90,6 +91,7 @@ const OverworldScene = () => {
       {planets.map((p) => (
         <PlanetNode key={p.id} planet={p} />
       ))}
+      <Constellations />
       <TelescopeCamera />
       <ScreenProjector />
     </>

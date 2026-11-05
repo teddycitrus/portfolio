@@ -27,7 +27,13 @@ const Heading = ({ variant, children, className }: { variant: Variant; children:
     variant === 'panel' ? 'text-[32px]' : 'text-[30px] md:text-[34px]',
     className,
   );
-  return variant === 'panel' ? <h2 className={cls}>{children}</h2> : <h3 className={cls}>{children}</h3>;
+  return variant === 'panel' ? (
+    <h2 tabIndex={-1} data-panel-heading className={cx(cls, 'scroll-mt-4')}>
+      {children}
+    </h2>
+  ) : (
+    <h3 className={cls}>{children}</h3>
+  );
 };
 
 const Body = ({ children, variant }: { children: ReactNode; variant: Variant }) => (
@@ -39,7 +45,10 @@ const Body = ({ children, variant }: { children: ReactNode; variant: Variant }) 
 export const FactGrid = ({ facts }: { facts: Fact[] }) => (
   <dl className="grid grid-cols-2 border-t border-line">
     {facts.map((f, i) => (
-      <div key={f.label} className={cx('border-b border-line py-4', i % 2 === 0 ? 'pr-4' : 'border-l border-line pl-4')}>
+      <div
+        key={f.label}
+        className={cx('border-b border-line py-4', i % 2 === 0 ? 'pr-4' : 'border-l border-line pl-4')}
+      >
         <dd className="font-display text-[36px] leading-none text-ink">{f.value}</dd>
         <dt className="label mt-2">{f.label}</dt>
       </div>
@@ -74,8 +83,15 @@ export const LinkButtons = ({ links }: { links: ExternalLink[] }) => (
 );
 
 /** Poster first; the iframe only loads after a click. */
-export const VideoEmbed = ({ videoId, title }: { videoId: string; title: string }) => {
+export const VideoEmbed = ({ videoId, title, poster }: { videoId: string; title: string; poster?: string }) => {
   const [play, setPlay] = useState(false);
+  // custom poster, then YouTube's max-res frame, then the always-present hq frame
+  const sources = [
+    poster,
+    `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
+    `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+  ].filter((x): x is string => !!x);
+  const [src, setSrc] = useState(0);
   return (
     <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-line bg-space-800">
       {play ? (
@@ -94,7 +110,12 @@ export const VideoEmbed = ({ videoId, title }: { videoId: string; title: string 
           aria-label={`Play ${title} demo video`}
         >
           <img
-            src={`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`}
+            src={sources[src]}
+            onError={() => setSrc((i) => Math.min(i + 1, sources.length - 1))}
+            onLoad={(e) => {
+              // YouTube serves a 120px grey placeholder instead of a 404 for missing max-res frames
+              if (e.currentTarget.naturalWidth <= 120 && src < sources.length - 1) setSrc(src + 1);
+            }}
             alt=""
             loading="lazy"
             className="h-full w-full object-cover opacity-80 transition-opacity duration-300 ease-out group-hover:opacity-100"
@@ -122,7 +143,9 @@ export const ProjectBody = ({ c, variant }: { c: ProjectContent; variant: Varian
   <div className="space-y-5">
     <div className="space-y-2">
       <Heading variant={variant}>{c.heading}</Heading>
-      <p className={cx('text-ink-muted', variant === 'panel' ? 'text-[16px] leading-snug' : 'text-[18px] leading-snug')}>
+      <p
+        className={cx('text-ink-muted', variant === 'panel' ? 'text-[16px] leading-snug' : 'text-[18px] leading-snug')}
+      >
         {c.tagline}
       </p>
       <p className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 font-mono text-[12px] text-ink-muted">
@@ -136,12 +159,20 @@ export const ProjectBody = ({ c, variant }: { c: ProjectContent; variant: Varian
         )}
       </p>
     </div>
-    {c.videoId && <VideoEmbed videoId={c.videoId} title={c.heading} />}
+    {c.videoId && (
+      <VideoEmbed videoId={c.videoId} title={c.heading} poster={(c as ProjectContent & { poster?: string }).poster} />
+    )}
     <Body variant={variant}>{c.description}</Body>
     {c.highlights.length > 0 && (
       <ul className="space-y-2.5">
         {c.highlights.map((h) => (
-          <li key={h} className={cx('flex gap-3 text-ink/85', variant === 'panel' ? 'text-[14px] leading-[1.6]' : 'text-[15px] leading-[1.65]')}>
+          <li
+            key={h}
+            className={cx(
+              'flex gap-3 text-ink/85',
+              variant === 'panel' ? 'text-[14px] leading-[1.6]' : 'text-[15px] leading-[1.65]',
+            )}
+          >
             <span aria-hidden="true" className="mt-[0.8em] h-px w-3 shrink-0 bg-[var(--accent)]" />
             <span>{h}</span>
           </li>
