@@ -6,4 +6,4 @@
 - Shared contracts: `src/state/useAppStore.ts` (modes and actions), `src/state/runtime.ts` (per-frame mutable state, never React state), `src/state/timing.ts` (transition timeline shared by the camera controller and the DOM veil).
 - In dev the store is exposed as `window.__app`.
 - Visual checks: `.shots/` (gitignored) holds a headless Chrome harness. `node .shots/shot.mjs <desktop|mobile> <scenario>` writes `.shots/out/<device>-<scenario>.jpg`; run one scenario per invocation, since software WebGL is slow. `node .shots/probe.mjs "<js>"` evaluates in the page.
-- `public/og.jpg` is a 1200x630 capture of the intro (`node .shots/og.mjs`); regenerate it when the intro copy changes.
+- `public/og.jpg` is a 1200x630 capture of the overworld (`node .shots/og.mjs`); regenerate it when the scene or HUD changes.

@@ -3,7 +3,6 @@ import { planetById, profile } from '@/data/content';
 import { dragLook, isKeyDown, joystickState } from '@/state/runtime';
 import { useAppStore } from '@/state/useAppStore';
 import {
-  AccentDot,
   ArrowIcon,
   BackIcon,
   Button,
@@ -324,10 +323,6 @@ const TourBar = () => {
                 <BackIcon className="text-ink-muted" />
                 Previous
               </Button>
-              <span className="label hidden items-center gap-2 sm:flex">
-                <AccentDot />
-                {planet?.title}
-              </span>
               <Button ref={nextBtn} size="sm" variant="primary" onClick={tour.next}>
                 {index === total - 1 ? 'Finish' : 'Next'}
                 <ArrowIcon />

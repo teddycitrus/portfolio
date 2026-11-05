@@ -2,7 +2,6 @@
   "profile": {
     "name": "John Mannully",
     "role": "Full-stack and AI developer",
-    "tagline": "I build full-stack and AI software, from eye-tracking computer control to voice agents that brief people on supply-chain risk.",
     "location": "Ontario, Canada",
     "email": "johnmannul@gmail.com"
   },
@@ -11,8 +10,6 @@
       "id": "about",
       "index": 1,
       "title": "About",
-      "subtitle": "Who I am",
-      "summary": "IB Diploma student in Ontario building full-stack and AI software.",
       "color": "#e0875a",
       "accent": "#ffc49e",
       "position": [
@@ -84,8 +81,6 @@
       "id": "projects",
       "index": 2,
       "title": "Projects",
-      "subtitle": "Things I've built",
-      "summary": "Accessibility tooling, supply-chain intelligence, AI ad evaluation and agent security.",
       "color": "#8a5cf0",
       "accent": "#cbb4ff",
       "position": [
@@ -113,7 +108,6 @@
           "kind": "project",
           "content": {
             "heading": "Iris",
-            "tagline": "Hands-free computer control with your eyes, mouth and voice.",
             "period": "Feb 2025",
             "description": "An accessibility tool that turns a webcam feed and speech into full computer control, so people who can't use a mouse or keyboard can still click, scroll, switch tabs and type.",
             "highlights": [
@@ -145,7 +139,6 @@
           "kind": "project",
           "content": {
             "heading": "Eureka",
-            "tagline": "Supply-chain risk intelligence on a live 3D globe.",
             "period": "May 2026",
             "description": "Maps supplier and logistics exposure onto an interactive globe. It scores breaking news against a company's supplier graph and briefs decision-makers through AI voice agents they can question in plain English.",
             "highlights": [
@@ -180,7 +173,6 @@
           "kind": "project",
           "content": {
             "heading": "Nora",
-            "tagline": "An evaluation layer for AI-generated ad creative.",
             "period": "Jul 2026",
             "description": "Paste a Shopify URL and Nora extracts the brand's palette, typography and product look, then scores candidate ad images on five explainable axes. The same evaluator is exposed as an MCP tool so agents can grade their own work.",
             "highlights": [
@@ -214,7 +206,6 @@
           "kind": "project",
           "content": {
             "heading": "ShieldClaw",
-            "tagline": "A security layer for AI agents: identity, policy and human approval.",
             "period": "2026",
             "description": "A security control plane for OpenClaw. Every AI agent gets its own machine identity, every request is checked against policy, risky actions go to a human for approval, and sensitive data is redacted before the agent sees it.",
             "highlights": [
@@ -245,8 +236,6 @@
       "id": "awards",
       "index": 3,
       "title": "Awards",
-      "subtitle": "Wins and recognition",
-      "summary": "Hackathon wins and programming competition results.",
       "color": "#e8b23a",
       "accent": "#ffe09a",
       "position": [
@@ -275,8 +264,7 @@
             "event": "Hack Canada 2026",
             "result": "Winner",
             "year": "2026",
-            "project": "ShieldClaw",
-            "description": "ShieldClaw, a security layer for AI agents, won at Hack Canada 2026."
+            "project": "ShieldClaw"
           }
         },
         {
@@ -287,8 +275,7 @@
             "event": "Hack The Valley X",
             "result": "Future Impact winner, 4th overall",
             "year": "2025",
-            "project": "Iris",
-            "description": "Iris, a hands-free computer control system, won the Future Impact category and placed 4th overall."
+            "project": "Iris"
           }
         },
         {
@@ -298,8 +285,7 @@
           "content": {
             "event": "Canadian Computing Competition",
             "result": "Distinction",
-            "year": "2024",
-            "description": "Distinction in the University of Waterloo's Canadian Computing Competition."
+            "year": "2024"
           }
         },
         {
@@ -307,9 +293,8 @@
           "label": "PEO Challenge",
           "kind": "award",
           "content": {
-            "event": "Professional Engineers Ontario Challenge",
-            "result": "1st place",
-            "description": "First place in the PEO competitive programming challenge."
+            "event": "PEO Competitive Programming Challenge",
+            "result": "1st place"
           }
         }
       ]
@@ -318,8 +303,6 @@
       "id": "skills",
       "index": 4,
       "title": "Skills",
-      "subtitle": "Languages and tools",
-      "summary": "The languages, frameworks and APIs I build with.",
       "color": "#3f8fd8",
       "accent": "#a6dcff",
       "position": [
@@ -407,8 +390,6 @@
       "id": "contact",
       "index": 5,
       "title": "Contact",
-      "subtitle": "Get in touch",
-      "summary": "Email, GitHub, Devpost and socials.",
       "color": "#3fbf86",
       "accent": "#aef0cf",
       "position": [
@@ -435,8 +416,7 @@
           "kind": "link",
           "content": {
             "url": "mailto:johnmannul@gmail.com",
-            "handle": "johnmannul@gmail.com",
-            "description": "The fastest way to reach me."
+            "handle": "johnmannul@gmail.com"
           }
         },
         {
@@ -445,8 +425,7 @@
           "kind": "link",
           "content": {
             "url": "https://github.com/teddycitrus",
-            "handle": "teddycitrus",
-            "description": "Code for most of my projects."
+            "handle": "teddycitrus"
           }
         },
         {
@@ -455,8 +434,7 @@
           "kind": "link",
           "content": {
             "url": "https://devpost.com/teddycitrus",
-            "handle": "teddycitrus",
-            "description": "Hackathon submissions, demos and write-ups."
+            "handle": "teddycitrus"
           }
         },
         {
@@ -465,8 +443,7 @@
           "kind": "link",
           "content": {
             "url": "https://www.linkedin.com/in/john-mannully/",
-            "handle": "john-mannully",
-            "description": "Professional profile."
+            "handle": "john-mannully"
           }
         },
         {
@@ -475,8 +452,7 @@
           "kind": "link",
           "content": {
             "url": "https://x.com/Jeffelo15",
-            "handle": "@Jeffelo15",
-            "description": "Short updates and demos."
+            "handle": "@Jeffelo15"
           }
         }
       ]

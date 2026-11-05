@@ -349,7 +349,7 @@ const PlanetNode = ({ planet }: Props) => {
     if (clouds.current) clouds.current.rotation.y += dt * spinSpeed * 0.7;
 
     const s = useAppStore.getState();
-    const hovered = s.hoveredPlanetId === planet.id && (s.mode === 'overworld' || s.mode === 'intro');
+    const hovered = s.hoveredPlanetId === planet.id && s.mode === 'overworld';
     const locked = s.lockedPlanetId === planet.id;
     hover.current += ((hovered ? 1 : 0) - hover.current) * damp(hovered ? 7 : 4, dt);
     const h = hover.current;
@@ -373,7 +373,7 @@ const PlanetNode = ({ planet }: Props) => {
 
   const interactive = () => {
     const m = useAppStore.getState().mode;
-    return m === 'overworld' || m === 'intro';
+    return m === 'overworld';
   };
   const onOver = (e: ThreeEvent<PointerEvent>) => {
     if (!interactive()) return;
@@ -390,8 +390,6 @@ const PlanetNode = ({ planet }: Props) => {
     if (!interactive() || dragLook.travel >= 6) return;
     e.stopPropagation();
     document.body.style.cursor = '';
-    const st = useAppStore.getState();
-    if (st.mode === 'intro') st.start();
     useAppStore.getState().travelTo(planet.id);
   };
 

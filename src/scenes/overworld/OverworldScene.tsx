@@ -69,10 +69,10 @@ const ScreenProjector = () => {
 
 const OverworldScene = () => {
   const mode = useAppStore((s) => s.mode);
-  const show = mode === 'intro' || mode === 'overworld' || mode === 'transitioning-in';
+  const show = mode === 'overworld' || mode === 'transitioning-in';
 
   useEffect(() => {
-    if (mode !== 'overworld' && mode !== 'intro') document.body.style.cursor = '';
+    if (mode !== 'overworld') document.body.style.cursor = '';
   }, [mode]);
 
   useEffect(() => {

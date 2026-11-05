@@ -18,7 +18,6 @@ export interface ProfileContent {
 
 export interface ProjectContent {
   heading: string;
-  tagline: string;
   period: string;
   description: string;
   highlights: string[];
@@ -37,19 +36,16 @@ export interface AwardContent {
   result: string;
   year?: string;
   project?: string;
-  description: string;
 }
 
 export interface SkillsContent {
   heading: string;
   items: string[];
-  note?: string;
 }
 
 export interface LinkContent {
   url: string;
   handle: string;
-  description: string;
 }
 
 interface BeaconBase {
@@ -82,9 +78,6 @@ export interface Planet {
   /** Number key used to travel here (1-based, matches order in content) */
   index: number;
   title: string;
-  subtitle: string;
-  /** One sentence used in docks, markers and the reader */
-  summary: string;
   /** Primary planet colour */
   color: string;
   /** Lighter accent for UI text, beacons and glows */
@@ -104,7 +97,6 @@ export interface Planet {
 export interface Profile {
   name: string;
   role: string;
-  tagline: string;
   location?: string;
   email: string;
 }

@@ -46,28 +46,6 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap"
       rel="stylesheet"
     />
-    <style>
-      .shell { position: fixed; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; background: #05070d; color: #e9eef7;
-        padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
-      .shell-col { width: 100%; max-width: 640px; padding-bottom: 8px; }
-      .shell-label { margin: 0 0 24px; font: 500 11px 'IBM Plex Mono', ui-monospace, monospace; letter-spacing: 0.14em; text-transform: uppercase; color: #9aa5b8; }
-      .shell-name { margin: 0; font: 400 clamp(52px, 10vw, 136px)/0.9 'Instrument Serif', Georgia, serif; letter-spacing: -0.02em; }
-      .shell-tag { margin: 24px 0 0; max-width: 36ch; font: 400 17px/1.55 'IBM Plex Sans', system-ui, sans-serif; color: #9aa5b8; opacity: 0; }
-      .shell-rest { height: 173px; }
-      @media (min-width: 768px) {
-        .shell { justify-content: center; }
-        .shell-col { padding-bottom: 0; margin-left: clamp(0px, 6vw, 112px); }
-        .shell-tag { margin-top: 32px; font-size: 19px; }
-        .shell-rest { height: 193px; }
-      }
-      @media (max-height: 500px) {
-        .shell { justify-content: flex-end; }
-        .shell-label { margin-bottom: 12px; }
-        .shell-name { font-size: 52px; }
-        .shell-tag { margin-top: 12px; font-size: 15px; }
-        .shell-rest { height: 99px; }
-      }
-    </style>
   </head>
   <body>
     <noscript>
@@ -87,16 +65,7 @@
         <p>This site needs JavaScript and WebGL for the interactive version.</p>
       </main>
     </noscript>
-    <div id="root">
-      <div class="shell" aria-hidden="true">
-        <div class="shell-col">
-          <p class="shell-label">Full-stack and AI developer</p>
-          <h1 class="shell-name">John<br /><span style="padding-left: 0.04em">Mannully</span></h1>
-          <p class="shell-tag">I build full-stack and AI software, from eye-tracking computer control to voice agents that brief people on supply-chain risk.</p>
-          <div class="shell-rest"></div>
-        </div>
-      </div>
-    </div>
+    <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

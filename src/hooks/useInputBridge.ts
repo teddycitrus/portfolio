@@ -71,11 +71,6 @@ export const useInputBridge = (): void => {
       }
       if (s.readerOpen) return;
 
-      if (s.mode === 'intro' && (e.key === 'Enter' || e.key === ' ')) {
-        e.preventDefault();
-        s.start();
-        return;
-      }
       if (e.key === 'q' || e.key === 'Q') {
         s.exitPlanet();
         return;
@@ -84,7 +79,7 @@ export const useInputBridge = (): void => {
         s.openReader(s.activePlanetId);
         return;
       }
-      if (/^[1-9]$/.test(e.key) && (s.mode === 'overworld' || s.mode === 'planet' || s.mode === 'intro')) {
+      if (/^[1-9]$/.test(e.key) && (s.mode === 'overworld' || s.mode === 'planet')) {
         const planet = planetByIndex(Number(e.key));
         if (planet) s.travelTo(planet.id);
       }

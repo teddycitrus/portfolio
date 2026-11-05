@@ -106,7 +106,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 );
 Button.displayName = 'Button';
 
-/** Controls hint line, shared by the intro and the planet surface. */
+/** Controls hint line on the planet surface. */
 export const HintRow = ({ items, className }: { items: ReactNode[]; className?: string }) => (
   <p className={cx('flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-ink-muted', className)}>
     {items.map((item, i) => (

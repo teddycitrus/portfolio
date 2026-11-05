@@ -118,7 +118,7 @@ const Constellations = () => {
   useFrame(({ clock }, delta) => {
     const dt = Math.min(delta, 0.1);
     const s = useAppStore.getState();
-    const live = s.mode === 'overworld' || s.mode === 'intro';
+    const live = s.mode === 'overworld';
     const hov = live ? s.hoveredPlanetId : null;
     const t = clock.elapsedTime;
 

@@ -40,13 +40,11 @@ const currentRoute = (): Route => {
 const apply = (r: Route) => {
   const s = useAppStore.getState();
   if (r.read) {
-    s.start();
     if (!s.readerOpen) s.openReader(r.planetId);
     return;
   }
   if (s.readerOpen) s.closeReader();
   if (r.planetId) {
-    s.start();
     if (s.mode === 'planet' && s.activePlanetId === r.planetId) {
       if (r.beaconId !== s.focusedBeaconId) {
         if (r.beaconId) visitPlanet(r.planetId, r.beaconId);

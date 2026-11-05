@@ -52,24 +52,18 @@ const SectionBody = ({ planet, onProject }: { planet: Planet; onProject: (beacon
       {awards.length > 0 && (
         <ol className="border-t border-line">
           {awards.map((a) => (
-            <li
-              key={a.id}
-              id={entryId(a.id)}
-              className="grid gap-x-8 gap-y-2 border-b border-line py-6 sm:grid-cols-[88px_1fr]"
-            >
-              {/* year column only when there is a year; the entry keeps its column either way */}
-              {a.content.year && <p className="label sm:pt-2">{a.content.year}</p>}
-              <div className="space-y-2 sm:col-start-2">
-                <p className="label">{a.content.event}</p>
-                <h3 className={ENTRY_HEADING}>{a.content.result}</h3>
-                <p className="text-[16px] leading-[1.7] text-ink/85">{a.content.description}</p>
+            <li key={a.id} id={entryId(a.id)} className="space-y-2 border-b border-line py-6 last:border-b-0 last:pb-0">
+              <h3 className={ENTRY_HEADING}>{a.content.event}</h3>
+              <p className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[16px] text-ink/90">
+                <span>{a.content.result}</span>
+                {a.content.year && <span className="label">{a.content.year}</span>}
                 {a.content.project && (
-                  <p className="flex items-baseline gap-3 pt-1 text-[14px]">
+                  <span className="inline-flex items-baseline gap-2 text-[14px]">
                     <span className="label">Project</span>
                     <AwardProject c={a.content} onProject={(_pid, bid) => onProject(bid)} />
-                  </p>
+                  </span>
                 )}
-              </div>
+              </p>
             </li>
           ))}
         </ol>
@@ -83,7 +77,6 @@ const SectionBody = ({ planet, onProject }: { planet: Planet; onProject: (beacon
                 {s.content.heading}
               </h3>
               <StackChips items={s.content.items} label={s.content.heading} />
-              {s.content.note && <p className="text-[14px] text-ink-muted">{s.content.note}</p>}
             </div>
           ))}
         </div>
@@ -96,14 +89,11 @@ const SectionBody = ({ planet, onProject }: { planet: Planet; onProject: (beacon
               <a
                 href={l.content.url}
                 {...linkProps(l.content.url)}
-                className="group grid grid-cols-[1fr_auto] items-center gap-x-6 gap-y-1.5 border-b border-line py-5 sm:grid-cols-[160px_1fr_auto]"
+                className="group grid grid-cols-[1fr_auto] items-center gap-x-6 gap-y-1.5 border-b border-line py-5 [li:last-child>&]:border-b-0 sm:grid-cols-[160px_1fr_auto]"
               >
                 <span className={cx('col-start-1 row-start-1', ENTRY_HEADING, 'leading-none')}>{l.label}</span>
-                <span className="col-span-2 col-start-1 row-start-2 text-[14px] text-ink-muted sm:col-span-1 sm:col-start-2 sm:row-start-1">
-                  <span className="block font-mono text-[13px] text-ink transition-colors duration-200 group-hover:text-[var(--accent)]">
-                    {l.content.handle}
-                  </span>
-                  {l.content.description}
+                <span className="col-span-2 col-start-1 row-start-2 break-all font-mono text-[13px] text-ink-muted transition-colors duration-200 group-hover:text-[var(--accent)] sm:col-span-1 sm:col-start-2 sm:row-start-1">
+                  {l.content.handle}
                 </span>
                 <ArrowIcon
                   external={!l.content.url.startsWith('mailto:')}
@@ -311,23 +301,10 @@ const Reader = () => {
             )}
           >
             <header className="border-line pb-12 lg:border-b">
-              <p className="label">
-                {profile.location && (
-                  <>
-                    {profile.location} <span className="text-ink-faint">/</span>{' '}
-                  </>
-                )}
-                {profile.role}
-              </p>
-              <h1
-                className={cx('mt-5 font-display font-normal leading-[0.95] tracking-[-0.02em] text-ink', DISPLAY.d80)}
-              >
+              <h1 className={cx('font-display font-normal leading-[0.95] tracking-[-0.02em] text-ink', DISPLAY.d80)}>
                 {profile.name}
               </h1>
-              <p className="mt-6 max-w-[38ch] text-[19px] leading-[1.55] text-ink-muted md:text-[21px]">
-                {profile.tagline}
-              </p>
-              <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2">
+              <ul className="mt-7 flex flex-wrap gap-x-6 gap-y-2">
                 {contactLinks.map((l) => (
                   <li key={l.id}>
                     <a
@@ -387,20 +364,19 @@ const Reader = () => {
                 style={{ '--accent': p.accent } as CSSProperties}
               >
                 <div className="mb-10 flex items-end justify-between gap-4">
-                  <div>
-                    <p className="label flex items-center gap-2.5">
+                  <h2
+                    id={`${sectionId(p.id)}-title`}
+                    className={cx(
+                      'flex items-baseline gap-3 font-display font-normal leading-none text-ink',
+                      DISPLAY.d52,
+                    )}
+                  >
+                    <span className="inline-flex items-center gap-2 self-center font-mono text-[12px] tracking-[0.14em] text-ink-muted">
                       <AccentDot />
-                      <span>{String(p.index).padStart(2, '0')}</span>
-                      <span className="text-ink-faint">/</span>
-                      <span>{p.subtitle}</span>
-                    </p>
-                    <h2
-                      id={`${sectionId(p.id)}-title`}
-                      className={cx('mt-3 font-display font-normal leading-none text-ink', DISPLAY.d52)}
-                    >
-                      {p.title}
-                    </h2>
-                  </div>
+                      {String(p.index).padStart(2, '0')}
+                    </span>
+                    {p.title}
+                  </h2>
                   {!noWebGL && (
                     <Button size="sm" variant="ghost" onClick={() => visitPlanet(p.id)} className="group shrink-0">
                       Land on planet

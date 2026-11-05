@@ -19,9 +19,6 @@ export const beaconById = (
 
 /* ---------- overworld layout ---------- */
 
-/** Camera yaw used by the intro composition on landscape screens (looks left, planets shift right). */
-const INTRO_YAW = 0.35;
-
 /**
  * Portrait slots in index order: [ndc x, screen y fraction from top, apparent radius as a tangent].
  * A vertical zig-zag between the top bar and the bottom dock.
@@ -34,7 +31,7 @@ const PORTRAIT_SLOTS: [number, number, number][] = [
   [0.48, 0.77, 0.088],
 ];
 
-const view = { aspect: 16 / 9, fov: 60, focus: 1 };
+const view = { aspect: 16 / 9, fov: 60 };
 const anchors = new Map<string, Vec3>();
 const orderedPlanets = [...planets].sort((a, b) => a.index - b.index);
 let driftScale = 1;
@@ -49,15 +46,11 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 /** 0 on landscape, 1 on portrait, blended between aspect 0.95 and 0.75. */
 export const portraitWeight = (aspect: number): number => 1 - smoothstep(0.75, 0.95, aspect);
 
-/** Yaw offset the telescope applies at focus 0 (intro) for the current aspect. */
-export const getIntroYaw = (): number => INTRO_YAW * (1 - portraitWeight(view.aspect));
-
 const rebuildLayout = () => {
-  const { aspect, fov, focus } = view;
+  const { aspect, fov } = view;
   const tv = Math.tan((fov * Math.PI) / 360);
   const th = tv * aspect;
   const w = portraitWeight(aspect);
-  const yaw = INTRO_YAW * (1 - w);
   // Narrower lenses push the system back so on-screen sizes match the 60-80 deg reference composition
   const refFov = 60 + 20 * clamp01((1.4 - aspect) / 0.8);
   const lens = Math.tan((refFov * Math.PI) / 360) / tv;
@@ -74,23 +67,14 @@ const rebuildLayout = () => {
 
   orderedPlanets.forEach((p, i) => {
     const [x, y, z] = p.position;
-    const depth = -z;
-    // Overworld angle, and the intro angle that lands it in the right part of the frame once the camera yaws
-    const uo = (x * k) / depth;
-    const ndcIntro = 0.38 + 0.54 * (uo / th);
-    const phi = lerp(Math.atan(ndcIntro * th) - yaw, Math.atan(uo), focus);
-    // Intro pushes the system back (smaller on screen) and opens it vertically so the packed arc does not overlap
-    const back = lerp(1.35, 1, focus) * lens;
-    const lx = Math.tan(phi) * depth * back;
-    const ly = y * lerp(1.6, 1, focus) * back;
-    const lz = z * back;
+    const lx = x * k * lens;
+    const ly = y * lens;
+    const lz = z * lens;
 
     const [sx, fy, app] = PORTRAIT_SLOTS[Math.min(i, PORTRAIT_SLOTS.length - 1)];
-    // Intro on portrait: same zig-zag packed into the upper half, a touch smaller
-    const f = lerp(0.1 + (fy - 0.22) * 0.62, fy, focus);
-    const dist = (p.radius / app) * lerp(1.2, 1, focus);
+    const dist = p.radius / app;
     const px = sx * th * dist;
-    const py = (1 - 2 * f) * tv * dist;
+    const py = (1 - 2 * fy) * tv * dist;
 
     let a = anchors.get(p.id);
     if (!a) anchors.set(p.id, (a = [0, 0, 0]));
@@ -99,7 +83,7 @@ const rebuildLayout = () => {
     a[2] = lerp(lz, -dist, w);
   });
   driftScale = 1 - 0.45 * w;
-  relax(tv, th, focus >= 0.999 || w > 0.5);
+  relax(tv, th, true);
 };
 
 /* Keep-out ellipses in tangent space (x/-z, y/-z): atmosphere for every planet, rings widen it horizontally. */
@@ -161,20 +145,11 @@ const relax = (tv: number, th: number, clampX: boolean) => {
     a[1] = _v[i] * d;
   }
 };
-/**
- * Feed the viewport into the overworld layout. focus is 0 for the intro
- * composition and 1 for the centred overworld; the telescope camera eases it.
- */
-export const setOverworldView = (aspect: number, fov: number, focus = view.focus): void => {
-  if (
-    Math.abs(aspect - view.aspect) < 1e-4 &&
-    Math.abs(fov - view.fov) < 1e-3 &&
-    Math.abs(focus - view.focus) < 1e-4
-  )
-    return;
+/** Feed the viewport into the overworld layout; the telescope camera calls this as the aspect settles. */
+export const setOverworldView = (aspect: number, fov: number): void => {
+  if (Math.abs(aspect - view.aspect) < 1e-4 && Math.abs(fov - view.fov) < 1e-3) return;
   view.aspect = aspect;
   view.fov = fov;
-  view.focus = focus;
   rebuildLayout();
 };
 

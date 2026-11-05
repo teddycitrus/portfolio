@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { useAppStore } from '@/state/useAppStore';
-import Intro from './Intro';
 import OverworldHud from './OverworldHud';
 import PlanetHud from './PlanetHud';
 import BeaconPanel from './BeaconPanel';
@@ -44,7 +43,6 @@ const UiRoot = () => {
     >
       {!noWebGL && (
         <div ref={hud} className="contents">
-          <Intro />
           <OverworldHud />
           <PlanetHud />
           <MovementJoystick />

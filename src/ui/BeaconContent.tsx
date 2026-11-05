@@ -138,16 +138,12 @@ export const ProfileBody = ({ c, variant }: { c: ProfileContent; variant: Varian
 
 export const ProjectBody = ({ c, variant }: { c: ProjectContent; variant: Variant }) => (
   <div className="space-y-5">
-    <div className="space-y-2">
+    <div className="space-y-3">
       <Heading variant={variant}>{c.heading}</Heading>
-      <p
-        className={cx('text-ink-muted', variant === 'panel' ? 'text-[16px] leading-snug' : 'text-[18px] leading-snug')}
-      >
-        {c.tagline}
-      </p>
-      <p className="label flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
+      {/* one compact meta line: when, and what it won */}
+      <p className="label flex flex-wrap items-center gap-x-3 gap-y-1">
         <span>{c.period}</span>
-        {c.team && <span>Team project</span>}
+        {c.team && <span>Team</span>}
         {c.award && (
           <span className="inline-flex items-center gap-1.5 text-[var(--accent)]">
             <AccentDot />
@@ -203,15 +199,12 @@ export const AwardProject = ({ c, onProject }: Pick<AwardProps, 'c' | 'onProject
 };
 
 export const AwardBody = ({ c, variant, onProject }: AwardProps) => (
-  <div className="space-y-5">
-    <div className="space-y-3">
-      <p className="label">
-        {c.event}
-        {c.year && <span className="text-ink-faint"> / {c.year}</span>}
-      </p>
-      <Heading variant={variant}>{c.result}</Heading>
-    </div>
-    <Body variant={variant}>{c.description}</Body>
+  <div className="space-y-4">
+    <Heading variant={variant}>{c.event}</Heading>
+    <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+      <span className="text-[17px] text-ink">{c.result}</span>
+      {c.year && <span className="label">{c.year}</span>}
+    </p>
     {c.project && (
       <p className="flex items-baseline gap-3 border-t border-line pt-4 text-[14px]">
         <span className="label">Project</span>
@@ -225,7 +218,6 @@ export const SkillsBody = ({ c, variant }: { c: SkillsContent; variant: Variant 
   <div className="space-y-5">
     <Heading variant={variant}>{c.heading}</Heading>
     <StackChips items={c.items} label="Skills" />
-    {c.note && <Body variant={variant}>{c.note}</Body>}
   </div>
 );
 
@@ -235,7 +227,6 @@ export const LinkBody = ({ label, c, variant }: { label: string; c: LinkContent;
       <Heading variant={variant}>{label}</Heading>
       <p className="break-all font-mono text-[13px] text-[var(--accent)]">{c.handle}</p>
     </div>
-    <Body variant={variant}>{c.description}</Body>
     <a href={c.url} {...linkProps(c.url)} className={cx(buttonClass('primary', 'md'), 'w-full justify-between')}>
       {isMail(c.url) ? 'Write an email' : `Open ${label}`}
       <ArrowIcon external={!isMail(c.url)} className="h-4 w-4" />

@@ -32,7 +32,7 @@ flowchart LR
     fx["Effects<br/><sub>bloom, ACES, vignette</sub>"]
   end
   subgraph DOM["DOM UI"]
-    hud["Intro, OverworldHud, PlanetHud<br/><sub>labels, dock, chips</sub>"]
+    hud["OverworldHud, PlanetHud, TourBar<br/><sub>labels, dock, chips</sub>"]
     panel["BeaconPanel<br/><sub>content for focused beacon</sub>"]
     reader["Reader<br/><sub>full page fallback</sub>"]
     veil["TransitionVeil"]
@@ -52,11 +52,10 @@ flowchart LR
 
 Scene modes always move in this order:
 
-1. `intro`: title card over the orbit view, camera offset so the planets sit beside the text.
-2. `overworld`: telescope view. Hovering a planet (in 3D or in the dock) highlights it; clicking calls `travelTo`.
-3. `transitioning-in`: the camera dives toward the drifting planet. The veil fades to the planet colour at 1000 ms and the mode switches at 1600 ms, always under full cover.
-4. `planet`: the camera settles from above onto the spawn point and the veil lifts. Walking near or looking at a monument focuses it and opens its panel.
-5. `transitioning-out`: the camera launches upward, the veil covers at 900 ms and the mode returns to `overworld` at 1500 ms. If another planet was requested, it dives straight into that one instead.
+1. `overworld`: telescope view, where the site opens. Hovering a planet (in 3D or in the dock) highlights it; clicking calls `travelTo`.
+2. `transitioning-in`: the camera dives toward the drifting planet. The veil fades to the destination sky colour from 1200 ms and the mode switches at 1600 ms, always under full cover.
+3. `planet`: the camera settles from above onto the spawn point and the veil lifts. Walking near or looking at a monument focuses it and opens its panel.
+4. `transitioning-out`: the camera launches upward, the veil covers at 900 ms and the mode returns to `overworld` at 1500 ms. Planet-to-planet travel is chained: the launch is cut at 900 ms and the next landing happens 450 ms later, all under the veil.
 
 ```mermaid
 sequenceDiagram
@@ -88,7 +87,7 @@ Guarantees and limits:
 - Without WebGL (or if the context is lost or the 3D tree throws), the canvas is never mounted and the reader becomes the whole site.
 - The URL hash mirrors the view (`#/projects/proj-iris`, `#/read/awards`), so any planet, monument or reader section can be linked, and the browser Back button moves between planets.
 - The render loop pauses while the reader is open.
-- `prefers-reduced-motion` replaces camera flights with a short crossfade and removes head bob and the intro swing.
+- `prefers-reduced-motion` replaces camera flights with a short crossfade and removes head bob.
 - Each surface matches its planet from orbit: basalt and lava rifts on Awards, an island in shallow water on Skills, a mesa above a cloud deck on Projects. Walking is clamped to 30 units, or to the island or mesa edge.
 - Post-processing renders in linear HDR with ACES tone mapping; only values above 1.0 bloom (sun, lava, glints, focused seams). Touch devices drop multisampling and film grain.
 

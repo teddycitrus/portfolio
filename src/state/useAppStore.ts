@@ -1,13 +1,12 @@
 import { create } from 'zustand';
 
 /**
- * intro             title card, scene renders behind it
  * overworld         telescope view of all planets
  * transitioning-in  camera dives toward lockedPlanetId
  * planet            walking on activePlanetId
  * transitioning-out camera launches off the surface
  */
-export type SceneMode = 'intro' | 'overworld' | 'transitioning-in' | 'planet' | 'transitioning-out';
+export type SceneMode = 'overworld' | 'transitioning-in' | 'planet' | 'transitioning-out';
 
 interface AppState {
   mode: SceneMode;
@@ -28,7 +27,6 @@ interface AppState {
   /** WebGL failed or is missing: the reader becomes the whole site */
   noWebGL: boolean;
 
-  start: () => void;
   setNoWebGL: () => void;
   setHoveredPlanet: (id: string | null) => void;
   setFocusedBeacon: (id: string | null) => void;
@@ -50,7 +48,7 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
-  mode: 'intro',
+  mode: 'overworld',
   hoveredPlanetId: null,
   lockedPlanetId: null,
   activePlanetId: null,
@@ -63,9 +61,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   reducedMotion: false,
   noWebGL: false,
 
-  start: () => {
-    if (get().mode === 'intro') set({ mode: 'overworld' });
-  },
   setNoWebGL: () => set({ noWebGL: true, readerOpen: true, readerSection: null }),
   setHoveredPlanet: (id) => set({ hoveredPlanetId: id }),
   setFocusedBeacon: (id) => {
@@ -82,7 +77,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   travelTo: (planetId) => {
     const s = get();
-    if (s.mode === 'intro' || s.mode === 'overworld') {
+    if (s.mode === 'overworld') {
       set({ mode: 'transitioning-in', lockedPlanetId: planetId, hoveredPlanetId: null });
     } else if (s.mode === 'planet') {
       if (s.activePlanetId === planetId) return;

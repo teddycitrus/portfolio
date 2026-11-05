@@ -4,7 +4,8 @@ import { planetScreen } from '@/state/runtime';
 import { useAppStore } from '@/state/useAppStore';
 import {
   AccentDot,
-  ArrowIcon,
+  DISPLAY,
+  PlayIcon,
   Button,
   ChevronIcon,
   EASE,
@@ -53,39 +54,20 @@ const PlanetLabels = ({ hovered, isTouch }: { hovered: string | null; isTouch: b
               {...common}
               className={cx(
                 IN_WORLD,
-                'group pointer-events-auto absolute left-0 top-0 w-max px-2.5 py-1.5 text-center',
+                'group pointer-events-auto absolute left-0 top-0 w-max px-2.5 py-1.5 text-center transition-[border-color,background-color] duration-200 ease-out',
+                // hover reads as a brighter, accent-edged label rather than extra text
+                isHover && '!border-[color-mix(in_srgb,var(--accent)_55%,transparent)] !bg-space/80',
               )}
               style={{ visibility: 'hidden' }}
             >
               {/* staggered reveal so the first overworld frame is calm */}
               <span
-                className="flex animate-fade-in flex-col items-center"
+                className="flex animate-fade-in items-center gap-1.5"
                 style={{ animationDelay: `${550 + i * 90}ms` }}
               >
-                <span className="flex items-center gap-1.5">
-                  <AccentDot glow={isHover} />
-                  <span className="whitespace-nowrap font-display text-[20px] leading-none text-ink min-[1921px]:text-[24px]">
-                    {p.title}
-                  </span>
-                </span>
-                <span className="label mt-1.5 whitespace-nowrap max-sm:hidden group-data-[compact=true]:hidden">
-                  {p.subtitle}
-                </span>
-              </span>
-              {/* hover detail: positioned outside the label so it never changes the label's size */}
-              <span
-                ref={bind(p.id, 'extra')}
-                aria-hidden="true"
-                className="pointer-events-none absolute left-1/2 top-full mt-2 w-[240px] rounded-md border border-line bg-space/60 px-2.5 py-2 backdrop-blur-sm group-data-[up=true]:bottom-full group-data-[up=true]:top-auto group-data-[up=true]:mb-2 group-data-[up=true]:mt-0 max-sm:w-auto max-sm:whitespace-nowrap"
-                style={{
-                  opacity: isHover ? 1 : 0,
-                  transform: `translate(-50%, ${isHover ? 0 : -4}px)`,
-                  transition: `opacity 250ms ${EASE}, transform 350ms ${EASE}`,
-                }}
-              >
-                <span className="block text-[13px] leading-snug text-ink/90 max-sm:hidden">{p.summary}</span>
-                <span className="mt-1.5 block font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--accent)] max-sm:mt-0">
-                  {isTouch ? 'Tap to land' : 'Click to land'}
+                <AccentDot glow={isHover} />
+                <span className="whitespace-nowrap font-display text-[20px] leading-none text-ink min-[1921px]:text-[24px]">
+                  {p.title}
                 </span>
               </span>
             </button>
@@ -134,7 +116,7 @@ const Dock = ({ hovered, isTouch }: { hovered: string | null; isTouch: boolean }
                 onPointerLeave={() => !isTouch && setHovered(null)}
                 onFocus={() => setHovered(p.id)}
                 onBlur={() => setHovered(null)}
-                aria-label={`${p.title}: ${p.subtitle}`}
+                aria-label={p.title}
                 aria-keyshortcuts={String(p.index)}
                 className={cx(
                   'flex h-12 flex-col items-center justify-center gap-1.5 rounded-xl px-2.5 transition-colors duration-200 ease-out sm:h-10 sm:flex-row sm:gap-2 sm:rounded-full sm:px-3',
@@ -192,14 +174,18 @@ const OverworldHud = () => {
         style={{ paddingTop: SAFE.top, paddingLeft: SAFE.left, paddingRight: SAFE.right }}
       >
         <div className="pointer-events-none select-none">
-          <p className="font-display text-[24px] leading-none text-ink">{profile.name}</p>
-          <p className="label mt-1.5">{profile.role}</p>
+          <p className={cx('font-display leading-none text-ink', DISPLAY.d24)}>{profile.name}</p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {/* tour entry only where it fits without crowding the phone bar */}
-          <Button size="sm" onClick={() => useTour.getState().start()} className="hidden md:inline-flex">
-            Tour
-            <ArrowIcon className="text-ink-muted" />
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          {/* icon-only on phones so the bar stays on one line */}
+          <Button
+            size="sm"
+            onClick={() => useTour.getState().start()}
+            aria-label="Take the tour"
+            className="max-sm:w-9 max-sm:justify-center max-sm:px-0"
+          >
+            <PlayIcon className="h-3 w-3 text-ink-muted max-sm:text-ink" />
+            <span className="hidden sm:inline">Tour</span>
           </Button>
           <EmailLink email={profile.email} name={profile.name} />
           <Button size="sm" onClick={() => openReader()} aria-label="Read as page">

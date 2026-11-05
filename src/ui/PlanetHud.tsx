@@ -13,7 +13,6 @@ import {
   HUD_ZOOM,
   HintRow,
   IN_WORLD,
-  KIND_LABEL,
   Kbd,
   PageIcon,
   SAFE,
@@ -56,15 +55,7 @@ const LABEL_STAGGER_MS = 80;
  * marker loop; labels are pointer targets only, the chips are the
  * accessible route.
  */
-const BeaconMarkers = ({
-  planet,
-  focused,
-  mixedKinds,
-}: {
-  planet: Planet;
-  focused: string | null;
-  mixedKinds: boolean;
-}) => {
+const BeaconMarkers = ({ planet, focused }: { planet: Planet; focused: string | null }) => {
   const narrow = useNarrow();
   // the phone sheet already shows the focused beacon
   const hiddenId = useRef<string | null>(null);
@@ -100,7 +91,7 @@ const BeaconMarkers = ({
 
   return (
     <div className="absolute inset-0 overflow-hidden">
-      {planet.beacons.map((b, i) => {
+      {planet.beacons.map((b) => {
         const on = focused === b.id;
         return (
           <div key={b.id}>
@@ -116,17 +107,13 @@ const BeaconMarkers = ({
               <span
                 className={cx(
                   IN_WORLD,
-                  'flex flex-col items-center px-2 py-1 transition-colors duration-200 group-hover:border-white/30 group-data-[compact=true]:hidden',
+                  'flex items-center px-2 py-1 transition-colors duration-200 group-hover:border-white/30 group-data-[compact=true]:hidden',
                   on && '!border-[color-mix(in_srgb,var(--accent)_40%,transparent)] !bg-space/80',
                 )}
               >
                 <span className="flex items-center gap-1.5 whitespace-nowrap font-mono text-[13px] font-medium uppercase leading-tight tracking-[0.14em] text-ink max-sm:text-[11px]">
                   {on && <AccentDot />}
                   {b.label}
-                </span>
-                <span className="whitespace-nowrap font-mono text-[11px] leading-tight tracking-[0.14em] text-ink-muted max-sm:text-[10px]">
-                  {String(i + 1).padStart(2, '0')}
-                  {mixedKinds && ` ${KIND_LABEL[b.kind]}`}
                 </span>
               </span>
               {/* stem down toward the monument; length set by the marker loop */}
@@ -222,10 +209,7 @@ const TravelMenu = ({ current, isTouch }: { current: string; isTouch: boolean })
                   className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors duration-150 hover:bg-white/[0.05]"
                 >
                   <AccentDot />
-                  <span className="flex-1">
-                    <span className="block text-[14px] text-ink">{p.title}</span>
-                    <span className="label block whitespace-nowrap">{p.subtitle}</span>
-                  </span>
+                  <span className="flex-1 text-[14px] text-ink">{p.title}</span>
                   {!isTouch && <Kbd>{p.index}</Kbd>}
                 </button>
               </li>
@@ -312,8 +296,6 @@ const PlanetHud = () => {
   if (activeId) lastId.current = activeId;
   const planet = planetById(lastId.current);
   if (!mounted || !planet) return null;
-  // kind text is noise when every beacon here is the same kind
-  const mixedKinds = new Set(planet.beacons.map((b) => b.kind)).size > 1;
 
   const fade: CSSProperties = {
     opacity: visible ? 1 : 0,
@@ -332,7 +314,7 @@ const PlanetHud = () => {
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 bottom-0 h-[160px] bg-gradient-to-t from-space/50 to-transparent"
       />
-      <BeaconMarkers planet={planet} focused={focused} mixedKinds={mixedKinds} />
+      <BeaconMarkers planet={planet} focused={focused} />
 
       {/* z-40 keeps the Travel menu above the beacon panel (z-30) */}
       <header
@@ -377,18 +359,12 @@ const PlanetHud = () => {
         </div>
         <div
           data-hud-block
-          className="mt-5 hidden w-max max-w-full select-none pl-1 [text-shadow:0_1px_14px_rgba(5,7,13,0.7)] sm:block [@media(max-height:500px)]:!hidden"
+          className="mt-4 hidden w-max max-w-full select-none pl-1 [text-shadow:0_1px_14px_rgba(5,7,13,0.7)] sm:block [@media(max-height:500px)]:!hidden"
         >
-          <p className="label flex items-center gap-2 !text-ink/80">
-            <AccentDot />
-            <span>
-              {String(planet.index).padStart(2, '0')} / {planet.subtitle}
-            </span>
-          </p>
           <h1
             data-planet-title
             tabIndex={-1}
-            className={cx('mt-1.5 font-display font-normal leading-none text-ink outline-none', DISPLAY.d40)}
+            className={cx('font-display font-normal leading-none text-ink outline-none', DISPLAY.d40)}
           >
             {planet.title}
           </h1>
@@ -437,14 +413,6 @@ const PlanetHud = () => {
                   >
                     <AccentDot glow={on} className={cx(!on && 'opacity-60')} />
                     <span className="text-[14px] font-medium text-ink">{b.label}</span>
-                    {mixedKinds && (
-                      <>
-                        {' '}
-                        <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-muted">
-                          {KIND_LABEL[b.kind]}
-                        </span>
-                      </>
-                    )}
                   </button>
                 </li>
               );

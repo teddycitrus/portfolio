@@ -16,23 +16,22 @@ export const TOUR_STOPS: TourStop[] = [
   {
     planetId: 'projects',
     beaconId: 'proj-iris',
-    caption: 'Iris: hands-free computer control with eyes, mouth and voice. Future Impact winner at Hack The Valley X.',
+    caption: 'Iris: hands-free computer control. Future Impact winner at Hack The Valley X.',
   },
   {
     planetId: 'projects',
     beaconId: 'proj-shieldclaw',
-    caption:
-      'ShieldClaw: identity, policy and human approval for AI agents. A team build that won at Hack Canada 2026.',
+    caption: 'ShieldClaw: security for AI agents. Team win at Hack Canada 2026.',
   },
   {
     planetId: 'projects',
     beaconId: 'proj-eureka',
-    caption: 'Eureka: supply-chain risk on a live 3D globe, with AI voice agents that brief people by phone.',
+    caption: 'Eureka: supply-chain risk on a live 3D globe, briefed by AI voice agents.',
   },
   {
     planetId: 'about',
     beaconId: 'about-education',
-    caption: 'IB Diploma student with a 97.7% top-six average, a 1570 SAT and 99% in Grade 12 computer science.',
+    caption: '97.7% top-six average, 1570 SAT, 99% in Grade 12 computer science.',
   },
   {
     planetId: 'contact',
@@ -73,7 +72,6 @@ export const useTour = create<TourState>((set, get) => ({
   start: () => {
     const app = useAppStore.getState();
     if (app.readerOpen) app.closeReader();
-    app.start();
     set({ active: true, paused: false });
     get().go(0);
   },

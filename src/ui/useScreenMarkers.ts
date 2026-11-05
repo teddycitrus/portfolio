@@ -107,7 +107,7 @@ class RectPool {
 /**
  * rAF loop that positions DOM markers from screen-space projections written
  * by the 3D scene. Anchors sit centred below their target; overlapping
- * anchors move above the target, get pushed down, or are compacted (subtitle
+ * anchors move above the target, get pushed down, or are compacted (secondary
  * hidden via data-compact). Element sizes come from a ResizeObserver, so the
  * loop never reads layout. Writes styles on refs; never sets React state.
  */

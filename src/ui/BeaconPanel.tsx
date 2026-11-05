@@ -5,13 +5,11 @@ import { useAppStore } from '@/state/useAppStore';
 import { BeaconBody } from './BeaconContent';
 import { openBeacon, panelFocusIntent, visitPlanet } from './navigation';
 import {
-  AccentDot,
   ArrowIcon,
   BackIcon,
   CloseIcon,
   EASE,
   HUD_ZOOM,
-  KIND_LABEL,
   SAFE,
   cx,
   useNarrow,
@@ -117,7 +115,6 @@ const BeaconPanel = () => {
   );
   if (!mounted || !shown) return live;
   const { beacon } = shown;
-  const index = shown.planet.beacons.findIndex((b) => b.id === beacon.id) + 1;
 
   const enter: CSSProperties = narrow
     ? { transform: visible ? 'none' : 'translateY(24px)', opacity: visible ? 1 : 0 }
@@ -188,27 +185,13 @@ const BeaconPanel = () => {
             <span className="h-1 w-10 rounded-full bg-white/25" />
           </button>
         )}
-        <div
-          className={cx(
-            'flex shrink-0 items-center justify-between gap-3 pb-1',
-            narrow ? 'px-5 pt-2' : 'px-6 pt-4',
-            HUD_ZOOM,
-          )}
-        >
-          <p className="label flex items-center gap-2">
-            <AccentDot />
-            <span>
-              {KIND_LABEL[beacon.kind]}{' '}
-              <span className="text-ink-faint">
-                / {index} of {shown.planet.beacons.length}
-              </span>
-            </span>
-          </p>
+        {/* close floats top-right; the heading leaves room for it */}
+        <div className={cx('absolute z-10', narrow ? 'right-3 top-5' : 'right-3 top-3', HUD_ZOOM)}>
           <button
             type="button"
             onClick={() => useAppStore.getState().setFocusedBeacon(null)}
             aria-label="Close"
-            className="-mr-2 inline-flex h-9 w-9 items-center justify-center rounded-full text-ink-muted transition-colors duration-200 hover:bg-white/[0.06] hover:text-ink"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-ink-muted transition-colors duration-200 hover:bg-white/[0.06] hover:text-ink"
           >
             <CloseIcon />
           </button>
@@ -219,7 +202,8 @@ const BeaconPanel = () => {
             if (narrow && !expanded && e.currentTarget.scrollTop > 24) setExpanded(true);
           }}
           className={cx(
-            'scrollbar-thin min-h-[160px] flex-auto [@media(max-height:500px)]:min-h-[110px] overflow-y-auto overscroll-contain pb-8 pt-3',
+            'scrollbar-thin min-h-[160px] flex-auto overflow-y-auto overscroll-contain pb-8 [@media(max-height:500px)]:min-h-[110px] [&_[data-panel-heading]]:pr-10',
+            narrow ? 'pt-3' : 'pt-6',
             narrow ? 'px-5' : 'px-6',
           )}
           style={{
