@@ -4,7 +4,7 @@ import type { Beacon, Planet } from '@/types/content';
 import { useAppStore } from '@/state/useAppStore';
 import { AwardProject, ENTRY_HEADING, FactGrid, ProjectBody, StackChips, linkProps } from './BeaconContent';
 import { visitPlanet } from './navigation';
-import { AccentDot, ArrowIcon, Button, CloseIcon, DISPLAY, EASE, Kbd, SAFE, cx, usePresence } from './primitives';
+import { ArrowIcon, Button, CloseIcon, DISPLAY, EASE, Kbd, SAFE, cx, usePresence } from './primitives';
 
 const sectionId = (id: string) => `reader-${id}`;
 const entryId = (id: string) => `reader-entry-${id}`;
@@ -280,7 +280,6 @@ const Reader = () => {
                         on ? 'text-ink' : 'text-ink-faint hover:text-ink-muted',
                       )}
                     >
-                      <AccentDot className={cx('transition-opacity duration-200', on ? 'opacity-100' : 'opacity-30')} />
                       <span className="w-5 font-mono text-[11px] tracking-[0.14em]">
                         {String(p.index).padStart(2, '0')}
                       </span>{' '}
@@ -340,13 +339,10 @@ const Reader = () => {
                         onClick={() => goTo(sectionId(p.id))}
                         aria-current={on ? 'true' : undefined}
                         className={cx(
-                          'flex h-9 items-center gap-2 rounded-full px-3 text-[14px] transition-colors duration-200',
-                          on ? 'bg-white/[0.07] text-ink' : 'text-ink-muted',
+                          'flex h-9 items-center px-3 text-[14px] transition-colors duration-200',
+                          on ? 'text-ink' : 'text-ink-muted',
                         )}
                       >
-                        <AccentDot
-                          className={cx('transition-opacity duration-200', on ? 'opacity-100' : 'opacity-40')}
-                        />
                         {p.title}
                       </button>
                     </li>
@@ -371,8 +367,7 @@ const Reader = () => {
                       DISPLAY.d52,
                     )}
                   >
-                    <span className="inline-flex items-center gap-2 self-center font-mono text-[12px] tracking-[0.14em] text-ink-muted">
-                      <AccentDot />
+                    <span className="self-center font-mono text-[12px] tracking-[0.14em] text-ink-muted">
                       {String(p.index).padStart(2, '0')}
                     </span>
                     {p.title}

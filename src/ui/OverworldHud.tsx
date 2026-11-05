@@ -3,8 +3,8 @@ import { planets, profile } from '@/data/content';
 import { planetScreen } from '@/state/runtime';
 import { useAppStore } from '@/state/useAppStore';
 import {
-  AccentDot,
   DISPLAY,
+  FLOAT_TEXT,
   PlayIcon,
   Button,
   ChevronIcon,
@@ -54,21 +54,18 @@ const PlanetLabels = ({ hovered, isTouch }: { hovered: string | null; isTouch: b
               {...common}
               className={cx(
                 IN_WORLD,
-                'group pointer-events-auto absolute left-0 top-0 w-max px-2.5 py-1.5 text-center transition-[border-color,background-color] duration-200 ease-out',
-                // hover reads as a brighter, accent-edged label rather than extra text
-                isHover && '!border-[color-mix(in_srgb,var(--accent)_55%,transparent)] !bg-space/80',
+                'group pointer-events-auto absolute left-0 top-0 w-max px-2.5 py-1.5 text-center transition-colors duration-200 ease-out',
+                // hover reads as the planet's accent rather than extra text
+                isHover ? 'text-[var(--accent)]' : 'text-ink',
               )}
               style={{ visibility: 'hidden' }}
             >
               {/* staggered reveal so the first overworld frame is calm */}
               <span
-                className="flex animate-fade-in items-center gap-1.5"
+                className="block animate-fade-in whitespace-nowrap font-display text-[20px] leading-none min-[1921px]:text-[24px]"
                 style={{ animationDelay: `${550 + i * 90}ms` }}
               >
-                <AccentDot glow={isHover} />
-                <span className="whitespace-nowrap font-display text-[20px] leading-none text-ink min-[1921px]:text-[24px]">
-                  {p.title}
-                </span>
+                {p.title}
               </span>
             </button>
             <button
@@ -104,7 +101,7 @@ const Dock = ({ hovered, isTouch }: { hovered: string | null; isTouch: boolean }
       className={cx('absolute inset-x-0 flex justify-center px-3', HUD_ZOOM)}
       style={{ bottom: SAFE.bottom }}
     >
-      <ul className="panel pointer-events-auto flex max-w-full items-stretch gap-0.5 rounded-2xl p-1 sm:rounded-full">
+      <ul className={cx('pointer-events-auto flex max-w-full items-stretch gap-1 sm:gap-3', FLOAT_TEXT)}>
         {planets.map((p) => {
           const on = hovered === p.id;
           return (
@@ -118,16 +115,12 @@ const Dock = ({ hovered, isTouch }: { hovered: string | null; isTouch: boolean }
                 onBlur={() => setHovered(null)}
                 aria-label={p.title}
                 aria-keyshortcuts={String(p.index)}
-                className={cx(
-                  'flex h-12 flex-col items-center justify-center gap-1.5 rounded-xl px-2.5 transition-colors duration-200 ease-out sm:h-10 sm:flex-row sm:gap-2 sm:rounded-full sm:px-3',
-                  on ? 'bg-white/[0.07]' : 'hover:bg-white/[0.04]',
-                )}
+                className="flex h-12 items-center justify-center gap-2 px-2 sm:h-10"
               >
-                <AccentDot glow={on} />
                 <span
                   className={cx(
-                    'text-[12px] font-medium transition-colors duration-200 sm:text-[13px]',
-                    on ? 'text-ink' : 'text-ink/80',
+                    'text-[13px] font-medium transition-colors duration-200 sm:text-[14px]',
+                    on ? 'text-[var(--accent)]' : 'text-ink/80',
                   )}
                 >
                   {p.title}
@@ -174,7 +167,7 @@ const OverworldHud = () => {
         style={{ paddingTop: SAFE.top, paddingLeft: SAFE.left, paddingRight: SAFE.right }}
       >
         <div className="pointer-events-none select-none">
-          <p className={cx('font-display leading-none text-ink', DISPLAY.d24)}>{profile.name}</p>
+          <p className={cx('font-display leading-none text-ink', DISPLAY.d24, FLOAT_TEXT)}>{profile.name}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           {/* icon-only on phones so the bar stays on one line */}
@@ -182,7 +175,7 @@ const OverworldHud = () => {
             size="sm"
             onClick={() => useTour.getState().start()}
             aria-label="Take the tour"
-            className="max-sm:w-9 max-sm:justify-center max-sm:px-0"
+            className="max-sm:w-9 max-sm:justify-center"
           >
             <PlayIcon className="h-3 w-3 text-ink-muted max-sm:text-ink" />
             <span className="hidden sm:inline">Tour</span>

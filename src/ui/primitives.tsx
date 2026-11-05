@@ -58,10 +58,10 @@ export const useNarrow = () => useMedia('(max-width: 699px), (orientation: portr
 /** Landscape phones and other very short viewports. */
 export const useShort = () => useMedia('(max-height: 500px)');
 
-/** One hover border for every outlined control. */
-export const HOVER_LINE = 'hover:border-white/30';
-/** Shared surface for labels drawn over the scene (planets, beacons, edge markers). */
-export const IN_WORLD = 'rounded-md border border-line bg-space/60 backdrop-blur-sm';
+/** Shadow that keeps bare text legible over bright skies and planets. */
+export const FLOAT_TEXT = '[text-shadow:0_1px_2px_rgba(5,7,13,0.9),0_0_14px_rgba(5,7,13,0.75)]';
+/** Labels drawn over the scene (planets, beacons, edge markers): bare text, no surface. */
+export const IN_WORLD = FLOAT_TEXT;
 
 /**
  * Display type scale (Instrument Serif): 136 / 80 / 52 / 40 / 32 / 24 / 20.
@@ -78,17 +78,18 @@ export const DISPLAY = {
 
 type Variant = 'primary' | 'panel' | 'ghost';
 
+/** Every variant is bare text; primary is underlined so content CTAs still read as the main action. */
 const VARIANTS: Record<Variant, string> = {
-  primary: 'bg-ink text-space hover:bg-white',
-  panel: 'panel text-ink hover:border-white/30',
-  ghost: 'border border-line text-ink hover:border-white/30 hover:bg-white/[0.04]',
+  primary: 'text-ink underline decoration-white/35 underline-offset-[6px] hover:text-white hover:decoration-white',
+  panel: cx('text-ink/85 hover:text-white', FLOAT_TEXT),
+  ghost: 'text-ink/85 hover:text-white',
 };
 
 /** Button look for anchors and buttons alike. HUD controls are sm (h-9), content CTAs md (h-11). */
 export const buttonClass = (variant: Variant = 'panel', size: 'sm' | 'md' = 'md') =>
   cx(
-    'pointer-events-auto inline-flex select-none items-center gap-2.5 whitespace-nowrap rounded-full font-medium transition-[background-color,border-color,color,opacity] duration-200 ease-out',
-    size === 'md' ? 'h-11 px-5 text-[14px]' : 'h-9 px-3.5 text-[13px]',
+    'pointer-events-auto inline-flex select-none items-center gap-2.5 whitespace-nowrap font-medium transition-[color,text-decoration-color,opacity] duration-200 ease-out',
+    size === 'md' ? 'h-11 text-[14px]' : 'h-9 px-2 text-[13px]',
     VARIANTS[variant],
   );
 
@@ -122,27 +123,9 @@ export const Kbd = ({ children, className }: { children: ReactNode; className?: 
   <kbd className={cx('kbd', className)}>{children}</kbd>
 );
 
-export const AccentDot = ({ color, className, glow }: { color?: string; className?: string; glow?: boolean }) => (
-  <span
-    aria-hidden="true"
-    className={cx('inline-block h-1.5 w-1.5 shrink-0 rounded-full', className)}
-    style={{
-      background: color ?? 'var(--accent)',
-      boxShadow: glow ? `0 0 0 3px color-mix(in srgb, ${color ?? 'var(--accent)'} 22%, transparent)` : undefined,
-    }}
-  />
-);
-
-/** Tech names (stack and skills) everywhere: sans 13px on a hairline pill. */
+/** Tech names (stack and skills) everywhere: plain sans 13px. */
 export const Chip = ({ children, className }: { children: ReactNode; className?: string }) => (
-  <span
-    className={cx(
-      'inline-flex items-center rounded-full border border-line px-3 py-1.5 text-[13px] leading-none text-ink/90',
-      className,
-    )}
-  >
-    {children}
-  </span>
+  <span className={cx('inline-flex items-center text-[13px] leading-none text-ink/90', className)}>{children}</span>
 );
 
 interface IconProps {
@@ -244,7 +227,7 @@ export const EmailLink = ({ email, name }: { email: string; name: string }) => (
   <a
     href={`mailto:${email}`}
     aria-label={`Email ${name}`}
-    className={cx(buttonClass('panel', 'sm'), 'max-sm:w-9 max-sm:justify-center max-sm:px-0')}
+    className={cx(buttonClass('panel', 'sm'), 'max-sm:w-9 max-sm:justify-center')}
   >
     <MailIcon className="text-ink-muted max-sm:text-ink" />
     <span className="hidden sm:inline">Email</span>

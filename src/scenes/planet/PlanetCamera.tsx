@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useAppStore } from '@/state/useAppStore';
-import { beaconScreen, dragLook, joystickState, keyboardState, type PlanetScreenInfo } from '@/state/runtime';
+import { beaconScreen, dragLook, joystickState, keyboardState, mouseLook, type PlanetScreenInfo } from '@/state/runtime';
 import { BEACON_VIEW_DISTANCE, getBeaconViewPoint, SURFACE_HEAD_HEIGHT, SURFACE_SPAWN } from '@/data/content';
 import type { Vec3 } from '@/types/content';
 import type { HeightFn } from './Terrain';
@@ -28,6 +28,8 @@ const GAZE_RANGE = 14;
 const GAZE_ANGLE = (6 * Math.PI) / 180;
 const GAZE_HOLD = (9 * Math.PI) / 180;
 const GAZE_DWELL = 0.45;
+/** With the cursor locked, a click opens the beacon within this angle of the screen centre */
+const AIM_ANGLE = (10 * Math.PI) / 180;
 const STICKY_RELEASE = 7;
 const BEACON_COLLIDE = 1.15;
 const EDGE_INSET = 48;
@@ -110,7 +112,13 @@ const PlanetCamera = ({ planetId, beacons, ground, walkRadius }: PlanetCameraPro
   });
   const sizeRef = useRef(size);
   sizeRef.current = size;
-  useEffect(() => () => void (arrivalPulse.start = -1), []);
+  useEffect(
+    () => () => {
+      arrivalPulse.start = -1;
+      mouseLook.aimId = null;
+    },
+    [],
+  );
   const euler = useRef(new THREE.Euler(0, 0, 0, 'YXZ'));
   const v3 = useRef(new THREE.Vector3());
 
@@ -277,7 +285,8 @@ const PlanetCamera = ({ planetId, beacons, ground, walkRadius }: PlanetCameraPro
     } else {
       /* ---- look: drag right turns the view left, drag down tilts up ---- */
       dragLook.pitch = THREE.MathUtils.clamp(dragLook.pitch, -PITCH_LIMIT, PITCH_LIMIT);
-      const kLook = damp(reduced ? 30 : 14, dt);
+      // locked mouse look wants to feel direct; drags keep the softer follow
+      const kLook = damp(reduced || mouseLook.locked ? 30 : 14, dt);
       s.yaw += (dragLook.yaw - s.yaw) * kLook;
       s.pitch += (dragLook.pitch - s.pitch) * kLook;
 
@@ -333,6 +342,7 @@ const PlanetCamera = ({ planetId, beacons, ground, walkRadius }: PlanetCameraPro
     camera.updateMatrixWorld();
 
     /* ---- focus detection ---- */
+    mouseLook.aimId = null;
     if (settle >= 1 && !s.glideId) {
       const fx = -Math.sin(s.yaw) * Math.cos(viewPitch);
       const fy = Math.sin(viewPitch);
@@ -342,6 +352,7 @@ const PlanetCamera = ({ planetId, beacons, ground, walkRadius }: PlanetCameraPro
       let gazeId: string | null = null;
       let gazeA = Infinity;
       let stickyD = Infinity;
+      let aimA = AIM_ANGLE;
       for (const b of beacons) {
         const dx = b.position[0] - pos.x;
         const dz = b.position[2] - pos.z;
@@ -355,6 +366,10 @@ const PlanetCamera = ({ planetId, beacons, ground, walkRadius }: PlanetCameraPro
           const dy = b.position[1] + b.height * 0.55 - pos.y;
           const len = Math.hypot(dx, dy, dz);
           const a = Math.acos(THREE.MathUtils.clamp((dx * fx + dy * fy + dz * fz) / len, -1, 1));
+          if (a < aimA) {
+            aimA = a;
+            mouseLook.aimId = b.id;
+          }
           const limit = b.id === s.gazeId && store.focusedBeaconId === b.id ? GAZE_HOLD : GAZE_ANGLE;
           if (a < limit && a < gazeA) {
             gazeA = a;

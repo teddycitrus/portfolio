@@ -3,7 +3,7 @@ import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Beacon as BeaconData, BeaconKind, Planet, Vec3 } from '@/types/content';
 import { useAppStore } from '@/state/useAppStore';
-import { dragLook } from '@/state/runtime';
+import { dragLook, mouseLook } from '@/state/runtime';
 import { arrivalPulse } from './surfaceState';
 import { openBeacon } from '@/ui/navigation';
 
@@ -142,7 +142,7 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
     ? 'eye'
     : /eureka/.test(beacon.id)
       ? 'globe'
-      : /nora/.test(beacon.id)
+      : /bastion/.test(beacon.id)
         ? 'prism'
         : /shield/.test(beacon.id)
           ? 'shield'
@@ -255,7 +255,7 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
 
   const onClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
-    if (dragLook.travel >= 6) return;
+    if (dragLook.travel >= 6 || mouseLook.pressLocked) return;
     // same path as the HUD chips: glide + focus, without stealing keyboard focus
     openBeacon(beacon.id, false);
   };

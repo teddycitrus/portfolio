@@ -1,10 +1,33 @@
 import { useEffect } from 'react';
 import { useAppStore } from '@/state/useAppStore';
-import { dragLook, keyboardState, pointerState } from '@/state/runtime';
+import { dragLook, keyboardState, mouseLook, pointerState } from '@/state/runtime';
 import { planetByIndex } from '@/data/content';
+import { openBeacon } from '@/ui/navigation';
+import { useTour } from '@/ui/tour';
 
 const DRAG_SENSITIVITY = 0.0042;
 const TOUCH_DRAG_SENSITIVITY = 0.0065;
+const LOCK_SENSITIVITY = 0.0022;
+const MAX_LOCK_STEP = 300;
+/** An Esc this soon after the cursor was freed is the same press */
+const UNLOCK_ESC_MS = 250;
+
+/** Mouse look owns the cursor only while walking a planet on desktop with nothing modal open. */
+const wantsLock = () => {
+  const s = useAppStore.getState();
+  return s.mode === 'planet' && !s.isTouch && !s.readerOpen && !useTour.getState().active;
+};
+
+const requestLock = () => {
+  const canvas = document.querySelector('canvas');
+  if (!canvas || document.pointerLockElement) return;
+  try {
+    // a promise in current browsers; rejects without a recent user gesture, and a click retries
+    (canvas.requestPointerLock() as unknown as Promise<void> | undefined)?.catch?.(() => {});
+  } catch {
+    /* unsupported: drag to look still works */
+  }
+};
 
 const isTypingTarget = (el: EventTarget | null) =>
   el instanceof HTMLElement && !!el.closest('input, textarea, [contenteditable="true"]');
@@ -24,6 +47,14 @@ export const useInputBridge = (): void => {
     let lastY = 0;
 
     const onPointerMove = (e: PointerEvent) => {
+      if (mouseLook.locked) {
+        // Chrome can report one huge jump right after the lock is taken
+        if (Math.abs(e.movementX) > MAX_LOCK_STEP || Math.abs(e.movementY) > MAX_LOCK_STEP) return;
+        // mouse right turns right, mouse up looks up
+        dragLook.yaw -= e.movementX * LOCK_SENSITIVITY;
+        dragLook.pitch -= e.movementY * LOCK_SENSITIVITY;
+        return;
+      }
       if (e.pointerType === 'mouse') {
         pointerState.x = (e.clientX / window.innerWidth) * 2 - 1;
         pointerState.y = -((e.clientY / window.innerHeight) * 2 - 1);
@@ -42,7 +73,13 @@ export const useInputBridge = (): void => {
 
     const onPointerDown = (e: PointerEvent) => {
       if (e.pointerType === 'touch') store().setIsTouch(true);
+      mouseLook.pressLocked = mouseLook.locked;
+      if (mouseLook.locked) {
+        if (e.button === 0 && mouseLook.aimId) openBeacon(mouseLook.aimId, false);
+        return;
+      }
       if (!(e.target instanceof HTMLCanvasElement)) return;
+      if (e.pointerType === 'mouse' && wantsLock()) requestLock();
       if (activePointer !== null) return;
       activePointer = e.pointerId;
       lastX = e.clientX;
@@ -64,6 +101,9 @@ export const useInputBridge = (): void => {
       const s = store();
 
       if (e.key === 'Escape') {
+        // the browser spends this Esc on freeing the cursor; pointerlockchange may land before or after it
+        const freeing = mouseLook.locked || !!document.pointerLockElement;
+        if (freeing || performance.now() - mouseLook.unlockedAt < UNLOCK_ESC_MS) return;
         if (s.readerOpen) s.closeReader();
         else if (s.mode === 'planet' && s.focusedBeaconId) s.setFocusedBeacon(null);
         else if (s.mode === 'planet') s.exitPlanet();
@@ -100,6 +140,28 @@ export const useInputBridge = (): void => {
     store().setReducedMotion(motion.matches);
     const onMotion = () => store().setReducedMotion(motion.matches);
 
+    /* ---- pointer lock: taken on landing, given back whenever the cursor is needed ---- */
+    const onLockChange = () => {
+      const locked = !!document.pointerLockElement;
+      if (mouseLook.locked && !locked) mouseLook.unlockedAt = performance.now();
+      mouseLook.locked = locked;
+      if (locked) {
+        activePointer = null;
+        dragLook.dragging = false;
+      }
+    };
+    const syncLock = () => {
+      const want = wantsLock();
+      if (!want && document.pointerLockElement) document.exitPointerLock();
+      return want;
+    };
+    const unsubApp = useAppStore.subscribe((s, p) => {
+      // the click or key that started the trip usually still counts as a gesture on arrival
+      if (syncLock() && s.mode === 'planet' && p.mode !== 'planet') requestLock();
+    });
+    const unsubTour = useTour.subscribe(syncLock);
+
+    document.addEventListener('pointerlockchange', onLockChange);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('pointerup', onPointerUp);
@@ -109,6 +171,9 @@ export const useInputBridge = (): void => {
     window.addEventListener('blur', onBlur);
     motion.addEventListener('change', onMotion);
     return () => {
+      unsubApp();
+      unsubTour();
+      document.removeEventListener('pointerlockchange', onLockChange);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointerup', onPointerUp);

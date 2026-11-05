@@ -9,7 +9,7 @@ import type {
   ProjectContent,
   SkillsContent,
 } from '@/types/content';
-import { AccentDot, ArrowIcon, Chip, DISPLAY, PlayIcon, buttonClass, cx } from './primitives';
+import { ArrowIcon, Chip, DISPLAY, PlayIcon, buttonClass, cx } from './primitives';
 import { findProjectBeacon } from './navigation';
 
 /** Reader entry headings share one size across every kind; the panel title is 32 too. */
@@ -59,7 +59,7 @@ export const FactGrid = ({ facts }: { facts: Fact[] }) => (
 );
 
 export const StackChips = ({ items, label = 'Stack' }: { items: string[]; label?: string }) => (
-  <ul className="flex flex-wrap gap-1.5" aria-label={label}>
+  <ul className="flex flex-wrap gap-x-4 gap-y-2.5" aria-label={label}>
     {items.map((s) => (
       <li key={s}>
         <Chip>{s}</Chip>
@@ -69,7 +69,7 @@ export const StackChips = ({ items, label = 'Stack' }: { items: string[]; label?
 );
 
 export const LinkButtons = ({ links }: { links: ExternalLink[] }) => (
-  <div className="flex flex-wrap gap-2">
+  <div className="flex flex-wrap gap-x-6">
     {links.map((l) => (
       <a key={l.url} href={l.url} {...linkProps(l.url)} className={buttonClass('ghost', 'md')}>
         {l.label}
@@ -144,12 +144,7 @@ export const ProjectBody = ({ c, variant }: { c: ProjectContent; variant: Varian
       <p className="label flex flex-wrap items-center gap-x-3 gap-y-1">
         <span>{c.period}</span>
         {c.team && <span>Team</span>}
-        {c.award && (
-          <span className="inline-flex items-center gap-1.5 text-[var(--accent)]">
-            <AccentDot />
-            {c.award}
-          </span>
-        )}
+        {c.award && <span className="text-[var(--accent)]">{c.award}</span>}
       </p>
     </div>
     {c.videoId && <VideoEmbed videoId={c.videoId} title={c.heading} poster={c.poster} />}

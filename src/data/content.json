@@ -72,7 +72,7 @@
           "kind": "profile",
           "content": {
             "heading": "What I'm working toward",
-            "body": "I'm going deeper on AI and machine learning: computer vision, voice interfaces, and ways to measure whether AI output is actually any good, which is the problem Nora works on."
+            "body": "I'm going deeper on AI and machine learning: computer vision, voice interfaces, and agents that can be trusted to act on their own, which is what Bastion does."
           }
         }
       ]
@@ -168,34 +168,30 @@
           }
         },
         {
-          "id": "proj-nora",
-          "label": "Nora",
+          "id": "proj-bastion",
+          "label": "Bastion",
           "kind": "project",
           "content": {
-            "heading": "Nora",
-            "period": "Jul 2026",
-            "description": "Paste a Shopify URL and Nora extracts the brand's palette, typography and product look, then scores candidate ad images on five explainable axes. The same evaluator is exposed as an MCP tool so agents can grade their own work.",
+            "heading": "Bastion",
+            "period": "Oct 2026",
+            "description": "An autonomous blue-team agent that sits in front of a web app as a reverse proxy, watches its traffic and contains attacks on its own. A fast classifier flags suspicious requests, and an LLM investigator decides how to respond with no human in the loop.",
             "highlights": [
-              "Compares generated ads against the brand's real product photos, not just its colours.",
-              "Filters out off-brand variants before they reach a person.",
-              "Built to score ads from Olivia (cresva.ai)."
+              "Two-tier triage: every request is scored by a classifier, and only flagged ones reach the LLM investigator.",
+              "Diverts attackers to a honeypot, bans sources and installs route-scoped virtual patches, with every action recorded and executed at most once.",
+              "Ships a full local lab: a de-fingerprinted vulnerable target and a red-team agent that attacks it."
             ],
             "stack": [
-              "TypeScript",
-              "Wasp",
-              "Replicate",
-              "sharp",
-              "chroma-js",
-              "React Three Fiber"
+              "Python",
+              "FastAPI",
+              "Claude API",
+              "SQLite",
+              "Docker"
             ],
+            "team": true,
             "links": [
               {
-                "label": "Live site",
-                "url": "https://nora-olivia-client.fly.dev/"
-              },
-              {
                 "label": "GitHub",
-                "url": "https://github.com/teddycitrus/olivia_aide"
+                "url": "https://github.com/adamhjouj/bastion"
               }
             ]
           }

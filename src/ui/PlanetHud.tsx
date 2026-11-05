@@ -4,12 +4,12 @@ import type { Planet } from '@/types/content';
 import { beaconScreen, dragLook, isKeyDown, joystickState } from '@/state/runtime';
 import { useAppStore } from '@/state/useAppStore';
 import {
-  AccentDot,
   BackIcon,
   Button,
   ChevronIcon,
   EASE,
   EmailLink,
+  FLOAT_TEXT,
   HUD_ZOOM,
   HintRow,
   IN_WORLD,
@@ -107,12 +107,11 @@ const BeaconMarkers = ({ planet, focused }: { planet: Planet; focused: string | 
               <span
                 className={cx(
                   IN_WORLD,
-                  'flex items-center px-2 py-1 transition-colors duration-200 group-hover:border-white/30 group-data-[compact=true]:hidden',
-                  on && '!border-[color-mix(in_srgb,var(--accent)_40%,transparent)] !bg-space/80',
+                  'flex items-center px-2 py-1 transition-colors duration-200 group-data-[compact=true]:hidden',
+                  on ? 'text-[var(--accent)]' : 'text-ink group-hover:text-white',
                 )}
               >
-                <span className="flex items-center gap-1.5 whitespace-nowrap font-mono text-[13px] font-medium uppercase leading-tight tracking-[0.14em] text-ink max-sm:text-[11px]">
-                  {on && <AccentDot />}
+                <span className="whitespace-nowrap font-mono text-[13px] font-medium uppercase leading-tight tracking-[0.14em] max-sm:text-[11px]">
                   {b.label}
                 </span>
               </span>
@@ -123,7 +122,7 @@ const BeaconMarkers = ({ planet, focused }: { planet: Planet; focused: string | 
               />
               {/* collapsed form when there is no room for the name */}
               <span className="hidden h-3 w-3 items-center justify-center group-data-[compact=true]:flex">
-                <span className="h-2 w-2 rounded-full bg-[var(--accent)] shadow-[0_0_0_2px_rgba(5,7,13,0.6)]" />
+                <span className="h-3 w-px bg-[var(--accent)] shadow-[0_0_0_1px_rgba(5,7,13,0.6)]" />
               </span>
             </button>
             <button
@@ -206,10 +205,11 @@ const TravelMenu = ({ current, isTouch }: { current: string; isTouch: boolean })
                     setOpen(false);
                     travelTo(p.id);
                   }}
-                  className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors duration-150 hover:bg-white/[0.05]"
+                  className="group flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors duration-150 hover:bg-white/[0.05]"
                 >
-                  <AccentDot />
-                  <span className="flex-1 text-[14px] text-ink">{p.title}</span>
+                  <span className="flex-1 text-[14px] text-ink transition-colors duration-150 group-hover:text-[var(--accent)]">
+                    {p.title}
+                  </span>
                   {!isTouch && <Kbd>{p.index}</Kbd>}
                 </button>
               </li>
@@ -219,6 +219,31 @@ const TravelMenu = ({ current, isTouch }: { current: string; isTouch: boolean })
     </div>
   );
 };
+
+const usePointerLocked = () => {
+  const [locked, setLocked] = useState(() => !!document.pointerLockElement);
+  useEffect(() => {
+    const on = () => setLocked(!!document.pointerLockElement);
+    document.addEventListener('pointerlockchange', on);
+    return () => document.removeEventListener('pointerlockchange', on);
+  }, []);
+  return locked;
+};
+
+/** Centre mark while the cursor is locked; a click opens the monument under it. */
+const Crosshair = () => (
+  <div aria-hidden="true" className="pointer-events-none absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2">
+    <span className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-white/70" />
+    <span className="absolute left-0 top-1/2 h-px w-full -translate-y-1/2 bg-white/70" />
+  </div>
+);
+
+/** Shown while the cursor is free on desktop, until a click on the scene takes it back. */
+const LookPrompt = () => (
+  <p aria-hidden="true" className={cx('animate-fade-in px-4 py-1.5 text-[13px] text-ink', FLOAT_TEXT)}>
+    Click to look around
+  </p>
+);
 
 /** Arrival hint, gone after the first move, the first opened beacon or 8 seconds. */
 const ControlsHint = ({ isTouch }: { isTouch: boolean }) => {
@@ -245,7 +270,10 @@ const ControlsHint = ({ isTouch }: { isTouch: boolean }) => {
           <Kbd>D</Kbd>
           <span className="ml-0.5">Move</span>
         </>,
-        <>Drag to look</>,
+        <>
+          <Kbd>Esc</Kbd>
+          <span className="ml-0.5">Free cursor</span>
+        </>,
         <>
           <Kbd>Q</Kbd>
           <span className="ml-0.5">Back to orbit</span>
@@ -255,7 +283,7 @@ const ControlsHint = ({ isTouch }: { isTouch: boolean }) => {
     <div
       data-hud-block={show ? '' : undefined}
       aria-hidden="true"
-      className="rounded-full bg-space/50 px-4 py-1.5 backdrop-blur-sm"
+      className={cx('px-4 py-1.5', FLOAT_TEXT)}
       style={{ opacity: show ? 1 : 0, transition: `opacity 600ms ${EASE}` }}
     >
       <HintRow items={items} className="justify-center" />
@@ -274,6 +302,7 @@ const PlanetHud = () => {
   const touring = useTour((s) => s.active);
   const narrow = useNarrow();
   const short = useShort();
+  const locked = usePointerLocked();
   const header = useRef<HTMLElement>(null);
 
   const live = mode === 'planet' && !!activeId;
@@ -315,6 +344,7 @@ const PlanetHud = () => {
         className="pointer-events-none absolute inset-x-0 bottom-0 h-[160px] bg-gradient-to-t from-space/50 to-transparent"
       />
       <BeaconMarkers planet={planet} focused={focused} />
+      {locked && <Crosshair />}
 
       {/* z-40 keeps the Travel menu above the beacon panel (z-30) */}
       <header
@@ -327,7 +357,7 @@ const PlanetHud = () => {
             size="sm"
             onClick={exitPlanet}
             aria-label="Back to orbit"
-            className="max-sm:w-9 max-sm:justify-center max-sm:px-0"
+            className="max-sm:w-9 max-sm:justify-center"
           >
             <BackIcon className="text-ink-muted max-sm:text-ink" />
             <span className="hidden sm:inline">Back to orbit</span>
@@ -336,9 +366,11 @@ const PlanetHud = () => {
           {/* compact single-line title on phones, inside the top bar */}
           <p
             aria-hidden="true"
-            className="flex min-w-0 flex-1 select-none items-center gap-2 pl-1 sm:hidden [@media(max-height:500px)]:!flex"
+            className={cx(
+              'flex min-w-0 flex-1 select-none items-center pl-1 sm:hidden [@media(max-height:500px)]:!flex',
+              FLOAT_TEXT,
+            )}
           >
-            <AccentDot />
             <span className="truncate font-display text-[20px] leading-none text-ink">{planet.title}</span>
           </p>
           <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
@@ -380,7 +412,7 @@ const PlanetHud = () => {
       >
         {!touring && (
           <div className={cx(!isTouch && 'hidden md:block')}>
-            <ControlsHint isTouch={isTouch} />
+            {isTouch || locked ? <ControlsHint isTouch={isTouch} /> : <LookPrompt />}
           </div>
         )}
         {/* on phones the tour bar takes the chip row's place */}
@@ -392,7 +424,10 @@ const PlanetHud = () => {
         >
           <ul
             data-hud-block
-            className="scrollbar-thin mx-auto flex w-max max-w-full snap-x scroll-px-5 gap-2 overflow-x-auto pb-1"
+            className={cx(
+              'scrollbar-thin mx-auto flex w-max max-w-full snap-x scroll-px-5 gap-2 overflow-x-auto pb-1 sm:gap-4',
+              FLOAT_TEXT,
+            )}
             style={{ paddingLeft: SAFE.left, paddingRight: SAFE.right }}
           >
             {planet.beacons.map((b) => {
@@ -405,14 +440,11 @@ const PlanetHud = () => {
                     data-beacon-chip={b.id}
                     onClick={() => openBeacon(b.id)}
                     className={cx(
-                      'panel flex h-11 items-center gap-2.5 rounded-full pl-3.5 pr-4 transition-[border-color,background-color] duration-200 ease-out',
-                      on
-                        ? '!border-[color-mix(in_srgb,var(--accent)_70%,transparent)] !bg-space-700/90'
-                        : 'hover:!border-white/30',
+                      'flex h-11 items-center px-2 text-[14px] font-medium transition-colors duration-200 ease-out',
+                      on ? 'text-[var(--accent)]' : 'text-ink/80 hover:text-white',
                     )}
                   >
-                    <AccentDot glow={on} className={cx(!on && 'opacity-60')} />
-                    <span className="text-[14px] font-medium text-ink">{b.label}</span>
+                    {b.label}
                   </button>
                 </li>
               );

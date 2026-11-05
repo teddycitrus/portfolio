@@ -9,7 +9,7 @@ Built with Vite, React 18, TypeScript, React Three Fiber, drei, postprocessing, 
 | Where | Desktop | Touch |
 | --- | --- | --- |
 | Orbit | Move the mouse to look, drag to pan, click a planet or press 1 to 5 | Drag to look, tap a planet |
-| Surface | WASD or arrows to walk, Shift to run, drag to look, click a monument | Joystick to walk, drag to look, tap a monument |
+| Surface | The cursor locks on landing: move the mouse to look, WASD or arrows to walk, Shift to run, click the monument under the crosshair. Esc frees the cursor, a click on the scene locks it again | Joystick to walk, drag to look, tap a monument |
 | Anywhere | R opens the reader, Q or Esc goes back | Back and Read buttons |
 
 ## Architecture
@@ -19,7 +19,7 @@ The app is one WebGL canvas plus a DOM layer on top. A single zustand store hold
 ```mermaid
 flowchart LR
   subgraph Input
-    bridge["useInputBridge<br/><sub>pointer, drag, keys, shortcuts</sub>"]
+    bridge["useInputBridge<br/><sub>pointer lock, drag, keys, shortcuts</sub>"]
   end
   subgraph State
     store[("useAppStore<br/><sub>mode, planet, beacon, reader</sub>")]
@@ -39,7 +39,7 @@ flowchart LR
   end
   content[("content.json")]
 
-  bridge -->|"drag, keys"| runtime
+  bridge -->|"look, keys"| runtime
   bridge -->|"shortcuts"| store
   store --> overworld & surface & transition & hud & panel & reader & veil
   overworld -->|"planetScreen"| runtime
@@ -54,7 +54,7 @@ Scene modes always move in this order:
 
 1. `overworld`: telescope view, where the site opens. Hovering a planet (in 3D or in the dock) highlights it; clicking calls `travelTo`.
 2. `transitioning-in`: the camera dives toward the drifting planet. The veil fades to the destination sky colour from 1200 ms and the mode switches at 1600 ms, always under full cover.
-3. `planet`: the camera settles from above onto the spawn point and the veil lifts. Walking near or looking at a monument focuses it and opens its panel.
+3. `planet`: the camera settles from above onto the spawn point and the veil lifts. On desktop the cursor is locked for mouse look (released whenever the reader or the tour needs it). Walking near or looking at a monument focuses it and opens its panel.
 4. `transitioning-out`: the camera launches upward, the veil covers at 900 ms and the mode returns to `overworld` at 1500 ms. Planet-to-planet travel is chained: the launch is cut at 900 ms and the next landing happens 450 ms later, all under the veil.
 
 ```mermaid

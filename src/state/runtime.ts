@@ -24,6 +24,20 @@ export const dragLook = {
   travel: 0,
 };
 
+/**
+ * Pointer-lock mouse look on the planet surface (desktop). The input bridge
+ * owns the lock; the planet camera writes aimId, the beacon under the
+ * screen centre, which a click opens while the cursor is locked.
+ */
+export const mouseLook = {
+  locked: false,
+  /** performance.now() of the last unlock, so the Esc that freed the cursor does nothing else */
+  unlockedAt: 0,
+  aimId: null as string | null,
+  /** The current press began while locked: 3D click handlers skip it (the cursor position is stale) */
+  pressLocked: false,
+};
+
 export const keyboardState: Record<string, boolean> = {};
 
 export const isKeyDown = (...codes: string[]): boolean =>
