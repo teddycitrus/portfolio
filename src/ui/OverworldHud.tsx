@@ -4,6 +4,7 @@ import { planetScreen } from '@/state/runtime';
 import { useAppStore } from '@/state/useAppStore';
 import {
   AccentDot,
+  ArrowIcon,
   Button,
   ChevronIcon,
   EASE,
@@ -16,6 +17,7 @@ import {
   usePresence,
 } from './primitives';
 import { useScreenMarkers } from './useScreenMarkers';
+import { useTour } from './tour';
 
 const SAFE_BANDS = { top: 84, bottom: 104 };
 /** Clears the hover reticle (about 1.15x the planet radius) with room to spare. */
@@ -187,6 +189,11 @@ const OverworldHud = () => {
           <p className="label mt-1.5">{profile.role}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {/* tour entry only where it fits without crowding the phone bar */}
+          <Button size="sm" onClick={() => useTour.getState().start()} className="hidden md:inline-flex">
+            Tour
+            <ArrowIcon className="text-ink-muted" />
+          </Button>
           <EmailLink email={profile.email} name={profile.name} />
           <Button size="sm" onClick={() => openReader()} aria-label="Read as a page">
             <PageIcon className="text-ink-muted" />

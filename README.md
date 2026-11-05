@@ -89,7 +89,7 @@ Guarantees and limits:
 - The URL hash mirrors the view (`#/projects/proj-iris`, `#/read/awards`), so any planet, monument or reader section can be linked, and the browser Back button moves between planets.
 - The render loop pauses while the reader is open.
 - `prefers-reduced-motion` replaces camera flights with a short crossfade and removes head bob and the intro swing.
-- Walking is clamped to a 30 unit radius; terrain stays nearly flat within 14 units of the centre.
+- Each surface matches its planet from orbit: basalt and lava rifts on Awards, an island in shallow water on Skills, a mesa above a cloud deck on Projects. Walking is clamped to 30 units, or to the island or mesa edge.
 - Post-processing renders in linear HDR with ACES tone mapping; only values above 1.0 bloom (sun, lava, glints, focused seams). Touch devices drop multisampling and film grain.
 
 ## Getting started

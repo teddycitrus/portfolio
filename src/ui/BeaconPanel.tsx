@@ -127,6 +127,7 @@ const BeaconPanel = () => {
       <aside
         ref={aside}
         data-hud-block
+        data-beacon-panel
         aria-label={`${beacon.label} details`}
         aria-hidden={readerOpen || undefined}
         className={cx(

@@ -22,6 +22,7 @@ import {
 import { useScreenMarkers, type Box } from './useScreenMarkers';
 import { arrivalPulse } from '@/scenes/planet/surfaceState';
 import { openBeacon } from './navigation';
+import { useTour } from './tour';
 
 const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 
@@ -51,7 +52,15 @@ const LABEL_STAGGER_MS = 80;
  * marker loop; labels are pointer targets only, the chips are the
  * accessible route.
  */
-const BeaconMarkers = ({ planet, focused, mixedKinds }: { planet: Planet; focused: string | null; mixedKinds: boolean }) => {
+const BeaconMarkers = ({
+  planet,
+  focused,
+  mixedKinds,
+}: {
+  planet: Planet;
+  focused: string | null;
+  mixedKinds: boolean;
+}) => {
   const narrow = useNarrow();
   // the phone sheet already shows the focused beacon
   const hiddenId = useRef<string | null>(null);
@@ -103,7 +112,9 @@ const BeaconMarkers = ({ planet, focused, mixedKinds }: { planet: Planet; focuse
               <span
                 className={cx(
                   'flex flex-col items-center rounded-md border px-2 py-1 backdrop-blur-sm transition-colors duration-200 group-hover:border-[color-mix(in_srgb,var(--accent)_45%,transparent)] group-data-[compact=true]:hidden',
-                  on ? 'border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-space/75' : 'border-line bg-space/55',
+                  on
+                    ? 'border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-space/75'
+                    : 'border-line bg-space/55',
                 )}
               >
                 <span className="flex items-center gap-1.5 whitespace-nowrap font-mono text-[13px] font-medium uppercase leading-tight tracking-[0.16em] text-ink max-sm:text-[11px]">
@@ -188,7 +199,10 @@ const TravelMenu = ({ current, isTouch }: { current: string; isTouch: boolean })
         />
       </Button>
       {open && (
-        <ul data-hud-block className="panel pointer-events-auto absolute right-0 top-full mt-2 w-56 animate-fade-in rounded-xl p-1.5">
+        <ul
+          data-hud-block
+          className="panel pointer-events-auto absolute right-0 top-full mt-2 w-56 animate-fade-in rounded-xl p-1.5"
+        >
           {planets
             .filter((p) => p.id !== current)
             .map((p) => (
@@ -264,6 +278,8 @@ const PlanetHud = () => {
   const readerOpen = useAppStore((s) => s.readerOpen);
   const exitPlanet = useAppStore((s) => s.exitPlanet);
   const openReader = useAppStore((s) => s.openReader);
+  const touring = useTour((s) => s.active);
+  const narrow = useNarrow();
 
   const live = mode === 'planet' && !!activeId;
   const { mounted, visible } = usePresence(live, 300);
@@ -333,7 +349,10 @@ const PlanetHud = () => {
             </Button>
           </div>
         </div>
-        <div data-hud-block className="mt-5 hidden w-max max-w-full select-none pl-1 sm:block [@media(max-height:500px)]:!hidden">
+        <div
+          data-hud-block
+          className="mt-5 hidden w-max max-w-full select-none pl-1 sm:block [@media(max-height:500px)]:!hidden"
+        >
           <p className="label flex items-center gap-2">
             <AccentDot />
             <span>
@@ -351,10 +370,16 @@ const PlanetHud = () => {
         className={cx('absolute inset-x-0 bottom-0 flex flex-col items-center gap-3', HUD_ZOOM)}
         style={{ paddingBottom: SAFE.bottom }}
       >
-        <div className={cx(!isTouch && 'hidden md:block')}>
-          <ControlsHint isTouch={isTouch} />
-        </div>
-        <nav aria-label={`${planet.title} content`} className="pointer-events-auto w-full">
+        {!touring && (
+          <div className={cx(!isTouch && 'hidden md:block')}>
+            <ControlsHint isTouch={isTouch} />
+          </div>
+        )}
+        {/* on phones the tour bar takes the chip row's place */}
+        <nav
+          aria-label={`${planet.title} content`}
+          className={cx('pointer-events-auto w-full', touring && narrow && 'invisible')}
+        >
           <ul
             data-hud-block
             className="scrollbar-thin mx-auto flex w-max max-w-full snap-x scroll-px-5 gap-2 overflow-x-auto pb-1"

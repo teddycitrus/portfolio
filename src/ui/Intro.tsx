@@ -1,6 +1,7 @@
 import type { CSSProperties, KeyboardEvent } from 'react';
 import { profile } from '@/data/content';
 import { useAppStore } from '@/state/useAppStore';
+import { useTour } from './tour';
 import { ArrowIcon, Button, EASE, Kbd, SAFE, usePresence } from './primitives';
 
 /** Keep Enter/Space on these buttons from reaching the global intro shortcut. */
@@ -80,9 +81,21 @@ const Intro = () => {
             Read as a page
           </Button>
         </div>
+        <div className="mt-4" style={step(4)}>
+          <button
+            type="button"
+            onClick={() => useTour.getState().start()}
+            onKeyDown={ownKeys}
+            disabled={leaving}
+            className="group inline-flex items-center gap-2 py-1.5 text-[14px] text-ink-muted underline decoration-white/20 underline-offset-[5px] transition-colors duration-200 hover:text-ink hover:decoration-ink/60"
+          >
+            Take the 60-second tour
+            <ArrowIcon className="h-3 w-3 transition-transform duration-200 ease-out group-hover:translate-x-0.5" />
+          </button>
+        </div>
         <p
-          className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] text-ink-muted md:mt-12"
-          style={step(4)}
+          className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] text-ink-muted md:mt-10"
+          style={step(5)}
         >
           {isTouch ? (
             <>

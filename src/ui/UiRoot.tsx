@@ -7,6 +7,7 @@ import BeaconPanel from './BeaconPanel';
 import MovementJoystick from './MovementJoystick';
 import Reader from './Reader';
 import TransitionVeil from './TransitionVeil';
+import TourBar from './TourBar';
 
 /**
  * DOM layer above the canvas. The container ignores pointer events so drags
@@ -41,6 +42,7 @@ const UiRoot = () => {
           <MovementJoystick />
           <BeaconPanel />
           <TransitionVeil />
+          <TourBar />
         </>
       )}
       <Reader />

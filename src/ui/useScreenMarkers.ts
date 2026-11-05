@@ -153,7 +153,16 @@ export const useScreenMarkers = (source: Record<string, PlanetScreenInfo>, opts:
 
     const tick = () => {
       raf = requestAnimationFrame(tick);
-      const { safe, hiddenId, priorityId, edgeY, gap = defaultGap, extent, placement = 'around', rank } = optsRef.current;
+      const {
+        safe,
+        hiddenId,
+        priorityId,
+        edgeY,
+        gap = defaultGap,
+        extent,
+        placement = 'around',
+        rank,
+      } = optsRef.current;
       const w = window.innerWidth;
       const h = window.innerHeight;
       const prio = priorityId?.current ?? null;
