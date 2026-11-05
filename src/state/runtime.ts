@@ -50,6 +50,12 @@ export interface PlanetScreenInfo {
   visible: boolean;
   angle: number;
   size: number;
+  /** Beacons only: camera distance (world units, XZ) */
+  distance?: number;
+  /** Beacons only: reserved, always false for now */
+  occluded?: boolean;
+  /** Beacons only: 0..1 legibility factor, 1 when close or focused */
+  scale?: number;
 }
 
 export const planetScreen: Record<string, PlanetScreenInfo> = {};

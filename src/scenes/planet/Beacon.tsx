@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
-import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import type { Beacon as BeaconData, BeaconKind, Planet, Vec3 } from '@/types/content';
 import { useAppStore } from '@/state/useAppStore';
 import { dragLook } from '@/state/runtime';
 import { arrivalPulse } from './surfaceState';
 
-export const LABEL_FONT = `${import.meta.env.BASE_URL}fonts/ibm-plex-mono-latin-600-normal.woff`;
 
 /** Approximate monument height per kind, used for labels and screen-size estimates. */
 export const BEACON_HEIGHT: Record<BeaconKind, number> = {
@@ -61,17 +59,8 @@ export const beaconHeight = (b: BeaconData): number => {
   return BEACON_HEIGHT[b.kind];
 };
 
-/** Label sits this far above the monument top; beaconScreen anchors to its middle. */
-export const LABEL_GAP = 0.3;
-export const LABEL_ANCHOR = LABEL_GAP + 0.25;
-
-const KIND_LABEL: Record<BeaconKind, string> = {
-  project: 'PROJECT',
-  award: 'AWARD',
-  skills: 'SKILLS',
-  link: 'LINK',
-  profile: 'ABOUT',
-};
+/** The DOM label sits this far above the monument top (incl. its floating piece); beaconScreen anchors here. */
+export const LABEL_ANCHOR = 0.12;
 
 /* ---------- shared resources ---------- */
 
@@ -100,14 +89,6 @@ const poolMaterial = (color: THREE.Color) =>
     `,
   });
 
-type TextMesh = THREE.Mesh & { fillOpacity: number; outlineOpacity: number };
-const setLabel = (m: THREE.Mesh | null, fill: number, outline: number) => {
-  if (!m) return;
-  (m as TextMesh).fillOpacity = fill;
-  (m as TextMesh).outlineOpacity = outline;
-  m.visible = fill > 0.01;
-};
-
 const SHIELD = (() => {
   const sh = new THREE.Shape();
   sh.moveTo(-0.15, 0.17);
@@ -131,14 +112,8 @@ interface BeaconProps {
   /** Strength of the moonlit/sky rim on the stone (0..1) */
   rim?: number;
   rimColor?: THREE.Color;
-  labelInk?: string;
-  labelHalo?: string;
   reducedMotion?: boolean;
 }
-
-/** Unfogged, untonemapped base for the troika labels so they stay crisp at any distance. */
-const labelMaterial = () =>
-  new THREE.MeshBasicMaterial({ fog: false, toneMapped: false, transparent: true, depthWrite: false });
 
 /** Adds a view-angle rim to a standard material so monuments never read as flat silhouettes. */
 const addRim = (m: THREE.MeshStandardMaterial, color: THREE.Color, strength: number) => {
@@ -157,7 +132,7 @@ const addRim = (m: THREE.MeshStandardMaterial, color: THREE.Color, strength: num
   return m;
 };
 
-const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, labelInk = '#f3eee6', labelHalo = '#06070c', reducedMotion }: BeaconProps) => {
+const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedMotion }: BeaconProps) => {
   const kind = beacon.kind;
   const height = useMemo(() => beaconHeight(beacon), [beacon]);
   const rank = useMemo(() => awardRank(beacon), [beacon]);
@@ -174,12 +149,8 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, labelInk
   // eye and shield glyphs face the walkway, so they sway instead of spinning
   const sway = glyph === 'eye' || glyph === 'shield';
   const floater = useRef<THREE.Group>(null);
-  const label = useRef<THREE.Mesh>(null);
-  const sub = useRef<THREE.Mesh>(null);
   const ring = useRef<THREE.Mesh>(null);
-  const labelGroup = useRef<THREE.Group>(null);
-  // labels start legible; the arrival veil hides the first frames anyway
-  const state = useRef({ focus: 0, label: 0.86, ring: 0 });
+  const state = useRef({ focus: 0 });
 
   // face the spawn side so seams and faces read from the walkway
   const yaw = useMemo(() => Math.atan2(-position[0], 5 - position[2]), [position]);
@@ -218,7 +189,7 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, labelInk
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     });
-    return { stone, plinth, metal, seam, seamBase, pool, ringMat, labelA: labelMaterial(), labelB: labelMaterial() };
+    return { stone, plinth, metal, seam, seamBase, pool, ringMat };
   }, [planet, kind, rim, rimColor, rank]);
 
   useEffect(
@@ -229,28 +200,12 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, labelInk
     [mats],
   );
 
-  useFrame(({ camera, clock, size }, delta) => {
+  useFrame(({ clock }, delta) => {
     const dt = Math.min(delta, 0.05);
     const s = state.current;
     const t = clock.elapsedTime;
     const focused = useAppStore.getState().focusedBeaconId === beacon.id;
     s.focus = damp(s.focus, focused ? 1 : 0, 4, dt);
-
-    const dx = camera.position.x - position[0];
-    const dz = camera.position.z - position[2];
-    const dist = Math.sqrt(dx * dx + dz * dz);
-    const near = 1 - THREE.MathUtils.smoothstep(dist, 5, 17);
-    // never below ~0.6 inside the play area, full when close or focused
-    s.label = damp(s.label, Math.max(0.86 + near * 0.14, s.focus), 5, dt);
-    if (labelGroup.current) {
-      // grow gently with distance (and on narrow screens) so far labels stay readable
-      // narrow screens view the arc from further back, where neighbours sit closer together
-      const k =
-        size.width < 700
-          ? 1.15 * THREE.MathUtils.clamp(0.8 + dist * 0.02, 1, 1.2)
-          : THREE.MathUtils.clamp(0.75 + dist * 0.035, 1, 1.45);
-      labelGroup.current.scale.setScalar(k);
-    }
 
     // one-off discovery pulse after arrival, beacon by beacon
     let pop = 0;
@@ -287,10 +242,6 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, labelInk
       ring.current.visible = ro > 0.005;
     }
 
-    const op = s.label;
-    setLabel(label.current, op, op);
-    // the kind line is too small to read on phones; the chip list carries it there
-    setLabel(sub.current, size.width < 700 ? 0 : op * 0.92, op);
   });
 
   const onClick = (e: ThreeEvent<MouseEvent>) => {
@@ -542,42 +493,6 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, labelInk
       <mesh ref={ring} material={mats.ringMat} position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={3}>
         <ringGeometry args={[1.0, 1.035, 96]} />
       </mesh>
-
-      <Billboard ref={labelGroup} position={[0, height + LABEL_GAP, 0]}>
-        <Text
-          ref={label}
-          material={mats.labelA}
-          font={LABEL_FONT}
-          fontSize={0.27}
-          letterSpacing={0.16}
-          color={labelInk}
-          anchorX="center"
-          anchorY="bottom"
-          position={[0, 0.2, 0]}
-          outlineWidth={0.015}
-          outlineBlur={0}
-          outlineColor={labelHalo}
-          fillOpacity={0}
-        >
-          {beacon.label.toUpperCase()}
-        </Text>
-        <Text
-          ref={sub}
-          material={mats.labelB}
-          font={LABEL_FONT}
-          fontSize={0.13}
-          letterSpacing={0.24}
-          color={new THREE.Color(labelInk).getHSL({ h: 0, s: 0, l: 0 }).l < 0.4 ? labelInk : planet.accent}
-          anchorX="center"
-          anchorY="bottom"
-          outlineWidth={0.012}
-          outlineBlur={0}
-          outlineColor={labelHalo}
-          fillOpacity={0}
-        >
-          {`${String(index + 1).padStart(2, '0')}  ${KIND_LABEL[kind]}`}
-        </Text>
-      </Billboard>
 
       {/* generous invisible hit volume */}
       <mesh

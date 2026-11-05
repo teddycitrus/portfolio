@@ -34,9 +34,6 @@ export interface SkyPreset {
   starOpacity: number;
   /** Rim/fill glow on monument stone (night needs most) */
   rim: number;
-  /** In-world label ink and its soft dark halo (light ink survives bloom on bright skies) */
-  labelInk: string;
-  labelHalo: string;
   cloudOpacity: number;
   cloudColor: string;
   /** Sister planet hanging in the sky */
@@ -66,8 +63,6 @@ export const skyPresets: Record<PlanetTime, SkyPreset> = {
     fogDensity: 0.0062,
     starOpacity: 0,
     rim: 0.25,
-    labelInk: '#fbfaf6',
-    labelHalo: '#101a26',
     cloudOpacity: 0.42,
     cloudColor: '#ffffff',
     moonDir: [-0.32, 0.42, -0.85],
@@ -94,8 +89,6 @@ export const skyPresets: Record<PlanetTime, SkyPreset> = {
     fogDensity: 0.0145,
     starOpacity: 0.12,
     rim: 0.35,
-    labelInk: '#fdf8f0',
-    labelHalo: '#1e120a',
     cloudOpacity: 0.55,
     cloudColor: '#ffd8bc',
     moonDir: [-0.3, 0.42, -0.86],
@@ -121,8 +114,6 @@ export const skyPresets: Record<PlanetTime, SkyPreset> = {
     fogDensity: 0.016,
     starOpacity: 0.3,
     rim: 0.4,
-    labelInk: '#fbf1e6',
-    labelHalo: '#1a0c08',
     cloudOpacity: 0.6,
     cloudColor: '#ffb48c',
     moonDir: [0.3, 0.42, -0.86],
@@ -149,8 +140,6 @@ export const skyPresets: Record<PlanetTime, SkyPreset> = {
     fogDensity: 0.016,
     starOpacity: 0.55,
     rim: 0.7,
-    labelInk: '#f2f6fa',
-    labelHalo: '#060a14',
     cloudOpacity: 0.35,
     cloudColor: '#9aaad0',
     moonDir: [-0.3, 0.42, -0.86],
@@ -177,8 +166,6 @@ export const skyPresets: Record<PlanetTime, SkyPreset> = {
     fogDensity: 0.016,
     starOpacity: 1,
     rim: 1,
-    labelInk: '#f2eefc',
-    labelHalo: '#05060e',
     cloudOpacity: 0.22,
     cloudColor: '#6a78b8',
     moonDir: [0.3, 0.43, -0.85],
@@ -210,8 +197,6 @@ export interface ResolvedSky {
   starOpacity: number;
   rim: number;
   rimColor: THREE.Color;
-  labelInk: string;
-  labelHalo: string;
   cloudOpacity: number;
   cloudColor: THREE.Color;
   moonDir: THREE.Vector3;
@@ -254,6 +239,8 @@ export const buildSky = (planet: Planet): ResolvedSky => {
   const tint = c(planet.color);
 
   const horizon = c(p.horizon).lerp(atmo, 0.18).lerp(accent, 0.06);
+  // lava worlds: a warm-violet haze instead of tan, so dark rock fades into dusk-like air
+  if (planet.style === 'molten') horizon.lerp(c('#5e4a72'), 0.72);
   const sunDir = new THREE.Vector3(...p.sunDir).normalize();
   const lightDir = p.lightDir
     ? new THREE.Vector3(...p.lightDir).normalize()
@@ -286,11 +273,9 @@ export const buildSky = (planet: Planet): ResolvedSky => {
     hemiIntensity: p.hemiIntensity,
     fogColor: horizon.clone(),
     // lava fields read as dark rock under a thinner haze
-    fogDensity: p.fogDensity * (planet.style === 'molten' ? 0.8 : 1),
+    fogDensity: p.fogDensity * (planet.style === 'molten' ? 0.55 : 1),
     starOpacity: p.starOpacity,
     rim: p.rim,
-    labelInk: p.labelInk,
-    labelHalo: p.labelHalo,
     rimColor: c(p.hemiSky).lerp(accent, 0.5),
     cloudOpacity: p.cloudOpacity,
     cloudColor: c(p.cloudColor).lerp(accent, 0.1),

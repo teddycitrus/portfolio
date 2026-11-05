@@ -64,14 +64,14 @@ export const CLOUD_DECK_Y = -4.5;
 const ripple = (x: number, z: number, amp = 0.35) => (fbm2(x * 0.11, z * 0.11, 2) - 0.5) * amp;
 
 /** Default ground: gentle ripples near the origin, rolling dunes beyond, rising to the horizon. */
-const rolling = (x: number, z: number, dune = 9, crag = 0): number => {
+const rolling = (x: number, z: number, dune = 9, crag = 0, riseAmp = 1): number => {
   const r = Math.sqrt(x * x + z * z);
   const open = smoothstep(FLAT_RADIUS - 2, FLAT_RADIUS + 22, r);
   const dunes = (fbm2(x * 0.028 + 3.1, z * 0.028 - 7.4, 4) - 0.42) * dune;
   const swell = Math.sin(x * 0.045 + Math.sin(z * 0.03) * 2) * 1.2 * (dune / 9);
   // ridged noise for broken lava fields
   const ridged = crag > 0 ? Math.pow(1 - Math.abs(fbm2(x * 0.05 - 4, z * 0.05 + 6, 3) * 2 - 1), 3) * crag : 0;
-  const rise = Math.pow(smoothstep(30, TERRAIN_RADIUS, r), 1.4) * (6 + fbm2(x * 0.02, z * 0.02, 2) * 8);
+  const rise = Math.pow(smoothstep(30, TERRAIN_RADIUS, r), 1.4) * (6 + fbm2(x * 0.02, z * 0.02, 2) * 8) * riseAmp;
   return ripple(x, z) + (dunes + swell + ridged) * open + rise;
 };
 
@@ -114,7 +114,7 @@ const mesa = (x: number, z: number): number => {
 const PROFILES: Record<PlanetStyle, HeightFn> = {
   rocky: (x, z) => rolling(x, z),
   forested: (x, z) => rolling(x, z),
-  molten: (x, z) => rolling(x, z, 5, 2.6),
+  molten: (x, z) => rolling(x, z, 5, 2.6, 0.45),
   oceanic: island,
   'gas-giant': mesa,
 };
@@ -359,18 +359,35 @@ const LAVA_PARS = /* glsl */ `
 
 const LAVA_FRAG = /* glsl */ `
   {
-    vec2 lp = vWPos.xz * 0.28;
+    vec2 wp = vWPos.xz;
+    float dist = length(wp - cameraPosition.xz);
+    // a few long main rifts: iso-lines of a warped low-frequency noise, broken up by a mask
+    vec2 rp = wp * 0.05;
+    rp += vec2(lavaNoise(rp * 2.3 + 3.1), lavaNoise(rp * 2.3 - 5.7)) * 0.9;
+    float n1 = lavaNoise(rp) * 0.65 + lavaNoise(rp * 2.1 + 9.2) * 0.35;
+    float d1 = abs(n1 - 0.5);
+    float w1 = 0.006 + 0.006 * lavaNoise(wp * 0.11) + fwidth(n1) * 0.8;
+    float rift = (1.0 - smoothstep(0.0, w1, d1)) * smoothstep(0.25, 0.5, lavaNoise(wp * 0.02 + 4.0));
+    float riftHalo = (1.0 - smoothstep(0.0, w1 * 7.0, d1)) * smoothstep(0.25, 0.5, lavaNoise(wp * 0.02 + 4.0));
+    // fainter secondary network: cell edges, only in sparse patches
+    vec2 lp = wp * 0.2;
     lp += vec2(lavaNoise(lp * 1.7), lavaNoise(lp * 1.7 + 7.3)) * 0.45;
     float edge = lavaEdge(lp);
-    float dist = length(vWPos.xz - cameraPosition.xz);
-    float width = 0.028 + 0.025 * lavaNoise(lp * 3.0);
-    float crack = (1.0 - smoothstep(width * 0.4, width, edge)) * (1.0 - smoothstep(60.0, 110.0, dist));
-    float pulse = 0.7 + 0.3 * sin(uTime * 0.9 + lavaNoise(lp * 0.6) * 6.28);
-    float halo = (1.0 - smoothstep(0.0, 0.25, edge)) * 0.07;
-    // crust darkens toward the fissures, which glow from orange to a yellow core
-    diffuseColor.rgb *= 1.0 - crack * 0.85;
-    vec3 lava = mix(uLava, uLavaCore, crack * crack);
-    totalEmissiveRadiance += lava * (crack * 2.4 * pulse + halo);
+    float we = 0.012 + fwidth(edge) * 0.8;
+    float patchMask = smoothstep(0.58, 0.78, lavaNoise(wp * 0.06 - 2.0));
+    float web = (1.0 - smoothstep(0.0, we, edge)) * patchMask;
+    float webHalo = (1.0 - smoothstep(0.0, we * 6.0, edge)) * patchMask;
+    // brightness varies along the cracks; some are nearly cold
+    float vary = 0.15 + 0.85 * smoothstep(0.25, 0.85, lavaNoise(wp * 0.09 + uTime * 0.015));
+    float pulse = 0.85 + 0.15 * sin(uTime * 0.8 + lavaNoise(wp * 0.05) * 6.28);
+    float farFade = 1.0 - smoothstep(45.0, 100.0, dist) * 0.7;
+    float core = max(rift, web * 0.45) * vary * farFade;
+    float halo = max(riftHalo * 0.6, webHalo * 0.25) * vary * farFade;
+    diffuseColor.rgb *= 1.0 - core * 0.9;
+    vec3 lava = mix(uLava, uLavaCore, core);
+    totalEmissiveRadiance += lava * (core * 2.6 * pulse) + uLava * halo * 0.22;
+    // faint warm sheen in the crust so the basalt is not dead black
+    totalEmissiveRadiance += uLava * 0.0015 * lavaNoise(wp * 0.4);
   }
 `;
 
@@ -406,7 +423,8 @@ const RIDGES: Record<PlanetStyle, Array<[number, number, number, number, number]
   // radius, base, amplitude, seed, haze at the ridge
   rocky: [[330, 26, 70, 11.7, 0.72], [210, 10, 34, 3.3, 0.5]],
   forested: [[330, 26, 70, 11.7, 0.72], [210, 10, 34, 3.3, 0.5]],
-  molten: [[330, 30, 80, 5.1, 0.7], [210, 8, 30, 8.8, 0.45]],
+  // dark volcanic peaks, lightly hazed so they stay dark against the dawn sky
+  molten: [[330, 30, 80, 5.1, 0.22], [210, 8, 30, 8.8, 0.12]],
   // distant islands: mostly below the waterline, a few peaks break the surface
   oceanic: [[330, -8, 40, 2.2, 0.7], [220, -10, 26, 6.6, 0.55]],
   // nothing but cloud to the horizon
@@ -430,7 +448,9 @@ const Terrain = ({ planet, sky, reducedMotion }: TerrainProps) => {
     const tone =
       planet.style === 'oceanic'
         ? new THREE.Color('#4a5e58').lerp(sky.zenith, 0.3)
-        : pal.rock.clone().lerp(sky.zenith, planet.style === 'molten' ? 0.15 : 0.35);
+        : planet.style === 'molten'
+          ? new THREE.Color('#141013').lerp(sky.zenith, 0.25)
+          : pal.rock.clone().lerp(sky.zenith, 0.35);
     return RIDGES[planet.style].map(([r, base, amp, seed, haze]) => ({
       geo: buildRidge(r, base, amp, seed, sky.sunDir),
       mat: new THREE.ShaderMaterial({

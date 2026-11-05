@@ -10,11 +10,33 @@
       name="description"
       content="Portfolio of John Mannully. Explore five planets of projects, awards and skills, or read it as a page."
     />
+    <link rel="canonical" href="https://johnmannully.vercel.app/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://johnmannully.vercel.app/" />
     <meta property="og:title" content="John Mannully | Full-stack and AI developer" />
     <meta
       property="og:description"
       content="Computer vision, voice agents and live 3D interfaces. Explore the portfolio as a small solar system."
     />
+    <meta property="og:image" content="https://johnmannully.vercel.app/og.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Person",
+        "name": "John Mannully",
+        "jobTitle": "Full-stack and AI developer",
+        "url": "https://johnmannully.vercel.app/",
+        "email": "mailto:johnmannul@gmail.com",
+        "sameAs": [
+          "https://github.com/teddycitrus",
+          "https://devpost.com/teddycitrus",
+          "https://www.linkedin.com/in/john-mannully/"
+        ]
+      }
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -24,6 +46,10 @@
   </head>
   <body>
     <noscript>
+      <style>
+        #root { display: none; }
+        html, body { overflow: auto !important; }
+      </style>
       <main style="max-width: 640px; margin: 64px auto; padding: 0 24px; font-family: system-ui, sans-serif; color: #e9eef7; line-height: 1.6">
         <h1>John Mannully</h1>
         <p>Full-stack and AI developer in Ontario, Canada. Projects: Iris (hands-free computer control, Hack The Valley X Future Impact winner), Eureka (supply-chain risk intelligence), Nora (AI ad evaluation) and ShieldClaw (Hack Canada 2026 winner).</p>
@@ -36,7 +62,12 @@
         <p>This site needs JavaScript and WebGL for the interactive version.</p>
       </main>
     </noscript>
-    <div id="root"></div>
+    <div id="root">
+      <div style="position: fixed; inset: 0; display: flex; flex-direction: column; justify-content: center; padding: 0 clamp(24px, 6vw, 92px); background: #05070d; color: #e9eef7">
+        <p style="margin: 0 0 18px; font: 500 11px/1 'IBM Plex Mono', ui-monospace, monospace; letter-spacing: 0.14em; text-transform: uppercase; color: #9aa5b8">Full-stack and AI developer</p>
+        <h1 style="margin: 0; font: 400 clamp(58px, 10vw, 136px)/0.9 'Instrument Serif', Georgia, serif; letter-spacing: -0.02em">John<br />Mannully</h1>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

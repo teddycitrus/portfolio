@@ -85,6 +85,9 @@ Guarantees and limits:
 
 - Content lives only in `src/data/content.json`. The 3D monuments, the HUD chips, the panel and the reader are all generated from it.
 - Planet and beacon layout is computed, not authored: planets are fitted to the viewport (a horizontal arc on landscape, a zig-zag on portrait) and beacons sit on a 94 degree arc in front of the spawn point.
+- Without WebGL (or if the context is lost or the 3D tree throws), the canvas is never mounted and the reader becomes the whole site.
+- The URL hash mirrors the view (`#/projects/proj-iris`, `#/read/awards`), so any planet, monument or reader section can be linked, and the browser Back button moves between planets.
+- The render loop pauses while the reader is open.
 - `prefers-reduced-motion` replaces camera flights with a short crossfade and removes head bob and the intro swing.
 - Walking is clamped to a 30 unit radius; terrain stays nearly flat within 14 units of the centre.
 - Post-processing renders in linear HDR with ACES tone mapping; only values above 1.0 bloom (sun, lava, glints, focused seams). Touch devices drop multisampling and film grain.

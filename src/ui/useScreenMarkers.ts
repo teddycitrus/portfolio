@@ -25,6 +25,23 @@ export interface MarkerOptions {
   gap?: (size: number) => number;
   /** Obstacle half-extents around a target (defaults to its pixel size); e.g. wider for rings */
   extent?: (id: string, size: number) => { x: number; y: number };
+  /** 'around': below the target, else above (planets). 'above': stacked above the anchor on a stem (beacons). */
+  placement?: 'around' | 'above';
+  /** 'above' only: resting stem length between the anchor and the label */
+  stem?: number;
+  /** Lower ranks are placed first, after the priority id */
+  rank?: (id: string, info: PlanetScreenInfo, w: number) => number;
+  /** Screen rects labels must not touch; a label that would is hidden ('above' only) */
+  blockers?: () => readonly Box[];
+  /** Per-label opacity and scale, written every frame ('above' only) */
+  look?: (id: string, info: PlanetScreenInfo, now: number) => { opacity: number; scale: number };
+}
+
+export interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 
 interface Rect {
@@ -56,7 +73,7 @@ const setFlag = (el: HTMLElement, key: string, on: boolean) => {
   if (el.dataset[key] !== v) el.dataset[key] = v;
 };
 
-const hits = (ax: number, ay: number, aw: number, ah: number, b: Rect) =>
+const hits = (ax: number, ay: number, aw: number, ah: number, b: Box) =>
   ax < b.x + b.w + PAD && ax + aw + PAD > b.x && ay < b.y + b.h + PAD && ay + ah + PAD > b.y;
 
 /** Fixed-capacity rect list that reuses its objects between frames. */
@@ -130,17 +147,32 @@ export const useScreenMarkers = (source: Record<string, PlanetScreenInfo>, opts:
     const discs = new RectPool();
     const placed = new RectPool();
     const edges = new RectPool();
+    const stems = new Map<HTMLElement, number>();
+    let ranks: Record<string, number> = {};
+    const byRank = (a: string, b: string) => ranks[a] - ranks[b];
 
     const tick = () => {
       raf = requestAnimationFrame(tick);
-      const { safe, hiddenId, priorityId, edgeY, gap = defaultGap, extent } = optsRef.current;
+      const { safe, hiddenId, priorityId, edgeY, gap = defaultGap, extent, placement = 'around', rank } = optsRef.current;
       const w = window.innerWidth;
       const h = window.innerHeight;
       const prio = priorityId?.current ?? null;
 
       ids.length = 0;
       if (prio && els.current[prio]) ids.push(prio);
+      const from = ids.length;
       for (const id of order.current) if (id !== prio && els.current[id]) ids.push(id);
+      if (rank) {
+        ranks = {};
+        for (let i = from; i < ids.length; i++) {
+          const info = source[ids[i]];
+          ranks[ids[i]] = info ? rank(ids[i], info, w) : Infinity;
+        }
+        const rest = ids.splice(from).sort(byRank);
+        for (const id of rest) ids.push(id);
+      }
+      const blocked = placement === 'above' ? (optsRef.current.blockers?.() ?? []) : [];
+      const now = performance.now();
 
       // other targets' discs are obstacles too, so labels avoid covering them
       discs.reset();
@@ -166,6 +198,10 @@ export const useScreenMarkers = (source: Record<string, PlanetScreenInfo>, opts:
           show(m.edge, false);
           const a = m.anchor;
           if (!a) continue;
+          if (placement === 'above') {
+            placeAbove(id, id === prio, info, a, w, h, blocked, now);
+            continue;
+          }
           const sz = sizes.current.get(a) ?? NO_SIZE;
           const fz = full.current.get(a) ?? sz;
           const aw = Math.max(sz.w, fz.w);
@@ -232,6 +268,72 @@ export const useScreenMarkers = (source: Record<string, PlanetScreenInfo>, opts:
         }
       }
     };
+
+    /**
+     * Beacon labels: centred above the anchor on a stem. A clash pushes the
+     * label higher (longer stem); if there is no room it collapses to a dot
+     * (data-compact). Labels touching a blocker or leaving the safe band hide.
+     */
+    const placeAbove = (
+      id: string,
+      isPrio: boolean,
+      info: PlanetScreenInfo,
+      a: HTMLElement,
+      w: number,
+      h: number,
+      blocked: readonly Box[],
+      now: number,
+    ) => {
+      const { safe, stem = 14, look } = optsRef.current;
+      const sz = sizes.current.get(a) ?? NO_SIZE;
+      const fz = full.current.get(a) ?? sz;
+      const lk = look ? look(id, info, now) : { opacity: 1, scale: 1 };
+      const inBand = (y: number, hh: number) => y >= safe.top && y + hh <= h - safe.bottom;
+      const isBlocked = (x: number, y: number, ww: number, hh: number) => {
+        for (const b of blocked) if (hits(x, y, ww, hh, b)) return true;
+        return false;
+      };
+
+      const x = Math.min(Math.max(info.x - fz.w / 2, EDGE), w - EDGE - fz.w);
+      let y = info.y - stem - fz.h;
+      let ok = isPrio || !placed.find(x, y, fz.w, fz.h);
+      // climb above whatever it hits, a few steps at most
+      for (let n = 0; !ok && n < 3; n++) {
+        const clash = placed.find(x, y, fz.w, fz.h);
+        if (!clash) break;
+        y = clash.y - PAD - fz.h;
+        ok = !placed.find(x, y, fz.w, fz.h) && info.y - (y + fz.h) < stem * 6;
+      }
+      const compact = !ok || !inBand(y, fz.h) || isBlocked(x, y, fz.w, fz.h);
+      let px = x;
+      let py = y;
+      let pw = fz.w;
+      let ph = fz.h;
+      if (compact) {
+        // dot form sits right on the anchor
+        const cw = a.dataset.compact === 'true' ? sz.w : 12;
+        const ch = a.dataset.compact === 'true' ? sz.h : 12;
+        px = info.x - cw / 2;
+        py = info.y - ch;
+        pw = cw;
+        ph = ch;
+        if (!inBand(py, ph) || isBlocked(px, py, pw, ph)) {
+          show(a, false);
+          return;
+        }
+      }
+      placed.push(id, px, py, pw, ph);
+      setFlag(a, 'compact', compact);
+      const stemLen = compact ? 0 : Math.max(0, Math.round(info.y - (py + ph)));
+      if (stems.get(a) !== stemLen) {
+        stems.set(a, stemLen);
+        a.style.setProperty('--stem', `${stemLen}px`);
+      }
+      a.style.opacity = lk.opacity.toFixed(3);
+      a.style.visibility = lk.opacity <= 0.01 ? 'hidden' : 'visible';
+      a.style.transform = `translate3d(${Math.round(px)}px, ${Math.round(py)}px, 0) scale(${lk.scale.toFixed(3)})`;
+    };
+
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [source]);

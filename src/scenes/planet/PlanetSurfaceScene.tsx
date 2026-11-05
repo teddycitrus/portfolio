@@ -93,8 +93,6 @@ const Surface = ({ planet }: { planet: Planet }) => {
           position={beacons[i].position}
           rim={sky.rim}
           rimColor={sky.rimColor}
-          labelInk={sky.labelInk}
-          labelHalo={sky.labelHalo}
           reducedMotion={reducedMotion}
         />
       ))}

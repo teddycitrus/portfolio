@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useAppStore } from '@/state/useAppStore';
-import { beaconScreen, dragLook, joystickState, keyboardState } from '@/state/runtime';
+import { beaconScreen, dragLook, joystickState, keyboardState, type PlanetScreenInfo } from '@/state/runtime';
 import { BEACON_VIEW_DISTANCE, getBeaconViewPoint, SURFACE_HEAD_HEIGHT, SURFACE_SPAWN } from '@/data/content';
 import type { Vec3 } from '@/types/content';
 import type { HeightFn } from './Terrain';
@@ -42,7 +42,21 @@ const GAZE_LOCKOUT_MS = 1500;
 const PULSE_DELAY_MS = 600;
 /** Portrait screens: frame the whole beacon arc from further back */
 const PORTRAIT_ASPECT = 0.8;
-const PORTRAIT_PITCH_BIAS = 0.03;
+/** Portrait: horizon at ~40% from the top */
+const PORTRAIT_HORIZON = 0.4;
+/** Portrait: the framed monuments should fill at least this fraction of screen height */
+const PORTRAIT_MIN_SIZE = 0.25;
+const PORTRAIT_MIN_Z = 1.0;
+
+/** Extra per-beacon fields for the DOM label layer (until PlanetScreenInfo carries them) */
+export type BeaconScreenInfo = PlanetScreenInfo & {
+  /** Camera to beacon, world units (XZ) */
+  distance: number;
+  /** Reserved: true when terrain hides the label anchor */
+  occluded: boolean;
+  /** 0..1 legibility factor: 1 near or focused, ~0.7 far */
+  scale: number;
+};
 
 const damp = (rate: number, dt: number) => 1 - Math.exp(-rate * dt);
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -103,7 +117,11 @@ const PlanetCamera = ({ planetId, beacons, ground, walkRadius }: PlanetCameraPro
   // allocate one screen record per beacon; mutate them every frame
   useEffect(() => {
     for (const b of beacons) {
-      beaconScreen[b.id] = beaconScreen[b.id] ?? { x: 0, y: 0, visible: false, angle: 0, size: 0 };
+      const info = (beaconScreen[b.id] ?? { x: 0, y: 0, visible: false, angle: 0, size: 0 }) as BeaconScreenInfo;
+      info.distance ??= 0;
+      info.occluded ??= false;
+      info.scale ??= 0.85;
+      beaconScreen[b.id] = info;
     }
     return () => {
       for (const b of beacons) delete beaconScreen[b.id];
@@ -128,17 +146,24 @@ const PlanetCamera = ({ planetId, beacons, ground, walkRadius }: PlanetCameraPro
     s.dismissed = null;
     s.gazeId = null;
     s.gazeTime = 0;
-    // portrait: step back along +Z until every beacon fits the narrow horizontal view
+    // portrait: step back only far enough to frame the middle beacons (outer ones may sit at
+    // the edges; chips and edge arrows cover them), keep them a readable size, look slightly down
     let sz = SURFACE_SPAWN[2];
     const { width, height } = sizeRef.current;
     const aspect = width / Math.max(1, height);
     s.bias = PITCH_BIAS;
-    if (aspect < PORTRAIT_ASPECT) {
-      const half = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * aspect) - 0.05;
-      const t = Math.tan(Math.max(0.1, half));
-      for (const b of beacons) sz = Math.max(sz, Math.abs(b.position[0]) / t + b.position[2]);
-      sz = Math.min(sz, walkRadius - 1);
-      s.bias = PORTRAIT_PITCH_BIAS;
+    if (aspect < PORTRAIT_ASPECT && beacons.length) {
+      const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+      const t = Math.tan(Math.max(0.1, Math.atan(tanV * aspect) - 0.05));
+      const byX = [...beacons].sort((a, b) => Math.abs(a.position[0]) - Math.abs(b.position[0]));
+      const n = byX.length;
+      const pick = n % 2 === 0 ? 1 : n >= 5 ? 2 : 0;
+      const mid = byX[Math.min(pick, n - 1)];
+      const fit = Math.abs(mid.position[0]) / t + mid.position[2];
+      const maxDepth = mid.height / (2 * PORTRAIT_MIN_SIZE * tanV);
+      // may also step forward a little when the monuments are short (keeps them a readable size)
+      sz = Math.max(PORTRAIT_MIN_Z, Math.min(fit, mid.position[2] + maxDepth, walkRadius - 1));
+      s.bias = -Math.atan((0.5 - PORTRAIT_HORIZON) * 2 * tanV);
     }
     const gy = ground(SURFACE_SPAWN[0], sz) + SURFACE_HEAD_HEIGHT;
     s.y = gy + (reduced ? 0 : SETTLE_RISE);
@@ -381,8 +406,15 @@ const PlanetCamera = ({ planetId, beacons, ground, walkRadius }: PlanetCameraPro
     const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
     const p = v3.current;
     for (const b of beacons) {
-      const info = beaconScreen[b.id];
+      const info = beaconScreen[b.id] as BeaconScreenInfo | undefined;
       if (!info) continue;
+      const bdx = b.position[0] - pos.x;
+      const bdz = b.position[2] - pos.z;
+      info.distance = Math.sqrt(bdx * bdx + bdz * bdz);
+      info.occluded = false;
+      const legible =
+        store.focusedBeaconId === b.id ? 1 : 0.7 + 0.3 * (1 - THREE.MathUtils.smoothstep(info.distance, 5, 17));
+      info.scale += (legible - info.scale) * damp(5, dt);
       // anchored at the in-world label above the monument top
       p.set(b.position[0], b.position[1] + b.height + LABEL_ANCHOR, b.position[2]).applyMatrix4(camera.matrixWorldInverse);
       const depth = -p.z;
