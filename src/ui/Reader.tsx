@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import { planets, profile } from '@/data/content';
 import type { Beacon, Planet } from '@/types/content';
 import { useAppStore } from '@/state/useAppStore';
-import { AwardProject, ENTRY_HEADING, FactGrid, ProjectBody, StackChips, linkProps } from './BeaconContent';
+import { AwardProject, ENTRY_HEADING, ProfileBody, ProjectBody, StackChips, linkProps } from './BeaconContent';
 import { visitPlanet } from './navigation';
 import { ArrowIcon, Button, CloseIcon, DISPLAY, EASE, Kbd, SAFE, cx, usePresence } from './primitives';
 
@@ -26,14 +26,8 @@ const SectionBody = ({ planet, onProject }: { planet: Planet; onProject: (beacon
       {profiles.length > 0 && (
         <div className="space-y-10">
           {profiles.map((p) => (
-            <article key={p.id} id={entryId(p.id)} className="space-y-4">
-              <h3 className={ENTRY_HEADING}>{p.content.heading}</h3>
-              <p className="text-[16px] leading-[1.75] text-ink/85">{p.content.body}</p>
-              {p.content.facts && p.content.facts.length > 0 && (
-                <div className="pt-2">
-                  <FactGrid facts={p.content.facts} />
-                </div>
-              )}
+            <article key={p.id} id={entryId(p.id)}>
+              <ProfileBody c={p.content} variant="reader" />
             </article>
           ))}
         </div>

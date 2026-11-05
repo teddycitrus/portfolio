@@ -31,7 +31,7 @@ export const TOUR_STOPS: TourStop[] = [
   {
     planetId: 'about',
     beaconId: 'about-education',
-    caption: '97.7% top-six average, 1570 SAT, 99% in Grade 12 computer science.',
+    caption: 'Computer science at U of T, and a developer on TensorMIST at UTMIST.',
   },
   {
     planetId: 'contact',

@@ -41,21 +41,44 @@ const Body = ({ children, variant }: { children: ReactNode; variant: Variant }) 
   </p>
 );
 
-export const FactGrid = ({ facts }: { facts: Fact[] }) => (
-  <dl className="grid grid-cols-2 border-t border-line">
-    {facts.map((f, i) => (
-      <div
-        key={f.label}
-        className={cx('border-b border-line py-4', i % 2 === 0 ? 'pr-4' : 'border-l border-line pl-4')}
-      >
-        {/* dt first for assistive tech; flex-col-reverse keeps the number on top */}
-        <div className="flex flex-col-reverse gap-2">
-          <dt className="label">{f.label}</dt>
-          <dd className={cx('font-display leading-none text-ink', DISPLAY.d32)}>{f.value}</dd>
-        </div>
-      </div>
+const MetaLine = ({ items }: { items: ReactNode[] }) => (
+  <p className="label flex flex-wrap items-center gap-x-3 gap-y-1">
+    {items.map((m, i) => (
+      <span key={i}>{m}</span>
     ))}
-  </dl>
+  </p>
+);
+
+const Highlights = ({ items, variant }: { items: string[]; variant: Variant }) => (
+  <ul className="space-y-2.5">
+    {items.map((h) => (
+      <li
+        key={h}
+        className={cx(
+          'flex gap-3 text-ink/85',
+          variant === 'panel' ? 'text-[14px] leading-[1.6]' : 'text-[15px] leading-[1.65]',
+        )}
+      >
+        <span aria-hidden="true" className="mt-[0.8em] h-px w-3 shrink-0 bg-[var(--accent)]" />
+        <span>{h}</span>
+      </li>
+    ))}
+  </ul>
+);
+
+/** Compact closing block: a small label, then the numbers inline. */
+const Aside = ({ heading, facts }: { heading: string; facts: Fact[] }) => (
+  <section className="space-y-2 border-t border-line pt-4">
+    <h4 className="label">{heading}</h4>
+    <dl className="flex flex-wrap gap-x-8 gap-y-2">
+      {facts.map((f) => (
+        <div key={f.label} className="flex items-baseline gap-2">
+          <dt className="text-[13px] text-ink-muted">{f.label}</dt>
+          <dd className="text-[15px] font-medium text-ink">{f.value}</dd>
+        </div>
+      ))}
+    </dl>
+  </section>
 );
 
 export const StackChips = ({ items, label = 'Stack' }: { items: string[]; label?: string }) => (
@@ -130,9 +153,13 @@ export const VideoEmbed = ({ videoId, title, poster }: { videoId: string; title:
 
 export const ProfileBody = ({ c, variant }: { c: ProfileContent; variant: Variant }) => (
   <div className="space-y-5">
-    <Heading variant={variant}>{c.heading}</Heading>
+    <div className="space-y-3">
+      <Heading variant={variant}>{c.heading}</Heading>
+      {c.meta && c.meta.length > 0 && <MetaLine items={c.meta} />}
+    </div>
     <Body variant={variant}>{c.body}</Body>
-    {c.facts && c.facts.length > 0 && <FactGrid facts={c.facts} />}
+    {c.highlights && c.highlights.length > 0 && <Highlights items={c.highlights} variant={variant} />}
+    {c.aside && <Aside {...c.aside} />}
   </div>
 );
 
@@ -141,30 +168,17 @@ export const ProjectBody = ({ c, variant }: { c: ProjectContent; variant: Varian
     <div className="space-y-3">
       <Heading variant={variant}>{c.heading}</Heading>
       {/* one compact meta line: when, and what it won */}
-      <p className="label flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span>{c.period}</span>
-        {c.team && <span>Team</span>}
-        {c.award && <span className="text-[var(--accent)]">{c.award}</span>}
-      </p>
+      <MetaLine
+        items={[
+          c.period,
+          c.team && 'Team',
+          c.award && <span className="text-[var(--accent)]">{c.award}</span>,
+        ].filter(Boolean)}
+      />
     </div>
     {c.videoId && <VideoEmbed videoId={c.videoId} title={c.heading} poster={c.poster} />}
     <Body variant={variant}>{c.description}</Body>
-    {c.highlights.length > 0 && (
-      <ul className="space-y-2.5">
-        {c.highlights.map((h) => (
-          <li
-            key={h}
-            className={cx(
-              'flex gap-3 text-ink/85',
-              variant === 'panel' ? 'text-[14px] leading-[1.6]' : 'text-[15px] leading-[1.65]',
-            )}
-          >
-            <span aria-hidden="true" className="mt-[0.8em] h-px w-3 shrink-0 bg-[var(--accent)]" />
-            <span>{h}</span>
-          </li>
-        ))}
-      </ul>
-    )}
+    {c.highlights.length > 0 && <Highlights items={c.highlights} variant={variant} />}
     {c.stack.length > 0 && <StackChips items={c.stack} />}
     {c.links.length > 0 && <LinkButtons links={c.links} />}
   </div>

@@ -36,7 +36,7 @@
           "kind": "profile",
           "content": {
             "heading": "I'm John.",
-            "body": "I'm a Grade 12 IB student in Ontario. Two of my hackathon projects have won: Iris, which lets people control a computer with their eyes and voice, and ShieldClaw, a security layer for AI agents."
+            "body": "I'm a first-year computer science student at the University of Toronto. I love tech and hackathons, where one weekend is enough to take an idea from nothing to something that works. Outside of code, music is a big part of my life and I'm in my church choir. I also play casual volleyball (very much a beginner) and train calisthenics."
           }
         },
         {
@@ -44,26 +44,30 @@
           "label": "Education",
           "kind": "profile",
           "content": {
-            "heading": "Saint Francis Xavier Catholic Secondary School",
-            "body": "Grade 12 in the IB Diploma Programme, with computer science in both Grade 11 and Grade 12.",
-            "facts": [
-              {
-                "label": "Top-six average",
-                "value": "97.7%"
-              },
-              {
-                "label": "SAT",
-                "value": "1570"
-              },
-              {
-                "label": "Grade 11 computer science",
-                "value": "96%"
-              },
-              {
-                "label": "Grade 12 computer science",
-                "value": "99%"
-              }
-            ]
+            "heading": "University of Toronto",
+            "meta": [
+              "St. George",
+              "HBSc Computer Science",
+              "First year",
+              "Expected Apr 2029"
+            ],
+            "body": "Coursework so far: Intro to CS (CSC110), Calculus with Proofs (MAT148) and Linear Algebra.",
+            "highlights": [
+              "Developer on TensorMIST at the University of Toronto Machine Intelligence Student Team (UTMIST), building a deep learning framework, compiler and CUDA kernel library from scratch in C++ and CUDA."
+            ],
+            "aside": {
+              "heading": "High school",
+              "facts": [
+                {
+                  "label": "Grade average",
+                  "value": "97.7%"
+                },
+                {
+                  "label": "SAT",
+                  "value": "1570"
+                }
+              ]
+            }
           }
         },
         {

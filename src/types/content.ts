@@ -12,8 +12,12 @@ export interface Fact {
 
 export interface ProfileContent {
   heading: string;
+  /** Short label line under the heading (program, year) */
+  meta?: string[];
   body: string;
-  facts?: Fact[];
+  highlights?: string[];
+  /** Small closing block, e.g. high school results */
+  aside?: { heading: string; facts: Fact[] };
 }
 
 export interface ProjectContent {
