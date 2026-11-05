@@ -31,7 +31,7 @@ export const TOUR_STOPS: TourStop[] = [
   {
     planetId: 'about',
     beaconId: 'about-education',
-    caption: 'Computer science at U of T, and a developer on TensorMIST at UTMIST.',
+    caption: 'First-year computer science at U of T, St. George.',
   },
   {
     planetId: 'contact',

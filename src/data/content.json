@@ -52,9 +52,6 @@
               "Expected Apr 2029"
             ],
             "body": "Coursework so far: Intro to CS (CSC110), Calculus with Proofs (MAT148) and Linear Algebra.",
-            "highlights": [
-              "Developer on TensorMIST at the University of Toronto Machine Intelligence Student Team (UTMIST), building a deep learning framework, compiler and CUDA kernel library from scratch in C++ and CUDA."
-            ],
             "aside": {
               "heading": "High school",
               "facts": [
