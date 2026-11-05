@@ -11,6 +11,7 @@ import {
   EASE,
   PageIcon,
   SAFE,
+  buttonClass,
   cx,
   useNarrow,
   usePresence,
@@ -289,7 +290,7 @@ const TourBar = () => {
                 ref={endBtn}
                 href={`mailto:${profile.email}`}
                 onClick={tour.end}
-                className="inline-flex h-9 items-center gap-2 rounded-full bg-ink px-4 text-[13px] font-medium text-space transition-colors duration-200 hover:bg-white"
+                className={buttonClass('primary', 'sm')}
               >
                 Email John
                 <ArrowIcon />

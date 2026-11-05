@@ -15,6 +15,7 @@ import {
   SAFE,
   cx,
   useNarrow,
+  useShort,
   usePresence,
 } from './primitives';
 
@@ -53,6 +54,7 @@ const BeaconPanel = () => {
   const focusedId = useAppStore((s) => s.focusedBeaconId);
   const readerOpen = useAppStore((s) => s.readerOpen);
   const narrow = useNarrow();
+  const short = useShort();
 
   const planet = planetById(activeId);
   const focused = mode === 'planet' ? beaconById(planet, focusedId) : undefined;
@@ -146,8 +148,11 @@ const BeaconPanel = () => {
             : {
                 right: SAFE.right,
                 top: `calc(${SAFE.top} + 56px * var(--hud-zoom, 1))`,
-                maxHeight: `calc(100% - ${SAFE.top} - ${SAFE.bottom} - 128px * var(--hud-zoom, 1))`,
-                width: 'clamp(320px, 40vw, calc(420px * var(--hud-zoom, 1)))',
+                // short landscape: run to the bottom edge (the chips move left of the panel)
+                maxHeight: short
+                  ? `calc(100% - ${SAFE.top} - ${SAFE.bottom} - 56px)`
+                  : `calc(100% - ${SAFE.top} - ${SAFE.bottom} - 128px * var(--hud-zoom, 1))`,
+                width: short ? '360px' : 'clamp(320px, 40vw, calc(420px * var(--hud-zoom, 1)))',
               }),
         }}
       >
@@ -214,7 +219,7 @@ const BeaconPanel = () => {
             if (narrow && !expanded && e.currentTarget.scrollTop > 24) setExpanded(true);
           }}
           className={cx(
-            'scrollbar-thin min-h-[160px] flex-auto overflow-y-auto overscroll-contain pb-8 pt-3',
+            'scrollbar-thin min-h-[160px] flex-auto [@media(max-height:500px)]:min-h-[110px] overflow-y-auto overscroll-contain pb-8 pt-3',
             narrow ? 'px-5' : 'px-6',
           )}
           style={{

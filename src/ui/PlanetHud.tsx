@@ -11,12 +11,16 @@ import {
   EASE,
   EmailLink,
   HUD_ZOOM,
+  HintRow,
+  IN_WORLD,
   KIND_LABEL,
   Kbd,
   PageIcon,
   SAFE,
   cx,
+  DISPLAY,
   useNarrow,
+  useShort,
   usePresence,
 } from './primitives';
 import { useScreenMarkers, type Box } from './useScreenMarkers';
@@ -111,17 +115,16 @@ const BeaconMarkers = ({
             >
               <span
                 className={cx(
-                  'flex flex-col items-center rounded-md border px-2 py-1 backdrop-blur-sm transition-colors duration-200 group-hover:border-[color-mix(in_srgb,var(--accent)_45%,transparent)] group-data-[compact=true]:hidden',
-                  on
-                    ? 'border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-space/75'
-                    : 'border-line bg-space/55',
+                  IN_WORLD,
+                  'flex flex-col items-center px-2 py-1 transition-colors duration-200 group-hover:border-white/30 group-data-[compact=true]:hidden',
+                  on && '!border-[color-mix(in_srgb,var(--accent)_40%,transparent)] !bg-space/80',
                 )}
               >
-                <span className="flex items-center gap-1.5 whitespace-nowrap font-mono text-[13px] font-medium uppercase leading-tight tracking-[0.16em] text-ink max-sm:text-[11px]">
+                <span className="flex items-center gap-1.5 whitespace-nowrap font-mono text-[13px] font-medium uppercase leading-tight tracking-[0.14em] text-ink max-sm:text-[11px]">
                   {on && <AccentDot />}
                   {b.label}
                 </span>
-                <span className="whitespace-nowrap font-mono text-[11px] leading-tight tracking-[0.08em] text-ink-muted max-sm:text-[10px]">
+                <span className="whitespace-nowrap font-mono text-[11px] leading-tight tracking-[0.14em] text-ink-muted max-sm:text-[10px]">
                   {String(i + 1).padStart(2, '0')}
                   {mixedKinds && ` ${KIND_LABEL[b.kind]}`}
                 </span>
@@ -141,8 +144,11 @@ const BeaconMarkers = ({
               type="button"
               tabIndex={-1}
               onClick={() => openBeacon(b.id)}
-              aria-label={`${b.label}, out of view. Go there`}
-              className="pointer-events-auto absolute left-0 top-0 flex items-center gap-1.5 rounded-full bg-space/60 px-2 py-1 data-[side=right]:flex-row-reverse"
+              aria-label={`Go to ${b.label} (off screen)`}
+              className={cx(
+                IN_WORLD,
+                'pointer-events-auto absolute left-0 top-0 flex items-center gap-1.5 px-2 py-1 data-[side=right]:flex-row-reverse',
+              )}
               style={{ visibility: 'hidden' }}
             >
               <span ref={bind(b.id, 'arrow')} className="inline-flex text-[var(--accent)]">
@@ -201,7 +207,7 @@ const TravelMenu = ({ current, isTouch }: { current: string; isTouch: boolean })
       {open && (
         <ul
           data-hud-block
-          className="panel pointer-events-auto absolute right-0 top-full mt-2 w-56 animate-fade-in rounded-xl p-1.5"
+          className="panel pointer-events-auto absolute right-0 top-full mt-2 w-max min-w-56 animate-fade-in rounded-xl p-1.5"
         >
           {planets
             .filter((p) => p.id !== current)
@@ -218,7 +224,7 @@ const TravelMenu = ({ current, isTouch }: { current: string; isTouch: boolean })
                   <AccentDot />
                   <span className="flex-1">
                     <span className="block text-[14px] text-ink">{p.title}</span>
-                    <span className="block font-mono text-[11px] text-ink-muted">{p.subtitle}</span>
+                    <span className="label block whitespace-nowrap">{p.subtitle}</span>
                   </span>
                   {!isTouch && <Kbd>{p.index}</Kbd>}
                 </button>
@@ -244,29 +250,32 @@ const ControlsHint = ({ isTouch }: { isTouch: boolean }) => {
       window.clearInterval(i);
     };
   }, []);
+  const items = isTouch
+    ? [<span className="text-ink">Tap a monument</span>]
+    : [
+        <span className="text-ink">Click a monument</span>,
+        <>
+          <Kbd>W</Kbd>
+          <Kbd>A</Kbd>
+          <Kbd>S</Kbd>
+          <Kbd>D</Kbd>
+          <span className="ml-0.5">Move</span>
+        </>,
+        <>Drag to look</>,
+        <>
+          <Kbd>Q</Kbd>
+          <span className="ml-0.5">Back to orbit</span>
+        </>,
+      ];
   return (
-    <p
+    <div
       data-hud-block={show ? '' : undefined}
       aria-hidden="true"
-      className="flex items-center justify-center gap-4 rounded-full bg-space/45 px-3 py-1 font-mono text-[12px] text-ink-muted backdrop-blur-sm"
+      className="rounded-full bg-space/50 px-4 py-1.5 backdrop-blur-sm"
       style={{ opacity: show ? 1 : 0, transition: `opacity 600ms ${EASE}` }}
     >
-      <span className="text-ink">{isTouch ? 'Tap a monument' : 'Click a monument'}</span>
-      {!isTouch && (
-        <>
-          <span className="flex items-center gap-1.5">
-            <Kbd>W</Kbd>
-            <Kbd>A</Kbd>
-            <Kbd>S</Kbd>
-            <Kbd>D</Kbd> move
-          </span>
-          <span>Drag to look</span>
-          <span className="flex items-center gap-1.5">
-            <Kbd>Q</Kbd> back to orbit
-          </span>
-        </>
-      )}
-    </p>
+      <HintRow items={items} className="justify-center" />
+    </div>
   );
 };
 
@@ -280,9 +289,24 @@ const PlanetHud = () => {
   const openReader = useAppStore((s) => s.openReader);
   const touring = useTour((s) => s.active);
   const narrow = useNarrow();
+  const short = useShort();
+  const header = useRef<HTMLElement>(null);
 
   const live = mode === 'planet' && !!activeId;
   const { mounted, visible } = usePresence(live, 300);
+
+  // after landing, focus would otherwise drop to <body> (the dock that had it is gone)
+  useEffect(() => {
+    if (!mounted || !live) return;
+    const r = requestAnimationFrame(() => {
+      const a = document.activeElement;
+      if (a && a !== document.body) return;
+      const titles = header.current?.querySelectorAll<HTMLElement>('[data-planet-title]') ?? [];
+      const t = [...titles].find((el) => el.offsetParent !== null);
+      t?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(r);
+  }, [mounted, live, activeId]);
   // keep the last planet while fading out
   const lastId = useRef(activeId);
   if (activeId) lastId.current = activeId;
@@ -302,7 +326,7 @@ const PlanetHud = () => {
       {/* soft scrims keep the bars legible on bright skies */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 h-[160px] bg-gradient-to-b from-space/50 to-transparent"
+        className="pointer-events-none absolute inset-x-0 top-0 h-[160px] bg-gradient-to-b from-space/70 to-transparent"
       />
       <div
         aria-hidden="true"
@@ -310,8 +334,10 @@ const PlanetHud = () => {
       />
       <BeaconMarkers planet={planet} focused={focused} mixedKinds={mixedKinds} />
 
+      {/* z-40 keeps the Travel menu above the beacon panel (z-30) */}
       <header
-        className={cx('absolute inset-x-0 top-0', HUD_ZOOM)}
+        ref={header}
+        className={cx('absolute inset-x-0 top-0 z-40', HUD_ZOOM)}
         style={{ paddingTop: SAFE.top, paddingLeft: SAFE.left, paddingRight: SAFE.right }}
       >
         <div data-hud-block className="flex items-center gap-1.5 sm:gap-2">
@@ -331,7 +357,7 @@ const PlanetHud = () => {
             className="flex min-w-0 flex-1 select-none items-center gap-2 pl-1 sm:hidden [@media(max-height:500px)]:!flex"
           >
             <AccentDot />
-            <span className="truncate font-display text-[21px] leading-none text-ink">{planet.title}</span>
+            <span className="truncate font-display text-[20px] leading-none text-ink">{planet.title}</span>
           </p>
           <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
             <TravelMenu current={planet.id} isTouch={isTouch} />
@@ -339,7 +365,7 @@ const PlanetHud = () => {
             <Button
               size="sm"
               onClick={() => openReader(planet.id)}
-              aria-label="Read as a page"
+              aria-label="Read as page"
               className="max-sm:gap-1.5 max-sm:px-3"
             >
               <PageIcon className="text-ink-muted" />
@@ -351,19 +377,25 @@ const PlanetHud = () => {
         </div>
         <div
           data-hud-block
-          className="mt-5 hidden w-max max-w-full select-none pl-1 sm:block [@media(max-height:500px)]:!hidden"
+          className="mt-5 hidden w-max max-w-full select-none pl-1 [text-shadow:0_1px_14px_rgba(5,7,13,0.7)] sm:block [@media(max-height:500px)]:!hidden"
         >
-          <p className="label flex items-center gap-2">
+          <p className="label flex items-center gap-2 !text-ink/80">
             <AccentDot />
             <span>
               {String(planet.index).padStart(2, '0')} / {planet.subtitle}
             </span>
           </p>
-          <h1 className="mt-1.5 font-display text-[34px] font-normal leading-none text-ink md:text-[40px]">
+          <h1
+            data-planet-title
+            tabIndex={-1}
+            className={cx('mt-1.5 font-display font-normal leading-none text-ink outline-none', DISPLAY.d40)}
+          >
             {planet.title}
           </h1>
         </div>
-        <h1 className="sr-only sm:hidden [@media(max-height:500px)]:!block">{planet.title}</h1>
+        <h1 data-planet-title tabIndex={-1} className="sr-only sm:hidden [@media(max-height:500px)]:!block">
+          {planet.title}
+        </h1>
       </header>
 
       <div
@@ -379,6 +411,8 @@ const PlanetHud = () => {
         <nav
           aria-label={`${planet.title} content`}
           className={cx('pointer-events-auto w-full', touring && narrow && 'invisible')}
+          // short landscape screens: keep the chips clear of the side panel
+          style={short && !narrow && focused ? { paddingRight: 'calc(360px + 12px)' } : undefined}
         >
           <ul
             data-hud-block
@@ -398,7 +432,7 @@ const PlanetHud = () => {
                       'panel flex h-11 items-center gap-2.5 rounded-full pl-3.5 pr-4 transition-[border-color,background-color] duration-200 ease-out',
                       on
                         ? '!border-[color-mix(in_srgb,var(--accent)_70%,transparent)] !bg-space-700/90'
-                        : 'hover:!border-[rgba(233,238,247,0.28)]',
+                        : 'hover:!border-white/30',
                     )}
                   >
                     <AccentDot glow={on} className={cx(!on && 'opacity-60')} />
@@ -406,7 +440,7 @@ const PlanetHud = () => {
                     {mixedKinds && (
                       <>
                         {' '}
-                        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-ink-muted">
+                        <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-muted">
                           {KIND_LABEL[b.kind]}
                         </span>
                       </>

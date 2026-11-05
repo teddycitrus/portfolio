@@ -5,10 +5,11 @@ import type { Beacon as BeaconData, BeaconKind, Planet, Vec3 } from '@/types/con
 import { useAppStore } from '@/state/useAppStore';
 import { dragLook } from '@/state/runtime';
 import { arrivalPulse } from './surfaceState';
+import { openBeacon } from '@/ui/navigation';
 
 
 /** Approximate monument height per kind, used for labels and screen-size estimates. */
-export const BEACON_HEIGHT: Record<BeaconKind, number> = {
+const BEACON_HEIGHT: Record<BeaconKind, number> = {
   project: 4.2,
   award: 3.05,
   skills: 2.5,
@@ -18,14 +19,14 @@ export const BEACON_HEIGHT: Record<BeaconKind, number> = {
 
 /* ---------- meaning: award tiers, project glyphs, skill counts ---------- */
 
-export interface AwardRank {
+interface AwardRank {
   /** 1 = winner / 1st place, 2 = placed, 3 = distinction */
   tier: 1 | 2 | 3;
   /** Category win (e.g. Future Impact) gets its own crown */
   category: boolean;
 }
 
-export const awardRank = (b: BeaconData): AwardRank => {
+const awardRank = (b: BeaconData): AwardRank => {
   if (b.kind !== 'award') return { tier: 2, category: false };
   const r = b.content.result.toLowerCase();
   if (r.includes('distinction')) return { tier: 3, category: false };
@@ -161,6 +162,8 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
     const stoneColor = new THREE.Color('#bdb6ac').lerp(new THREE.Color(planet.palette[1]), 0.12);
     // award pillars take a warm cast from their metal so they read gold against dark rock
     if (kind === 'award') stoneColor.lerp(gold, 0.22);
+    // skills pillars carry the ocean world's blue: tinted stone, blue metal caps, brighter seams
+    if (kind === 'skills') stoneColor.lerp(accent, 0.28);
     const rc = rimColor ?? new THREE.Color(planet.accent);
     const stone = addRim(
       new THREE.MeshStandardMaterial({ color: stoneColor, roughness: 0.68, metalness: 0.02, flatShading: true }),
@@ -173,12 +176,18 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
       rim * 0.1,
     );
     const metal = new THREE.MeshStandardMaterial({
-      color: kind === 'award' ? gold : stoneColor.clone().lerp(accent, 0.25),
+      color:
+        kind === 'award'
+          ? gold
+          : kind === 'skills'
+            ? stoneColor.clone().lerp(new THREE.Color(planet.color), 0.6)
+            : stoneColor.clone().lerp(accent, 0.25),
       roughness: kind === 'award' ? 0.3 : 0.35,
-      metalness: kind === 'award' ? 0.75 : 0.55,
+      metalness: kind === 'award' ? 0.75 : kind === 'skills' ? 0.6 : 0.55,
       emissive: kind === 'award' ? gold.clone().multiplyScalar(0.12) : new THREE.Color(0),
     });
-    const seamBase = (kind === 'award' ? gold.clone().lerp(accent, 0.3) : accent.clone());
+    const seamBase =
+      kind === 'award' ? gold.clone().lerp(accent, 0.3) : accent.clone().multiplyScalar(kind === 'skills' ? 1.3 : 1);
     const seam = new THREE.MeshBasicMaterial({ color: seamBase.clone() });
     const pool = poolMaterial(kind === 'award' ? gold.clone() : accent.clone());
     const ringMat = new THREE.MeshBasicMaterial({
@@ -247,9 +256,8 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
   const onClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
     if (dragLook.travel >= 6) return;
-    const s = useAppStore.getState();
-    s.glideToBeacon(beacon.id);
-    s.setFocusedBeacon(beacon.id);
+    // same path as the HUD chips: glide + focus, without stealing keyboard focus
+    openBeacon(beacon.id, false);
   };
 
   const seamStrip = (h: number, y: number, z: number, w = 0.028, tilt = 0) => (
@@ -418,8 +426,11 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
               <mesh material={mats.stone} position={[0, h / 2, 0]} castShadow receiveShadow>
                 <boxGeometry args={[w, h, w]} />
               </mesh>
-              <mesh material={mats.seam} position={[0, h + 0.012, 0]}>
-                <boxGeometry args={[w * 0.7, 0.02, w * 0.7]} />
+              <mesh material={mats.metal} position={[0, h + 0.045, 0]} castShadow>
+                <boxGeometry args={[w * 1.14, 0.09, w * 1.14]} />
+              </mesh>
+              <mesh material={mats.seam} position={[0, h + 0.095, 0]}>
+                <boxGeometry args={[w * 0.6, 0.012, w * 0.6]} />
               </mesh>
               {seamStrip(h * 0.75, h * 0.45, w / 2 + 0.005, 0.02)}
             </group>

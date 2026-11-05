@@ -161,17 +161,21 @@ const cloudFrag = /* glsl */ `
 /* ---------- floating rock islands (gas-giant) ---------- */
 
 const floatingRock = () => {
-  const cone = new THREE.ConeGeometry(1, 2.4, 8, 3).rotateX(Math.PI).translate(0, -1.2, 0);
-  const cap = new THREE.CylinderGeometry(1, 1.02, 0.35, 8, 1).translate(0, 0.12, 0);
-  [cone, cap].forEach((g) => g.deleteAttribute('uv'));
-  const geo = mergeGeometries([cone.toNonIndexed(), cap.toNonIndexed()])!;
+  const cone = new THREE.ConeGeometry(1, 2.4, 9, 3).rotateX(Math.PI).translate(0, -1.2, 0);
+  // low dome slightly narrower than the cone rim, so the top never overhangs like a table
+  const dome = new THREE.SphereGeometry(0.97, 9, 3, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.32, 1);
+  [cone, dome].forEach((g) => g.deleteAttribute('uv'));
+  const geo = mergeGeometries([cone.toNonIndexed(), dome.toNonIndexed()])!;
   const p = geo.getAttribute('position') as THREE.BufferAttribute;
   for (let i = 0; i < p.count; i += 1) {
     const x = p.getX(i);
     const y = p.getY(i);
     const z = p.getZ(i);
-    const k = 0.8 + noise2(x * 2.3 + y, z * 2.3 - y) * 0.4;
-    p.setXYZ(i, x * k, y < 0 ? y * (0.85 + noise2(x * 3, z * 3) * 0.3) : y, z * k);
+    // radial jitter keyed on the angle (plus depth on the cone), shared by both rims
+    const a = Math.atan2(z, x);
+    const k = 0.78 + noise2(Math.cos(a) * 1.7 + 4, Math.sin(a) * 1.7 + Math.min(0, y) * 0.8) * 0.44;
+    const ty = y < 0 ? y * (0.85 + noise2(x * 3, z * 3) * 0.3) : y * (0.6 + noise2(x * 2.5 + 7, z * 2.5) * 0.8);
+    p.setXYZ(i, x * k, ty, z * k);
   }
   geo.computeVertexNormals();
   return geo;

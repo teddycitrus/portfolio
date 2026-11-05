@@ -10,6 +10,7 @@ import {
   EASE,
   EmailLink,
   HUD_ZOOM,
+  IN_WORLD,
   Kbd,
   PageIcon,
   SAFE,
@@ -50,7 +51,10 @@ const PlanetLabels = ({ hovered, isTouch }: { hovered: string | null; isTouch: b
               tabIndex={-1}
               aria-label={`Land on ${p.title}`}
               {...common}
-              className="group pointer-events-auto absolute left-0 top-0 w-max rounded-lg bg-space/55 px-2.5 py-1.5 text-center backdrop-blur-sm"
+              className={cx(
+                IN_WORLD,
+                'group pointer-events-auto absolute left-0 top-0 w-max px-2.5 py-1.5 text-center',
+              )}
               style={{ visibility: 'hidden' }}
             >
               {/* staggered reveal so the first overworld frame is calm */}
@@ -60,7 +64,7 @@ const PlanetLabels = ({ hovered, isTouch }: { hovered: string | null; isTouch: b
               >
                 <span className="flex items-center gap-1.5">
                   <AccentDot glow={isHover} />
-                  <span className="whitespace-nowrap font-display text-[17px] leading-none text-ink sm:text-[21px] min-[1921px]:text-[25px]">
+                  <span className="whitespace-nowrap font-display text-[20px] leading-none text-ink min-[1921px]:text-[24px]">
                     {p.title}
                   </span>
                 </span>
@@ -72,7 +76,7 @@ const PlanetLabels = ({ hovered, isTouch }: { hovered: string | null; isTouch: b
               <span
                 ref={bind(p.id, 'extra')}
                 aria-hidden="true"
-                className="pointer-events-none absolute left-1/2 top-full mt-2 w-[240px] rounded-lg bg-space/55 px-2.5 py-2 backdrop-blur-sm group-data-[up=true]:bottom-full group-data-[up=true]:top-auto group-data-[up=true]:mb-2 group-data-[up=true]:mt-0 max-sm:w-auto max-sm:whitespace-nowrap"
+                className="pointer-events-none absolute left-1/2 top-full mt-2 w-[240px] rounded-md border border-line bg-space/60 px-2.5 py-2 backdrop-blur-sm group-data-[up=true]:bottom-full group-data-[up=true]:top-auto group-data-[up=true]:mb-2 group-data-[up=true]:mt-0 max-sm:w-auto max-sm:whitespace-nowrap"
                 style={{
                   opacity: isHover ? 1 : 0,
                   transform: `translate(-50%, ${isHover ? 0 : -4}px)`,
@@ -89,9 +93,12 @@ const PlanetLabels = ({ hovered, isTouch }: { hovered: string | null; isTouch: b
               ref={bind(p.id, 'edge')}
               type="button"
               tabIndex={-1}
-              aria-label={`${p.title}, off screen. Land`}
+              aria-label={`Go to ${p.title} (off screen)`}
               {...common}
-              className="pointer-events-auto absolute left-0 top-0 flex items-center gap-1.5 rounded-full bg-space/60 px-2 py-1 data-[side=right]:flex-row-reverse"
+              className={cx(
+                IN_WORLD,
+                'pointer-events-auto absolute left-0 top-0 flex items-center gap-1.5 px-2 py-1 data-[side=right]:flex-row-reverse',
+              )}
               style={{ visibility: 'hidden' }}
             >
               <span ref={bind(p.id, 'arrow')} className="inline-flex text-[var(--accent)]">
@@ -127,12 +134,22 @@ const Dock = ({ hovered, isTouch }: { hovered: string | null; isTouch: boolean }
                 onPointerLeave={() => !isTouch && setHovered(null)}
                 onFocus={() => setHovered(p.id)}
                 onBlur={() => setHovered(null)}
-                aria-label={`${p.title}: ${p.subtitle}. Press ${p.index}`}
+                aria-label={`${p.title}: ${p.subtitle}`}
+                aria-keyshortcuts={String(p.index)}
                 className={cx(
                   'flex h-12 flex-col items-center justify-center gap-1.5 rounded-xl px-2.5 transition-colors duration-200 ease-out sm:h-10 sm:flex-row sm:gap-2 sm:rounded-full sm:px-3',
                   on ? 'bg-white/[0.07]' : 'hover:bg-white/[0.04]',
                 )}
               >
+                <AccentDot glow={on} />
+                <span
+                  className={cx(
+                    'text-[12px] font-medium transition-colors duration-200 sm:text-[13px]',
+                    on ? 'text-ink' : 'text-ink/80',
+                  )}
+                >
+                  {p.title}
+                </span>
                 {!isTouch && (
                   <Kbd
                     className={cx(
@@ -143,16 +160,6 @@ const Dock = ({ hovered, isTouch }: { hovered: string | null; isTouch: boolean }
                     {p.index}
                   </Kbd>
                 )}
-                <AccentDot glow={on} className={cx(!isTouch && 'sm:hidden')} />
-                <span
-                  className={cx(
-                    'text-[12px] font-medium transition-colors duration-200 sm:text-[13px]',
-                    on ? 'text-ink' : 'text-ink/80',
-                  )}
-                >
-                  {p.title}
-                </span>
-                {!isTouch && <AccentDot className="hidden sm:inline-block" glow={on} />}
               </button>
             </li>
           );
@@ -195,7 +202,7 @@ const OverworldHud = () => {
             <ArrowIcon className="text-ink-muted" />
           </Button>
           <EmailLink email={profile.email} name={profile.name} />
-          <Button size="sm" onClick={() => openReader()} aria-label="Read as a page">
+          <Button size="sm" onClick={() => openReader()} aria-label="Read as page">
             <PageIcon className="text-ink-muted" />
             <span className="sm:hidden">Read</span>
             <span className="hidden sm:inline">Read as page</span>

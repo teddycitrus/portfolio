@@ -12,9 +12,16 @@ const MAX_PITCH = 0.5;
 /** Seconds for the intro composition to swing onto the centred system. */
 const SWING_TIME = 1.4;
 
-/** Vertical fov that keeps the planet arc readable: 60 on landscape, up to 80 on portrait. */
-export const responsiveFov = (aspect: number): number =>
-  60 + 20 * THREE.MathUtils.clamp((1.4 - aspect) / 0.8, 0, 1);
+const portraitRamp = (aspect: number) => THREE.MathUtils.clamp((1.4 - aspect) / 0.8, 0, 1);
+
+/**
+ * Overworld vertical fov: a long 50 deg lens on landscape (planets near the edges stay round),
+ * widening to 80 on portrait. The layout refits planets to whatever this returns.
+ */
+export const responsiveFov = (aspect: number): number => 50 + 30 * portraitRamp(aspect);
+
+/** Fov for the planet surface: 60 on landscape, up to 80 on portrait. */
+export const surfaceFov = (aspect: number): number => 60 + 20 * portraitRamp(aspect);
 
 interface Spring {
   v: number;

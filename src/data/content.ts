@@ -58,13 +58,16 @@ const rebuildLayout = () => {
   const th = tv * aspect;
   const w = portraitWeight(aspect);
   const yaw = INTRO_YAW * (1 - w);
+  // Narrower lenses push the system back so on-screen sizes match the 60-80 deg reference composition
+  const refFov = 60 + 20 * clamp01((1.4 - aspect) / 0.8);
+  const lens = Math.tan((refFov * Math.PI) / 360) / tv;
 
   // Landscape: one horizontal squeeze so the outermost planet (plus drift and glow) clears the edge
   let k = 1;
   for (const p of planets) {
     const [x, , z] = p.position;
     const u = Math.abs(x) / -z;
-    const margin = (p.radius * (p.rings ? 1.7 : 1.35) + 0.9) / Math.hypot(...p.position);
+    const margin = (p.radius * (p.rings ? 1.7 : 1.35) + 0.9) / (Math.hypot(...p.position) * lens);
     if (u > 1e-6) k = Math.min(k, (th * 0.84 - margin) / u);
   }
   k = Math.max(k, 0.2);
@@ -77,7 +80,7 @@ const rebuildLayout = () => {
     const ndcIntro = 0.38 + 0.54 * (uo / th);
     const phi = lerp(Math.atan(ndcIntro * th) - yaw, Math.atan(uo), focus);
     // Intro pushes the system back (smaller on screen) and opens it vertically so the packed arc does not overlap
-    const back = lerp(1.35, 1, focus);
+    const back = lerp(1.35, 1, focus) * lens;
     const lx = Math.tan(phi) * depth * back;
     const ly = y * lerp(1.6, 1, focus) * back;
     const lz = z * back;
@@ -177,9 +180,6 @@ export const setOverworldView = (aspect: number, fov: number, focus = view.focus
 
 rebuildLayout();
 
-/** Aspect-only convenience wrapper. */
-export const setOverworldAspect = (aspect: number, fov = view.fov): void => setOverworldView(aspect, fov);
-
 /** Current resting anchor of a planet (before drift). */
 export const getOverworldAnchor = (planet: Planet): Vec3 => anchors.get(planet.id) ?? planet.position;
 
@@ -216,11 +216,6 @@ export const getBeaconPosition = (planet: Planet, beaconIndex: number): Vec3 => 
   const t = n === 1 ? 0.5 : beaconIndex / (n - 1);
   const angle = -BEACON_ARC_SPAN / 2 + t * BEACON_ARC_SPAN;
   return [Math.sin(angle) * BEACON_ARC_RADIUS, 0, -Math.cos(angle) * BEACON_ARC_RADIUS];
-};
-
-export const getBeaconPositionById = (planet: Planet, beaconId: string): Vec3 | undefined => {
-  const i = planet.beacons.findIndex((b) => b.id === beaconId);
-  return i === -1 ? undefined : getBeaconPosition(planet, i);
 };
 
 export const BEACON_VIEW_DISTANCE = 4.2;

@@ -5,8 +5,8 @@ import type { Planet, PlanetStyle } from '@/types/content';
  * Bakes each planet's procedural surface once into two equirect maps laid
  * out like SphereGeometry uvs, so runtime shading is a couple of texture
  * fetches instead of domain-warped fbm, craters and cells per pixel.
- *   surface: sqrt(albedo).rgb, ocean specular mask
- *   detail:  object-space bumped normal (0..1), extra (lava crack or cloud density)
+ *   surface (full res): sqrt(albedo).rgb, ocean specular mask or lava crack
+ *   detail (half res):  object-space bumped normal (0..1), cloud density
  * Lighting stays fully dynamic. Maps are cached per renderer for the app lifetime.
  */
 
@@ -73,8 +73,8 @@ const BAKE_FRAGMENT = /* glsl */ `
   uniform float uBump;
   uniform float uTexel;
   in vec2 vUv;
-  layout(location = 0) out vec4 outSurface;
-  layout(location = 1) out vec4 outDetail;
+  uniform int uPass;
+  layout(location = 0) out vec4 outColor;
 
   ${NOISE_GLSL}
 
@@ -202,6 +202,13 @@ const BAKE_FRAGMENT = /* glsl */ `
     vec3 albedo; float h, spec, extra;
     evalStyle(dir, albedo, h, spec, extra);
 
+    // Pass 0: sqrt(albedo) + (ocean spec mask, or lava crack on molten). Fine lines stay at full res.
+    if (uPass == 0) {
+      outColor = vec4(sqrt(max(albedo, 0.0)), uStyle == 4 ? extra : spec);
+      return;
+    }
+
+    // Pass 1 (half res): bumped object-space normal + cloud density
     vec3 n = dir;
     if (uBump > 0.0) {
       vec3 t = normalize(cross(abs(dir.y) > 0.995 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0), dir));
@@ -213,8 +220,7 @@ const BAKE_FRAGMENT = /* glsl */ `
       vec3 grad = ((hT - h) * t + (hB - h) * b) / e;
       n = normalize(dir - grad * uBump);
     }
-    outSurface = vec4(sqrt(max(albedo, 0.0)), spec);
-    outDetail = vec4(n * 0.5 + 0.5, extra);
+    outColor = vec4(n * 0.5 + 0.5, uStyle == 4 ? 0.0 : extra);
   }
 `;
 
@@ -240,6 +246,7 @@ const getBakeMaterial = () => {
       uSeed: { value: 0 },
       uBump: { value: 0 },
       uTexel: { value: 0.004 },
+      uPass: { value: 0 },
     },
     vertexShader: BAKE_VERTEX,
     fragmentShader: BAKE_FRAGMENT,
@@ -266,20 +273,22 @@ export const getPlanetMaps = (gl: THREE.WebGLRenderer, planet: Planet, lowRes: b
   const hit = perGl.get(planet.id);
   if (hit) return hit;
 
+  // Full-res colour, half-res normals/clouds: about 8MB per planet on desktop with mips
   const w = lowRes ? 1024 : 1536;
-  const h = w / 2;
-  const rt = new THREE.WebGLRenderTarget(w, h, {
-    count: 2,
-    type: THREE.UnsignedByteType,
-    format: THREE.RGBAFormat,
-    generateMipmaps: true,
-    minFilter: THREE.LinearMipmapLinearFilter,
-    magFilter: THREE.LinearFilter,
-    wrapS: THREE.RepeatWrapping,
-    wrapT: THREE.ClampToEdgeWrapping,
-    depthBuffer: false,
-    anisotropy: Math.min(8, gl.capabilities.getMaxAnisotropy()),
-  });
+  const target = (tw: number) =>
+    new THREE.WebGLRenderTarget(tw, tw / 2, {
+      type: THREE.UnsignedByteType,
+      format: THREE.RGBAFormat,
+      generateMipmaps: true,
+      minFilter: THREE.LinearMipmapLinearFilter,
+      magFilter: THREE.LinearFilter,
+      wrapS: THREE.RepeatWrapping,
+      wrapT: THREE.ClampToEdgeWrapping,
+      depthBuffer: false,
+      anisotropy: Math.min(8, gl.capabilities.getMaxAnisotropy()),
+    });
+  const rtSurface = target(w);
+  const rtDetail = target(w / 2);
 
   const { mat, scene } = getBakeMaterial();
   const u = mat.uniforms;
@@ -289,17 +298,22 @@ export const getPlanetMaps = (gl: THREE.WebGLRenderer, planet: Planet, lowRes: b
   u.uStyle.value = STYLE_INDEX[planet.style];
   u.uSeed.value = planetSeed(planet.id);
   u.uBump.value = BUMP[planet.style];
-  u.uTexel.value = (Math.PI * 2) / w;
 
   const prevTarget = gl.getRenderTarget();
   const prevAutoClear = gl.autoClear;
   gl.autoClear = true;
-  gl.setRenderTarget(rt);
+  u.uPass.value = 0;
+  u.uTexel.value = (Math.PI * 2) / w;
+  gl.setRenderTarget(rtSurface);
+  gl.render(scene, bakeCam);
+  u.uPass.value = 1;
+  u.uTexel.value = (Math.PI * 2) / (w / 2);
+  gl.setRenderTarget(rtDetail);
   gl.render(scene, bakeCam);
   gl.setRenderTarget(prevTarget);
   gl.autoClear = prevAutoClear;
 
-  const maps = { surface: rt.textures[0], detail: rt.textures[1] };
+  const maps = { surface: rtSurface.texture, detail: rtDetail.texture };
   perGl.set(planet.id, maps);
   return maps;
 };

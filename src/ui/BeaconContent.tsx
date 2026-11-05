@@ -9,8 +9,11 @@ import type {
   ProjectContent,
   SkillsContent,
 } from '@/types/content';
-import { AccentDot, ArrowIcon, Chip, PlayIcon, cx } from './primitives';
+import { AccentDot, ArrowIcon, Chip, DISPLAY, PlayIcon, buttonClass, cx } from './primitives';
 import { findProjectBeacon } from './navigation';
+
+/** Reader entry headings share one size across every kind; the panel title is 32 too. */
+export const ENTRY_HEADING = cx('font-display font-normal leading-[1.05] tracking-[-0.01em] text-ink', DISPLAY.d32);
 
 /**
  * Shared content renderers for the beacon panel and the reader page so a
@@ -22,11 +25,7 @@ const isMail = (url: string) => url.startsWith('mailto:');
 export const linkProps = (url: string) => (isMail(url) ? {} : { target: '_blank', rel: 'noreferrer' });
 
 const Heading = ({ variant, children, className }: { variant: Variant; children: ReactNode; className?: string }) => {
-  const cls = cx(
-    'font-display font-normal leading-[1.05] tracking-[-0.01em] text-ink',
-    variant === 'panel' ? 'text-[32px]' : 'text-[30px] md:text-[34px]',
-    className,
-  );
+  const cls = cx(ENTRY_HEADING, className);
   return variant === 'panel' ? (
     <h2 tabIndex={-1} data-panel-heading className={cx(cls, 'scroll-mt-4')}>
       {children}
@@ -49,15 +48,18 @@ export const FactGrid = ({ facts }: { facts: Fact[] }) => (
         key={f.label}
         className={cx('border-b border-line py-4', i % 2 === 0 ? 'pr-4' : 'border-l border-line pl-4')}
       >
-        <dd className="font-display text-[36px] leading-none text-ink">{f.value}</dd>
-        <dt className="label mt-2">{f.label}</dt>
+        {/* dt first for assistive tech; flex-col-reverse keeps the number on top */}
+        <div className="flex flex-col-reverse gap-2">
+          <dt className="label">{f.label}</dt>
+          <dd className={cx('font-display leading-none text-ink', DISPLAY.d32)}>{f.value}</dd>
+        </div>
       </div>
     ))}
   </dl>
 );
 
-export const StackChips = ({ items }: { items: string[] }) => (
-  <ul className="flex flex-wrap gap-1.5" aria-label="Stack">
+export const StackChips = ({ items, label = 'Stack' }: { items: string[]; label?: string }) => (
+  <ul className="flex flex-wrap gap-1.5" aria-label={label}>
     {items.map((s) => (
       <li key={s}>
         <Chip>{s}</Chip>
@@ -69,12 +71,7 @@ export const StackChips = ({ items }: { items: string[] }) => (
 export const LinkButtons = ({ links }: { links: ExternalLink[] }) => (
   <div className="flex flex-wrap gap-2">
     {links.map((l) => (
-      <a
-        key={l.url}
-        href={l.url}
-        {...linkProps(l.url)}
-        className="inline-flex h-10 items-center gap-2 rounded-full border border-line px-4 text-[14px] font-medium text-ink transition-colors duration-200 ease-out hover:border-[color-mix(in_srgb,var(--accent)_60%,transparent)] hover:text-[var(--accent)]"
-      >
+      <a key={l.url} href={l.url} {...linkProps(l.url)} className={buttonClass('ghost', 'md')}>
         {l.label}
         <ArrowIcon external={!isMail(l.url)} />
       </a>
@@ -148,7 +145,7 @@ export const ProjectBody = ({ c, variant }: { c: ProjectContent; variant: Varian
       >
         {c.tagline}
       </p>
-      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 font-mono text-[12px] text-ink-muted">
+      <p className="label flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
         <span>{c.period}</span>
         {c.team && <span>Team project</span>}
         {c.award && (
@@ -159,9 +156,7 @@ export const ProjectBody = ({ c, variant }: { c: ProjectContent; variant: Varian
         )}
       </p>
     </div>
-    {c.videoId && (
-      <VideoEmbed videoId={c.videoId} title={c.heading} poster={(c as ProjectContent & { poster?: string }).poster} />
-    )}
+    {c.videoId && <VideoEmbed videoId={c.videoId} title={c.heading} poster={c.poster} />}
     <Body variant={variant}>{c.description}</Body>
     {c.highlights.length > 0 && (
       <ul className="space-y-2.5">
@@ -229,13 +224,7 @@ export const AwardBody = ({ c, variant, onProject }: AwardProps) => (
 export const SkillsBody = ({ c, variant }: { c: SkillsContent; variant: Variant }) => (
   <div className="space-y-5">
     <Heading variant={variant}>{c.heading}</Heading>
-    <ul className="flex flex-wrap gap-2">
-      {c.items.map((s) => (
-        <li key={s} className="rounded-full border border-line px-3 py-1.5 text-[14px] text-ink">
-          {s}
-        </li>
-      ))}
-    </ul>
+    <StackChips items={c.items} label="Skills" />
     {c.note && <Body variant={variant}>{c.note}</Body>}
   </div>
 );
@@ -247,11 +236,7 @@ export const LinkBody = ({ label, c, variant }: { label: string; c: LinkContent;
       <p className="break-all font-mono text-[13px] text-[var(--accent)]">{c.handle}</p>
     </div>
     <Body variant={variant}>{c.description}</Body>
-    <a
-      href={c.url}
-      {...linkProps(c.url)}
-      className="inline-flex h-12 w-full items-center justify-between rounded-full bg-ink px-5 text-[15px] font-medium text-space transition-colors duration-200 ease-out hover:bg-white"
-    >
+    <a href={c.url} {...linkProps(c.url)} className={cx(buttonClass('primary', 'md'), 'w-full justify-between')}>
       {isMail(c.url) ? 'Write an email' : `Open ${label}`}
       <ArrowIcon external={!isMail(c.url)} className="h-4 w-4" />
     </a>

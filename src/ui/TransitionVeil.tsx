@@ -3,7 +3,15 @@ import { planetById } from '@/data/content';
 import { buildSky } from '@/data/skyPresets';
 import type { Planet } from '@/types/content';
 import { useAppStore } from '@/state/useAppStore';
-import { ENTER_VEIL_START, EXIT_VEIL_START, REDUCED_TOTAL, VEIL_FADE_IN, VEIL_LIFT } from '@/state/timing';
+import {
+  CHAIN_TOTAL,
+  ENTER_VEIL_START,
+  EXIT_CHAIN_VEIL_START,
+  EXIT_VEIL_START,
+  REDUCED_TOTAL,
+  VEIL_FADE_IN,
+  VEIL_LIFT,
+} from '@/state/timing';
 import { EASE } from './primitives';
 
 const SPACE = '#05070d';
@@ -42,8 +50,9 @@ const TransitionVeil = () => {
     if (mode === 'transitioning-in') {
       const planetId = lockedId;
       if (covered.current) {
-        // straight from a launch: stay covered, shift to the new planet colour
-        setV({ cover: 1, coverMs: 0, tint: 1, tintMs: 500, planetId });
+        // chained dive straight from a launch: stay covered and shift to the
+        // destination sky before arrival (CHAIN_TOTAL), then lift as usual
+        setV({ cover: 1, coverMs: 0, tint: 1, tintMs: Math.max(150, CHAIN_TOTAL - 150), planetId });
       } else {
         setV({ cover: 0, coverMs: 0, tint: 1, tintMs: 0, planetId });
         later(reduced ? Math.max(0, REDUCED_TOTAL - REDUCED_FADE - 50) : ENTER_VEIL_START, () => {
@@ -53,7 +62,14 @@ const TransitionVeil = () => {
       }
     } else if (mode === 'transitioning-out') {
       setV((s) => ({ ...s, tint: 0, tintMs: 0, planetId: null }));
-      later(reduced ? Math.max(0, REDUCED_TOTAL - REDUCED_FADE - 50) : EXIT_VEIL_START, () => {
+      // planet-to-planet launches are shorter and cover earlier
+      const chained = useAppStore.getState().pendingPlanetId !== null;
+      const start = reduced
+        ? Math.max(0, REDUCED_TOTAL - REDUCED_FADE - 50)
+        : chained
+          ? EXIT_CHAIN_VEIL_START
+          : EXIT_VEIL_START;
+      later(start, () => {
         covered.current = true;
         setV((s) => ({ ...s, cover: 1, coverMs: fadeIn }));
       });

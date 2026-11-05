@@ -49,7 +49,7 @@ const PORTRAIT_MIN_SIZE = 0.25;
 const PORTRAIT_MIN_Z = 1.0;
 
 /** Extra per-beacon fields for the DOM label layer (until PlanetScreenInfo carries them) */
-export type BeaconScreenInfo = PlanetScreenInfo & {
+type BeaconScreenInfo = PlanetScreenInfo & {
   /** Camera to beacon, world units (XZ) */
   distance: number;
   /** Reserved: true when terrain hides the label anchor */

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#05070d" />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
     <title>John Mannully | Full-stack and AI developer</title>
     <meta
       name="description"
@@ -22,6 +23,8 @@
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="John Mannully | Full-stack and AI developer" />
+    <meta name="twitter:description" content="Computer vision, voice agents and live 3D interfaces. Explore the portfolio as a small solar system." />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -43,6 +46,28 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap"
       rel="stylesheet"
     />
+    <style>
+      .shell { position: fixed; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; background: #05070d; color: #e9eef7;
+        padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
+      .shell-col { width: 100%; max-width: 640px; padding-bottom: 8px; }
+      .shell-label { margin: 0 0 24px; font: 500 11px 'IBM Plex Mono', ui-monospace, monospace; letter-spacing: 0.14em; text-transform: uppercase; color: #9aa5b8; }
+      .shell-name { margin: 0; font: 400 clamp(52px, 10vw, 136px)/0.9 'Instrument Serif', Georgia, serif; letter-spacing: -0.02em; }
+      .shell-tag { margin: 24px 0 0; max-width: 36ch; font: 400 17px/1.55 'IBM Plex Sans', system-ui, sans-serif; color: #9aa5b8; opacity: 0; }
+      .shell-rest { height: 173px; }
+      @media (min-width: 768px) {
+        .shell { justify-content: center; }
+        .shell-col { padding-bottom: 0; margin-left: clamp(0px, 6vw, 112px); }
+        .shell-tag { margin-top: 32px; font-size: 19px; }
+        .shell-rest { height: 193px; }
+      }
+      @media (max-height: 500px) {
+        .shell { justify-content: flex-end; }
+        .shell-label { margin-bottom: 12px; }
+        .shell-name { font-size: 52px; }
+        .shell-tag { margin-top: 12px; font-size: 15px; }
+        .shell-rest { height: 99px; }
+      }
+    </style>
   </head>
   <body>
     <noscript>
@@ -63,9 +88,13 @@
       </main>
     </noscript>
     <div id="root">
-      <div style="position: fixed; inset: 0; display: flex; flex-direction: column; justify-content: center; padding: 0 clamp(24px, 6vw, 92px); background: #05070d; color: #e9eef7">
-        <p style="margin: 0 0 18px; font: 500 11px/1 'IBM Plex Mono', ui-monospace, monospace; letter-spacing: 0.14em; text-transform: uppercase; color: #9aa5b8">Full-stack and AI developer</p>
-        <h1 style="margin: 0; font: 400 clamp(58px, 10vw, 136px)/0.9 'Instrument Serif', Georgia, serif; letter-spacing: -0.02em">John<br />Mannully</h1>
+      <div class="shell" aria-hidden="true">
+        <div class="shell-col">
+          <p class="shell-label">Full-stack and AI developer</p>
+          <h1 class="shell-name">John<br /><span style="padding-left: 0.04em">Mannully</span></h1>
+          <p class="shell-tag">I build full-stack and AI software, from eye-tracking computer control to voice agents that brief people on supply-chain risk.</p>
+          <div class="shell-rest"></div>
+        </div>
       </div>
     </div>
     <script type="module" src="/src/main.tsx"></script>

@@ -19,5 +19,15 @@ export const EXIT_TOTAL = 1500;
 export const VEIL_FADE_IN = 350;
 export const VEIL_LIFT = 900;
 
+/**
+ * Planet-to-planet travel (travelTo while on a planet). The launch is cut
+ * short: veil starts covering at EXIT_CHAIN_VEIL_START, the mode switches to
+ * 'transitioning-in' at EXIT_CHAIN_TOTAL. The chained dive then happens
+ * entirely under cover and arrives at CHAIN_TOTAL, after which the veil lifts.
+ */
+export const EXIT_CHAIN_VEIL_START = 500;
+export const EXIT_CHAIN_TOTAL = 900;
+export const CHAIN_TOTAL = 450;
+
 /** Reduced-motion: no camera flight, a plain crossfade. */
 export const REDUCED_TOTAL = 450;

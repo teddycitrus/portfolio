@@ -73,7 +73,7 @@ const PLANET_FRAGMENT = /* glsl */ `
     col += albedo * vec3(1.0, 0.45, 0.25) * twilight * 0.12 * uAtmo;
     col += albedo * (uAtmoColor * 0.01 + 0.004);
 
-    if (specMask > 0.01) {
+    if ((uStyle == 0 || uStyle == 3) && specMask > 0.01) {
       vec3 H = normalize(uSun + V);
       float nh = max(dot(Ng, H), 0.0);
       float fres = 0.02 + 0.98 * pow(1.0 - max(dot(H, V), 0.0), 5.0);
@@ -82,7 +82,7 @@ const PLANET_FRAGMENT = /* glsl */ `
     }
 
     if (uStyle == 4) {
-      float crack = D.a;
+      float crack = S.a;
       float pulse = 0.85 + 0.15 * sin(uTime * 0.6 + dot(vLocal, vec3(7.0, 5.0, 3.0)));
       vec3 lava = mix(vec3(1.0, 0.28, 0.04), mix(uB, vec3(1.0, 0.75, 0.4), 0.5), crack * crack);
       col += lava * crack * pulse * mix(2.4, 0.6, day);

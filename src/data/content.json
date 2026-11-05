@@ -2,7 +2,7 @@
   "profile": {
     "name": "John Mannully",
     "role": "Full-stack and AI developer",
-    "tagline": "I build software that reacts to the real world as it happens, from eye-tracking computer control to voice agents that brief people on supply-chain risk.",
+    "tagline": "I build full-stack and AI software, from eye-tracking computer control to voice agents that brief people on supply-chain risk.",
     "location": "Ontario, Canada",
     "email": "johnmannul@gmail.com"
   },
@@ -39,7 +39,7 @@
           "kind": "profile",
           "content": {
             "heading": "I'm John.",
-            "body": "I'm a Grade 12 student in Ontario who builds full-stack and AI software. Two of my hackathon projects have won: Iris, which lets people control a computer with their eyes and voice, and ShieldClaw, a security layer for AI agents."
+            "body": "I'm a Grade 12 IB student in Ontario. Two of my hackathon projects have won: Iris, which lets people control a computer with their eyes and voice, and ShieldClaw, a security layer for AI agents."
           }
         },
         {
@@ -59,11 +59,11 @@
                 "value": "1570"
               },
               {
-                "label": "Grade 11 CS (ICS3U1)",
+                "label": "Grade 11 computer science",
                 "value": "96%"
               },
               {
-                "label": "Grade 12 CS (ICS4U1)",
+                "label": "Grade 12 computer science",
                 "value": "99%"
               }
             ]
@@ -119,7 +119,7 @@
             "highlights": [
               "Real-time eye and mouth tracking mapped to clicks, scrolling and tab switching.",
               "Offline speech recognition types dictated text, so motion and voice work as one interface.",
-              "Built at Hack The Valley X at UTSC."
+              "Built at Hack The Valley X (UTSC)."
             ],
             "stack": [
               "Python",
@@ -149,7 +149,7 @@
             "period": "May 2026",
             "description": "Maps supplier and logistics exposure onto an interactive globe. It scores breaking news against a company's supplier graph and briefs decision-makers through AI voice agents they can question in plain English.",
             "highlights": [
-              "News events are scored against supplier graphs to surface exposure before it becomes a disruption.",
+              "News events are scored against each company's supplier graph to flag exposed suppliers.",
               "Voice agents brief people by phone and answer follow-up questions about their risk.",
               "Built for EurekaHacks 2026 at Waterloo's Accelerator Centre."
             ],
@@ -186,7 +186,7 @@
             "highlights": [
               "Compares generated ads against the brand's real product photos, not just its colours.",
               "Filters out off-brand variants before they reach a person.",
-              "Scores the output of Olivia (cresva.ai) and serves the evaluator to agents over MCP."
+              "Built to score ads from Olivia (cresva.ai)."
             ],
             "stack": [
               "TypeScript",
@@ -214,13 +214,13 @@
           "kind": "project",
           "content": {
             "heading": "ShieldClaw",
-            "tagline": "Identity, policy and human approval for AI agents.",
+            "tagline": "A security layer for AI agents: identity, policy and human approval.",
             "period": "2026",
             "description": "A security control plane for OpenClaw. Every AI agent gets its own machine identity, every request is checked against policy, risky actions go to a human for approval, and sensitive data is redacted before the agent sees it.",
             "highlights": [
-              "FastAPI proxy in front of OpenClaw with per-agent Auth0 identities.",
+              "FastAPI proxy in front of OpenClaw with a separate Auth0 identity for every agent.",
               "Scope checks and fine-grained authorization through OpenFGA policies.",
-              "Team build that won at Hack Canada 2026."
+              "Risky actions are evaluated and can require human approval in Discord; sensitive data is redacted per agent."
             ],
             "stack": [
               "Python",
@@ -276,7 +276,7 @@
             "result": "Winner",
             "year": "2026",
             "project": "ShieldClaw",
-            "description": "ShieldClaw, an authentication and security layer for AI agents, won at Hack Canada 2026."
+            "description": "ShieldClaw, a security layer for AI agents, won at Hack Canada 2026."
           }
         },
         {
@@ -288,7 +288,7 @@
             "result": "Future Impact winner, 4th overall",
             "year": "2025",
             "project": "Iris",
-            "description": "Iris, a hands-free computer control system, won the Future Impact category at UTSC's hackathon and placed 4th overall."
+            "description": "Iris, a hands-free computer control system, won the Future Impact category and placed 4th overall."
           }
         },
         {

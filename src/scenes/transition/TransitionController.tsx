@@ -4,10 +4,13 @@ import * as THREE from 'three';
 import type { Planet, Vec3 } from '@/types/content';
 import { getOrbitalPosition, planetById } from '@/data/content';
 import { useAppStore } from '@/state/useAppStore';
-import { ENTER_DIVE, ENTER_TOTAL, EXIT_TOTAL, REDUCED_TOTAL } from '@/state/timing';
-import { responsiveFov } from '@/scenes/overworld/TelescopeCamera';
+import { CHAIN_TOTAL, ENTER_DIVE, ENTER_TOTAL, EXIT_CHAIN_TOTAL, EXIT_TOTAL, REDUCED_TOTAL } from '@/state/timing';
+import { responsiveFov, surfaceFov } from '@/scenes/overworld/TelescopeCamera';
 
-const DIVE_FOV = 48;
+/** The dive narrows the lens by this factor. */
+const DIVE_ZOOM = 0.85;
+/** Dive stops this many radii from the centre so baked detail is never magnified into texels. */
+const DIVE_END = 1.85;
 const LAUNCH_FOV = 80;
 const LAUNCH_PITCH = 1.2;
 const LOOK_SETTLE = 700;
@@ -28,6 +31,12 @@ const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 
 interface Run {
   kind: 'in' | 'out' | null;
+  /** Planet-to-planet travel: short launch, then a dive fully under the veil */
+  chain: boolean;
+  total: number;
+  prevKind: 'in' | 'out' | null;
+  prevChain: boolean;
+  lockId: string | null;
   start: number;
   done: boolean;
   reduced: boolean;
@@ -55,6 +64,11 @@ const TransitionController = () => {
   const lockedId = useAppStore((s) => s.lockedPlanetId);
   const run = useRef<Run>({
     kind: null,
+    chain: false,
+    total: 0,
+    prevKind: null,
+    prevChain: false,
+    lockId: null,
     start: 0,
     done: true,
     reduced: false,
@@ -69,9 +83,19 @@ const TransitionController = () => {
     const r = run.current;
     if (mode !== 'transitioning-in' && mode !== 'transitioning-out') {
       r.kind = null;
+      r.chain = false;
       return;
     }
+    const again = r.kind === (mode === 'transitioning-in' ? 'in' : 'out') && !r.done && r.lockId === lockedId;
+    const prevKind = again ? r.prevKind : r.kind;
+    const prevChain = again ? r.prevChain : r.chain;
+    r.prevKind = prevKind;
+    r.prevChain = prevChain;
+    r.lockId = lockedId;
     r.kind = mode === 'transitioning-in' ? 'in' : 'out';
+    // An exit with a pending destination, and the dive that follows it, are both chained
+    r.chain = r.kind === 'out' ? useAppStore.getState().pendingPlanetId != null : prevKind === 'out' && prevChain;
+    r.total = r.kind === 'in' ? (r.chain ? CHAIN_TOTAL : ENTER_TOTAL) : r.chain ? EXIT_CHAIN_TOTAL : EXIT_TOTAL;
     r.start = performance.now();
     r.done = false;
     r.reduced = useAppStore.getState().reducedMotion;
@@ -107,7 +131,7 @@ const TransitionController = () => {
       r.done = true;
       if (r.kind === 'in') {
         store.arriveAtPlanet();
-        setFov(camera, responsiveFov(size.width / Math.max(size.height, 1)));
+        setFov(camera, surfaceFov(size.width / Math.max(size.height, 1)));
       } else {
         store.arriveAtOverworld();
       }
@@ -118,6 +142,12 @@ const TransitionController = () => {
       return;
     }
 
+    if (r.kind === 'in' && r.chain) {
+      // Fully covered: hold the eyepiece pose facing the target, then cut
+      if (elapsed >= r.total) finish();
+      return;
+    }
+
     if (r.kind === 'in') {
       const p = r.planet;
       if (!p) return finish();
@@ -125,13 +155,13 @@ const TransitionController = () => {
       _target.set(_orb[0], _orb[1], _orb[2]);
       const e = easeInOutCubic(clamp01(elapsed / ENTER_DIVE));
       _dir.copy(_target).sub(r.pos).normalize();
-      _end.copy(_target).addScaledVector(_dir, -p.radius * 1.15);
+      _end.copy(_target).addScaledVector(_dir, -p.radius * DIVE_END);
       camera.position.lerpVectors(r.pos, _end, e);
       _m.lookAt(camera.position, _target, UP);
       _q.setFromRotationMatrix(_m);
       camera.quaternion.copy(r.quat).slerp(_q, easeOutCubic(clamp01(elapsed / LOOK_SETTLE)));
-      setFov(camera, r.fov + (DIVE_FOV - r.fov) * e);
-      if (elapsed >= ENTER_TOTAL) finish();
+      setFov(camera, r.fov * (1 - (1 - DIVE_ZOOM) * e));
+      if (elapsed >= r.total) finish();
       return;
     }
 
@@ -139,9 +169,9 @@ const TransitionController = () => {
     const ts = elapsed / 1000;
     camera.position.set(r.pos.x, r.pos.y + 2 * ts + 18 * ts * ts + 14 * ts * ts * ts, r.pos.z - 1.5 * ts);
     camera.quaternion.copy(r.quat).slerp(r.endQuat, easeInOutCubic(clamp01(elapsed / TILT_TIME)));
-    const f = clamp01(elapsed / EXIT_TOTAL);
+    const f = clamp01(elapsed / r.total);
     setFov(camera, r.fov + (LAUNCH_FOV - r.fov) * f * f);
-    if (elapsed >= EXIT_TOTAL) finish();
+    if (elapsed >= r.total) finish();
   });
 
   return null;

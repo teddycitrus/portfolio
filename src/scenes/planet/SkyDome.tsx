@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { ResolvedSky } from '@/data/skyPresets';
 import Starfield from '../overworld/Starfield';
@@ -234,11 +234,24 @@ const SkyDome = ({ sky, reducedMotion }: SkyDomeProps) => {
     [sky],
   );
 
+  // portrait phones: the full-width top bar and the narrow view need the moon nearer the
+  // centre column and a little smaller
+  const portrait = useThree((s) => s.size.width / Math.max(1, s.size.height) < 0.8);
+
   const moon = useMemo(() => {
-    const radius = Math.tan(sky.moonSize) * MOON_DISTANCE;
-    const pos = sky.moonDir.clone().multiplyScalar(MOON_DISTANCE);
+    const dir = sky.moonDir.clone();
+    let size = sky.moonSize;
+    if (portrait) {
+      // just right of centre, in the gap between the two framed labels, below the top bar
+      const az = (1.5 * Math.PI) / 180;
+      const el = (16 * Math.PI) / 180;
+      dir.set(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
+      size *= 0.75;
+    }
+    const radius = Math.tan(size) * MOON_DISTANCE;
+    const pos = dir.clone().multiplyScalar(MOON_DISTANCE);
     // haze heavier the lower it hangs
-    const hazeAmount = 0.18 + (1 - Math.min(1, sky.moonDir.y / 0.6)) * 0.2;
+    const hazeAmount = 0.18 + (1 - Math.min(1, dir.y / 0.6)) * 0.2;
     const bright = sky.sunDisc > 0 ? 1.0 : 1.25;
     const mat = new THREE.ShaderMaterial({
       vertexShader: moonVert,
@@ -276,7 +289,7 @@ const SkyDome = ({ sky, reducedMotion }: SkyDomeProps) => {
         })
       : null;
     return { radius, pos, mat, ringMat };
-  }, [sky]);
+  }, [sky, portrait]);
 
   useEffect(
     () => () => {

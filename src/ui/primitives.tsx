@@ -38,27 +38,59 @@ export const usePresence = (show: boolean, exitMs = 400) => {
   return { mounted, visible };
 };
 
-/** Sheet layout: phones, tablet portrait and short landscape screens. */
-const NARROW_QUERY = '(max-width: 767px), (orientation: portrait) and (max-width: 1024px), (max-height: 500px)';
-export const useNarrow = () => {
-  const query = NARROW_QUERY;
-  const [narrow, setNarrow] = useState(() => window.matchMedia(query).matches);
+const useMedia = (query: string) => {
+  const [match, setMatch] = useState(() => window.matchMedia(query).matches);
   useEffect(() => {
     const mq = window.matchMedia(query);
-    const on = () => setNarrow(mq.matches);
+    const on = () => setMatch(mq.matches);
+    on();
     mq.addEventListener('change', on);
     return () => mq.removeEventListener('change', on);
-  }, []);
-  return narrow;
+  }, [query]);
+  return match;
 };
+
+/**
+ * Sheet layout: phones and tablet portrait. Short landscape screens at least
+ * 700px wide keep a (narrower) side panel so the scene stays visible.
+ */
+export const useNarrow = () => useMedia('(max-width: 699px), (orientation: portrait) and (max-width: 1024px)');
+/** Landscape phones and other very short viewports. */
+export const useShort = () => useMedia('(max-height: 500px)');
+
+/** One hover border for every outlined control. */
+export const HOVER_LINE = 'hover:border-white/30';
+/** Shared surface for labels drawn over the scene (planets, beacons, edge markers). */
+export const IN_WORLD = 'rounded-md border border-line bg-space/60 backdrop-blur-sm';
+
+/**
+ * Display type scale (Instrument Serif): 136 / 80 / 52 / 40 / 32 / 24 / 20.
+ * Only these sizes are used for serif text.
+ */
+export const DISPLAY = {
+  d80: 'text-[52px] md:text-[80px]',
+  d52: 'text-[40px] md:text-[52px]',
+  d40: 'text-[32px] md:text-[40px]',
+  d32: 'text-[32px]',
+  d24: 'text-[24px]',
+  d20: 'text-[20px]',
+} as const;
 
 type Variant = 'primary' | 'panel' | 'ghost';
 
 const VARIANTS: Record<Variant, string> = {
   primary: 'bg-ink text-space hover:bg-white',
-  panel: 'panel text-ink hover:border-[rgba(233,238,247,0.28)]',
-  ghost: 'border border-line text-ink hover:border-[rgba(233,238,247,0.32)] hover:bg-white/[0.04]',
+  panel: 'panel text-ink hover:border-white/30',
+  ghost: 'border border-line text-ink hover:border-white/30 hover:bg-white/[0.04]',
 };
+
+/** Button look for anchors and buttons alike. HUD controls are sm (h-9), content CTAs md (h-11). */
+export const buttonClass = (variant: Variant = 'panel', size: 'sm' | 'md' = 'md') =>
+  cx(
+    'pointer-events-auto inline-flex select-none items-center gap-2.5 whitespace-nowrap rounded-full font-medium transition-[background-color,border-color,color,opacity] duration-200 ease-out',
+    size === 'md' ? 'h-11 px-5 text-[14px]' : 'h-9 px-3.5 text-[13px]',
+    VARIANTS[variant],
+  );
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
@@ -67,22 +99,24 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ variant = 'panel', size = 'md', className, children, ...rest }, ref) => (
-    <button
-      ref={ref}
-      type="button"
-      {...rest}
-      className={cx(
-        'pointer-events-auto inline-flex select-none items-center gap-2.5 whitespace-nowrap rounded-full font-medium transition-[background-color,border-color,color,opacity] duration-200 ease-out',
-        size === 'md' ? 'h-11 px-5 text-[14px]' : 'h-9 px-3.5 text-[13px]',
-        VARIANTS[variant],
-        className,
-      )}
-    >
+    <button ref={ref} type="button" {...rest} className={cx(buttonClass(variant, size), className)}>
       {children}
     </button>
   ),
 );
 Button.displayName = 'Button';
+
+/** Controls hint line, shared by the intro and the planet surface. */
+export const HintRow = ({ items, className }: { items: ReactNode[]; className?: string }) => (
+  <p className={cx('flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-ink-muted', className)}>
+    {items.map((item, i) => (
+      <span key={i} className="inline-flex items-center gap-4">
+        {i > 0 && <span aria-hidden="true" className="h-3 w-px bg-white/15" />}
+        <span className="inline-flex items-center gap-1.5">{item}</span>
+      </span>
+    ))}
+  </p>
+);
 
 export const Kbd = ({ children, className }: { children: ReactNode; className?: string }) => (
   <kbd className={cx('kbd', className)}>{children}</kbd>
@@ -99,10 +133,11 @@ export const AccentDot = ({ color, className, glow }: { color?: string; classNam
   />
 );
 
+/** Tech names (stack and skills) everywhere: sans 13px on a hairline pill. */
 export const Chip = ({ children, className }: { children: ReactNode; className?: string }) => (
   <span
     className={cx(
-      'inline-flex items-center rounded-full border border-line px-2.5 py-1 font-mono text-[12px] leading-none text-ink-muted',
+      'inline-flex items-center rounded-full border border-line px-3 py-1.5 text-[13px] leading-none text-ink/90',
       className,
     )}
   >
@@ -209,7 +244,7 @@ export const EmailLink = ({ email, name }: { email: string; name: string }) => (
   <a
     href={`mailto:${email}`}
     aria-label={`Email ${name}`}
-    className="panel pointer-events-auto inline-flex h-9 select-none items-center gap-2.5 whitespace-nowrap rounded-full px-3.5 text-[13px] font-medium text-ink transition-[border-color] duration-200 ease-out hover:border-[rgba(233,238,247,0.28)] max-sm:w-9 max-sm:justify-center max-sm:px-0"
+    className={cx(buttonClass('panel', 'sm'), 'max-sm:w-9 max-sm:justify-center max-sm:px-0')}
   >
     <MailIcon className="text-ink-muted max-sm:text-ink" />
     <span className="hidden sm:inline">Email</span>
@@ -226,7 +261,7 @@ export const PlayIcon = ({ className }: IconProps) => (
 );
 
 export const KIND_LABEL = {
-  profile: 'About',
+  profile: 'Profile',
   project: 'Project',
   award: 'Award',
   skills: 'Skills',

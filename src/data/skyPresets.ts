@@ -5,7 +5,7 @@ import type { Planet, PlanetTime, Vec3 } from '@/types/content';
  * Art-directed sky presets for the planet surfaces. Colours are sRGB hex;
  * buildSky() resolves them into linear THREE.Color objects tinted per planet.
  */
-export interface SkyPreset {
+interface SkyPreset {
   zenith: string;
   upper: string;
   /** Horizon band. Fog uses this exact colour so terrain dissolves into the sky. */
@@ -42,7 +42,7 @@ export interface SkyPreset {
   moonSize: number;
 }
 
-export const skyPresets: Record<PlanetTime, SkyPreset> = {
+const skyPresets: Record<PlanetTime, SkyPreset> = {
   noon: {
     zenith: '#17478c',
     upper: '#4a82c2',
@@ -216,10 +216,10 @@ const c = (hex: string) => new THREE.Color(hex);
  */
 const MOON_SLOTS: Record<number, [number, number, number]> = {
   1: [31, 23, 1.05],
-  2: [14, 29, 1.0],
-  3: [-33, 21, 0.9],
+  2: [14, 26, 1.0],
+  3: [-16, 27, 0.9],
   4: [-8, 31, 0.75],
-  5: [-21, 24, 1.1],
+  5: [-18, 24, 1.05],
 };
 
 const moonFromSlot = (az: number, el: number) => {

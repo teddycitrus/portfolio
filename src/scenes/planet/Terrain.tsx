@@ -6,7 +6,7 @@ import type { ResolvedSky } from '@/data/skyPresets';
 
 export const TERRAIN_RADIUS = 120;
 /** Radius around the origin that stays nearly flat (the beacon arc lives inside it) */
-export const FLAT_RADIUS = 14;
+const FLAT_RADIUS = 14;
 
 /* ---------- deterministic value noise (pure, shared with vegetation) ---------- */
 
@@ -122,8 +122,6 @@ const PROFILES: Record<PlanetStyle, HeightFn> = {
 /** Pure height function for a planet style. Beacons, camera and vegetation all sit on it. */
 export const heightFor = (style: PlanetStyle): HeightFn => PROFILES[style];
 
-/** Default profile (rocky / forested), kept for callers without a planet. */
-export const terrainHeight: HeightFn = PROFILES.rocky;
 
 /** How far the walker may roam on each style (islands and mesas are smaller) */
 export const walkRadiusFor = (style: PlanetStyle): number =>
@@ -150,7 +148,7 @@ const STYLE_TINT: Record<PlanetStyle, number> = {
   molten: 0.05,
 };
 
-export interface TerrainPalette {
+interface TerrainPalette {
   low: THREE.Color;
   high: THREE.Color;
   rock: THREE.Color;

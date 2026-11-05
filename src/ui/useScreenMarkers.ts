@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { PlanetScreenInfo } from '@/state/runtime';
+import { useAppStore } from '@/state/useAppStore';
 
 export interface MarkerEls {
   /** Label placed below (or above) the projected point when on screen */
@@ -153,6 +154,8 @@ export const useScreenMarkers = (source: Record<string, PlanetScreenInfo>, opts:
 
     const tick = () => {
       raf = requestAnimationFrame(tick);
+      // nothing to place while the reader covers the scene
+      if (useAppStore.getState().readerOpen) return;
       const {
         safe,
         hiddenId,
@@ -240,8 +243,18 @@ export const useScreenMarkers = (source: Record<string, PlanetScreenInfo>, opts:
             const pushed = clash ? clash.y + clash.h + PAD : below;
             if (fits(pushed, ah) && freeOf(pushed, ah)) y = pushed;
             else {
+              // title only, but still only where it is free; otherwise hide (the dock covers navigation)
+              const ch = a.dataset.compact === 'true' ? sz.h : Math.max(ah - 18, Math.round(ah * 0.6));
+              const upY = info.y - info.size - g - ch;
+              if (fits(below, ch) && freeOf(below, ch)) y = below;
+              else if (fits(upY, ch) && freeOf(upY, ch)) {
+                y = upY;
+                up = true;
+              } else {
+                show(a, false);
+                continue;
+              }
               compact = true;
-              y = fits(below, ah) || !fits(above, ah) ? below : above;
             }
           }
           const hh = compact ? Math.min(sz.h, ah) : ah;

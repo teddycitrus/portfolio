@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { planets, profile } from '@/data/content';
 import type { Beacon, Planet } from '@/types/content';
 import { useAppStore } from '@/state/useAppStore';
-import { AwardProject, FactGrid, ProjectBody, linkProps } from './BeaconContent';
+import { AwardProject, ENTRY_HEADING, FactGrid, ProjectBody, StackChips, linkProps } from './BeaconContent';
 import { visitPlanet } from './navigation';
-import { AccentDot, ArrowIcon, CloseIcon, EASE, SAFE, cx, usePresence } from './primitives';
+import { AccentDot, ArrowIcon, Button, CloseIcon, DISPLAY, EASE, Kbd, SAFE, cx, usePresence } from './primitives';
 
 const sectionId = (id: string) => `reader-${id}`;
 const entryId = (id: string) => `reader-entry-${id}`;
@@ -27,9 +27,7 @@ const SectionBody = ({ planet, onProject }: { planet: Planet; onProject: (beacon
         <div className="space-y-10">
           {profiles.map((p) => (
             <article key={p.id} id={entryId(p.id)} className="space-y-4">
-              <h3 className="font-display text-[26px] font-normal leading-tight text-ink md:text-[28px]">
-                {p.content.heading}
-              </h3>
+              <h3 className={ENTRY_HEADING}>{p.content.heading}</h3>
               <p className="text-[16px] leading-[1.75] text-ink/85">{p.content.body}</p>
               {p.content.facts && p.content.facts.length > 0 && (
                 <div className="pt-2">
@@ -59,10 +57,11 @@ const SectionBody = ({ planet, onProject }: { planet: Planet; onProject: (beacon
               id={entryId(a.id)}
               className="grid gap-x-8 gap-y-2 border-b border-line py-6 sm:grid-cols-[88px_1fr]"
             >
-              <p className="font-mono text-[13px] text-ink-muted sm:pt-1.5">{a.content.year ?? ''}</p>
-              <div className="space-y-2">
+              {/* year column only when there is a year; the entry keeps its column either way */}
+              {a.content.year && <p className="label sm:pt-2">{a.content.year}</p>}
+              <div className="space-y-2 sm:col-start-2">
                 <p className="label">{a.content.event}</p>
-                <h3 className="font-display text-[26px] font-normal leading-tight text-ink">{a.content.result}</h3>
+                <h3 className={ENTRY_HEADING}>{a.content.result}</h3>
                 <p className="text-[16px] leading-[1.7] text-ink/85">{a.content.description}</p>
                 {a.content.project && (
                   <p className="flex items-baseline gap-3 pt-1 text-[14px]">
@@ -80,14 +79,10 @@ const SectionBody = ({ planet, onProject }: { planet: Planet; onProject: (beacon
         <div className="grid gap-x-10 gap-y-8 sm:grid-cols-2">
           {skills.map((s) => (
             <div key={s.id} id={entryId(s.id)} className="space-y-3">
-              <h3 className="label text-ink">{s.content.heading}</h3>
-              <ul className="flex flex-wrap gap-2">
-                {s.content.items.map((i) => (
-                  <li key={i} className="rounded-full border border-line px-3 py-1.5 text-[14px] text-ink">
-                    {i}
-                  </li>
-                ))}
-              </ul>
+              <h3 className={cx('font-display font-normal leading-tight text-ink', DISPLAY.d24)}>
+                {s.content.heading}
+              </h3>
+              <StackChips items={s.content.items} label={s.content.heading} />
               {s.content.note && <p className="text-[14px] text-ink-muted">{s.content.note}</p>}
             </div>
           ))}
@@ -103,9 +98,7 @@ const SectionBody = ({ planet, onProject }: { planet: Planet; onProject: (beacon
                 {...linkProps(l.content.url)}
                 className="group grid grid-cols-[1fr_auto] items-center gap-x-6 gap-y-1.5 border-b border-line py-5 sm:grid-cols-[160px_1fr_auto]"
               >
-                <span className="col-start-1 row-start-1 font-display text-[24px] leading-none text-ink">
-                  {l.label}
-                </span>
+                <span className={cx('col-start-1 row-start-1', ENTRY_HEADING, 'leading-none')}>{l.label}</span>
                 <span className="col-span-2 col-start-1 row-start-2 text-[14px] text-ink-muted sm:col-span-1 sm:col-start-2 sm:row-start-1">
                   <span className="block font-mono text-[13px] text-ink transition-colors duration-200 group-hover:text-[var(--accent)]">
                     {l.content.handle}
@@ -147,17 +140,21 @@ const Reader = () => {
     return t.offsetHeight + (parseFloat(getComputedStyle(t).top) || 0) + 16;
   };
 
-  // focus the dialog on open (Tab then reaches Close first), restore on close
-  useEffect(() => {
+  // capture where focus was the moment the reader opens (before anything unmounts), restore on close
+  useLayoutEffect(() => {
     if (!open) return;
-    returnFocus.current = document.activeElement as HTMLElement | null;
-    const r = requestAnimationFrame(() => dialog.current?.focus({ preventScroll: true }));
+    const a = document.activeElement as HTMLElement | null;
+    returnFocus.current = a && a !== document.body ? a : null;
     return () => {
-      cancelAnimationFrame(r);
       const el = returnFocus.current;
-      if (el && document.contains(el)) el.focus({ preventScroll: true });
+      returnFocus.current = null;
+      if (el && document.contains(el)) requestAnimationFrame(() => el.focus({ preventScroll: true }));
     };
   }, [open]);
+  // focus the dialog once it is actually in the DOM (Tab then reaches Close first)
+  useEffect(() => {
+    if (open && mounted) dialog.current?.focus({ preventScroll: true });
+  }, [open, mounted]);
 
   // jump to the requested section
   useEffect(() => {
@@ -242,7 +239,7 @@ const Reader = () => {
     >
       <div
         aria-hidden="true"
-        className="absolute inset-0 bg-space/85 backdrop-blur-md"
+        className="absolute inset-0 bg-space/90 backdrop-blur-md"
         style={{ opacity: visible ? 1 : 0, transition: `opacity 350ms ${EASE}` }}
       />
 
@@ -254,17 +251,17 @@ const Reader = () => {
             className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-space via-space/80 to-transparent lg:hidden"
             style={{ height: `calc(${SAFE.top} + 64px)`, opacity: visible ? 1 : 0 }}
           />
-          <button
-            type="button"
+          <Button
+            size="sm"
             onClick={closeReader}
             aria-label="Close page"
-            className="panel absolute z-20 inline-flex h-10 items-center gap-2 rounded-full pl-3.5 pr-4 text-[13px] font-medium text-ink transition-[opacity,border-color] duration-300 ease-out hover:border-[rgba(233,238,247,0.28)]"
+            className="absolute z-20"
             style={{ top: SAFE.top, right: SAFE.right, opacity: visible ? 1 : 0 }}
           >
             <CloseIcon className="h-3.5 w-3.5 text-ink-muted" />
             Close
-            {!isTouch && <kbd className="kbd ml-0.5 hidden md:inline-flex">Esc</kbd>}
-          </button>
+            {!isTouch && <Kbd className="ml-0.5 hidden md:inline-flex">Esc</Kbd>}
+          </Button>
         </>
       )}
 
@@ -293,9 +290,11 @@ const Reader = () => {
                         on ? 'text-ink' : 'text-ink-faint hover:text-ink-muted',
                       )}
                     >
-                      <span className="w-5 font-mono text-[11px]">{String(p.index).padStart(2, '0')}</span>{' '}
+                      <AccentDot className={cx('transition-opacity duration-200', on ? 'opacity-100' : 'opacity-30')} />
+                      <span className="w-5 font-mono text-[11px] tracking-[0.14em]">
+                        {String(p.index).padStart(2, '0')}
+                      </span>{' '}
                       <span>{p.title}</span>
-                      <AccentDot className={cx('transition-opacity duration-200', on ? 'opacity-100' : 'opacity-0')} />
                     </button>
                   </li>
                 );
@@ -320,7 +319,9 @@ const Reader = () => {
                 )}
                 {profile.role}
               </p>
-              <h1 className="mt-5 font-display text-[56px] font-normal leading-[0.95] tracking-[-0.02em] text-ink md:text-[80px]">
+              <h1
+                className={cx('mt-5 font-display font-normal leading-[0.95] tracking-[-0.02em] text-ink', DISPLAY.d80)}
+              >
                 {profile.name}
               </h1>
               <p className="mt-6 max-w-[38ch] text-[19px] leading-[1.55] text-ink-muted md:text-[21px]">
@@ -395,20 +396,16 @@ const Reader = () => {
                     </p>
                     <h2
                       id={`${sectionId(p.id)}-title`}
-                      className="mt-3 font-display text-[44px] font-normal leading-none text-ink md:text-[52px]"
+                      className={cx('mt-3 font-display font-normal leading-none text-ink', DISPLAY.d52)}
                     >
                       {p.title}
                     </h2>
                   </div>
                   {!noWebGL && (
-                    <button
-                      type="button"
-                      onClick={() => visitPlanet(p.id)}
-                      className="group inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-line px-3.5 text-[13px] font-medium text-ink-muted transition-colors duration-200 hover:border-[color-mix(in_srgb,var(--accent)_60%,transparent)] hover:text-ink"
-                    >
-                      Visit planet
+                    <Button size="sm" variant="ghost" onClick={() => visitPlanet(p.id)} className="group shrink-0">
+                      Land on planet
                       <ArrowIcon className="text-[var(--accent)] transition-transform duration-200 ease-out group-hover:translate-x-0.5" />
-                    </button>
+                    </Button>
                   )}
                 </div>
                 <SectionBody planet={p} onProject={(bid) => goTo(entryId(bid))} />

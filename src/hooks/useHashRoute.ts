@@ -40,6 +40,7 @@ const currentRoute = (): Route => {
 const apply = (r: Route) => {
   const s = useAppStore.getState();
   if (r.read) {
+    s.start();
     if (!s.readerOpen) s.openReader(r.planetId);
     return;
   }
@@ -69,7 +70,7 @@ export const useHashRoute = (): void => {
       applying = false;
     }
 
-    let last = format(currentRoute());
+    let last = initial.read || initial.planetId ? format(initial) : format(currentRoute());
     const unsub = useAppStore.subscribe(() => {
       const { mode } = useAppStore.getState();
       if (applying || mode === 'transitioning-in' || mode === 'transitioning-out') return;

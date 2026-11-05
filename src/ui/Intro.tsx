@@ -2,7 +2,7 @@ import type { CSSProperties, KeyboardEvent } from 'react';
 import { profile } from '@/data/content';
 import { useAppStore } from '@/state/useAppStore';
 import { useTour } from './tour';
-import { ArrowIcon, Button, EASE, Kbd, SAFE, usePresence } from './primitives';
+import { ArrowIcon, Button, EASE, HintRow, Kbd, SAFE, usePresence } from './primitives';
 
 /** Keep Enter/Space on these buttons from reaching the global intro shortcut. */
 const ownKeys = (e: KeyboardEvent) => {
@@ -27,7 +27,7 @@ const Intro = () => {
   return (
     <section
       aria-label="Introduction"
-      className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-end md:justify-center"
+      className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-end md:justify-center [@media(max-height:500px)]:!justify-end"
       style={{ paddingLeft: SAFE.left, paddingRight: SAFE.right, paddingTop: SAFE.top, paddingBottom: SAFE.bottom }}
     >
       {/* legibility only: darkens the text side, leaves the planets clear */}
@@ -38,7 +38,7 @@ const Intro = () => {
       />
 
       <div className="relative w-full max-w-[640px] pb-2 md:ml-[clamp(0px,6vw,112px)] md:pb-0">
-        <p className="label mb-6 flex flex-wrap gap-x-3" style={step(0)}>
+        <p className="label mb-6 flex flex-wrap gap-x-3 [@media(max-height:500px)]:mb-3" style={step(0)}>
           {profile.location && <span className="max-sm:hidden">{profile.location}</span>}
           {profile.location && (
             <span aria-hidden="true" className="text-ink-faint max-sm:hidden">
@@ -47,9 +47,10 @@ const Intro = () => {
           )}
           <span>{profile.role}</span>
         </p>
+        {/* no entry fade: the static shell in index.html paints this heading first */}
         <h1
-          className="font-display text-[clamp(58px,10vw,136px)] font-normal leading-[0.9] tracking-[-0.02em] text-ink"
-          style={step(1)}
+          className="font-display text-[clamp(52px,10vw,136px)] font-normal leading-[0.9] tracking-[-0.02em] text-ink [@media(max-height:500px)]:!text-[52px]"
+          style={leaving ? step(1) : undefined}
         >
           {profile.name.split(' ').map((w, i) => (
             <span key={w} className="block" style={i === 1 ? { paddingLeft: '0.04em' } : undefined}>
@@ -58,12 +59,15 @@ const Intro = () => {
           ))}
         </h1>
         <p
-          className="mt-6 max-w-[36ch] text-[17px] leading-[1.55] text-ink-muted md:mt-8 md:text-[19px]"
+          className="mt-6 max-w-[36ch] text-[17px] leading-[1.55] text-ink-muted md:mt-8 md:text-[19px] [@media(max-height:500px)]:!mt-3 [@media(max-height:500px)]:!text-[15px]"
           style={step(2)}
         >
           {profile.tagline}
         </p>
-        <div className="mt-8 flex flex-wrap items-center gap-3 md:mt-10" style={step(3)}>
+        <div
+          className="mt-8 flex flex-wrap items-center gap-3 md:mt-10 [@media(max-height:500px)]:!mt-4"
+          style={step(3)}
+        >
           <Button variant="primary" onClick={start} onKeyDown={ownKeys} disabled={leaving}>
             Enter the system
             <ArrowIcon />
@@ -81,7 +85,7 @@ const Intro = () => {
             Read as a page
           </Button>
         </div>
-        <div className="mt-4" style={step(4)}>
+        <div className="mt-4 [@media(max-height:500px)]:mt-1.5" style={step(4)}>
           <button
             type="button"
             onClick={() => useTour.getState().start()}
@@ -93,31 +97,24 @@ const Intro = () => {
             <ArrowIcon className="h-3 w-3 transition-transform duration-200 ease-out group-hover:translate-x-0.5" />
           </button>
         </div>
-        <p
-          className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] text-ink-muted md:mt-10"
-          style={step(5)}
-        >
-          {isTouch ? (
-            <>
-              <span>Drag to look</span>
-              <span aria-hidden="true" className="h-3 w-px bg-white/15" />
-              <span>Tap a planet to land</span>
-            </>
-          ) : (
-            <>
-              <span>Move the mouse to look</span>
-              <span aria-hidden="true" className="h-3 w-px bg-white/15" />
-              <span>Click a planet to land</span>
-              <span aria-hidden="true" className="h-3 w-px bg-white/15" />
-              <span className="inline-flex items-center gap-1.5">
-                <Kbd>1</Kbd>
-                <span className="text-ink-faint">to</span>
-                <Kbd>5</Kbd>
-                <span>jump</span>
-              </span>
-            </>
-          )}
-        </p>
+        <div className="mt-7 md:mt-10 [@media(max-height:500px)]:hidden" style={step(5)}>
+          <HintRow
+            items={
+              isTouch
+                ? [<>Drag to look</>, <>Tap a planet to land</>]
+                : [
+                    <>Move the mouse to look</>,
+                    <>Click a planet to land</>,
+                    <>
+                      <Kbd>1</Kbd>
+                      <span className="text-ink-faint">to</span>
+                      <Kbd>5</Kbd>
+                      <span>Jump</span>
+                    </>,
+                  ]
+            }
+          />
+        </div>
       </div>
     </section>
   );

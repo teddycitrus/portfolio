@@ -17,6 +17,14 @@ const UiRoot = () => {
   // without WebGL the reader is the whole site
   const noWebGL = useAppStore((s) => s.noWebGL);
   const root = useRef<HTMLDivElement>(null);
+  const hud = useRef<HTMLDivElement>(null);
+  const readerOpen = useAppStore((s) => s.readerOpen);
+
+  // the reader is modal: make every HUD layer behind it inert (a passive effect,
+  // so the reader has already captured the element to return focus to)
+  useEffect(() => {
+    hud.current?.toggleAttribute('inert', readerOpen);
+  }, [readerOpen]);
 
   // scale HUD chrome a little past 1920px wide so it does not look tiny on 2560+
   useEffect(() => {
@@ -35,7 +43,7 @@ const UiRoot = () => {
       className="pointer-events-none fixed inset-0 z-10 select-none overflow-hidden text-ink [&_aside]:select-text [&_main]:select-text"
     >
       {!noWebGL && (
-        <>
+        <div ref={hud} className="contents">
           <Intro />
           <OverworldHud />
           <PlanetHud />
@@ -43,7 +51,7 @@ const UiRoot = () => {
           <BeaconPanel />
           <TransitionVeil />
           <TourBar />
-        </>
+        </div>
       )}
       <Reader />
     </div>
