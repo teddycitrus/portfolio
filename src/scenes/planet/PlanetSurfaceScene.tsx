@@ -9,6 +9,7 @@ import SkyDome from './SkyDome';
 import Terrain, { heightFor, walkRadiusFor } from './Terrain';
 import Surroundings from './Surroundings';
 import Vegetation from './Vegetation';
+import Wildlife from './Wildlife';
 import Beacon, { beaconHeight } from './Beacon';
 import PlanetCamera, { type SurfaceBeacon } from './PlanetCamera';
 
@@ -33,7 +34,7 @@ const Surface = ({ planet }: { planet: Planet }) => {
     () =>
       planet.beacons.map((b, i) => {
         const [x, , z] = getBeaconPosition(planet, i);
-        return { id: b.id, position: [x, ground(x, z), z] as Vec3, height: beaconHeight(b) };
+        return { id: b.id, position: [x, ground(x, z), z] as Vec3, height: beaconHeight(planet, b) };
       }),
     [planet, ground],
   );
@@ -83,6 +84,7 @@ const Surface = ({ planet }: { planet: Planet }) => {
       <Terrain planet={planet} sky={sky} reducedMotion={reducedMotion} />
       <Surroundings planet={planet} sky={sky} reducedMotion={reducedMotion} />
       <Vegetation planet={planet} beacons={clearings} reducedMotion={reducedMotion} />
+      <Wildlife planet={planet} ground={ground} isTouch={isTouch} reducedMotion={reducedMotion} />
 
       {planet.beacons.map((b, i) => (
         <Beacon

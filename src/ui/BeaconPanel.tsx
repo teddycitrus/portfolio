@@ -56,7 +56,8 @@ const BeaconPanel = () => {
 
   const planet = planetById(activeId);
   const focused = mode === 'planet' ? beaconById(planet, focusedId) : undefined;
-  const { mounted, visible } = usePresence(!!focused, 300);
+  // wide screens show the content on in-world screens around the monument; phones keep this sheet
+  const { mounted, visible } = usePresence(!!focused && narrow, 300);
 
   // crossfade between beacons: fade out, swap, fade in
   const [shown, setShown] = useState<{ planet: Planet; beacon: Beacon } | null>(null);
@@ -113,7 +114,7 @@ const BeaconPanel = () => {
       {focused && shown ? `Showing ${shown.beacon.label}` : ''}
     </p>
   );
-  if (!mounted || !shown) return live;
+  if (!mounted || !shown || !narrow) return live;
   const { beacon } = shown;
 
   const enter: CSSProperties = narrow

@@ -19,6 +19,7 @@ import {
   usePresence,
 } from './primitives';
 import { useScreenMarkers } from './useScreenMarkers';
+import SoundToggle from './SoundToggle';
 import { useTour } from './tour';
 
 const SAFE_BANDS = { top: 84, bottom: 104 };
@@ -180,10 +181,15 @@ const OverworldHud = () => {
             <PlayIcon className="h-3 w-3 text-ink-muted max-sm:text-ink" />
             <span className="hidden sm:inline">Tour</span>
           </Button>
+          <SoundToggle />
           <EmailLink email={profile.email} name={profile.name} />
-          <Button size="sm" onClick={() => openReader()} aria-label="Read as page">
-            <PageIcon className="text-ink-muted" />
-            <span className="sm:hidden">Read</span>
+          <Button
+            size="sm"
+            onClick={() => openReader()}
+            aria-label="Read as page"
+            className="max-sm:w-9 max-sm:justify-center"
+          >
+            <PageIcon className="text-ink-muted max-sm:text-ink" />
             <span className="hidden sm:inline">Read as page</span>
             {!isTouch && <Kbd className="ml-0.5 hidden md:inline-flex">R</Kbd>}
           </Button>

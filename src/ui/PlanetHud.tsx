@@ -26,6 +26,7 @@ import { useScreenMarkers, type Box } from './useScreenMarkers';
 import { arrivalPulse } from '@/scenes/planet/surfaceState';
 import { openBeacon } from './navigation';
 import { useTour } from './tour';
+import SoundToggle from './SoundToggle';
 
 const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 
@@ -375,15 +376,15 @@ const PlanetHud = () => {
           </p>
           <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
             <TravelMenu current={planet.id} isTouch={isTouch} />
+            <SoundToggle />
             <EmailLink email={profile.email} name={profile.name} />
             <Button
               size="sm"
               onClick={() => openReader(planet.id)}
               aria-label="Read as page"
-              className="max-sm:gap-1.5 max-sm:px-3"
+              className="max-sm:w-9 max-sm:justify-center"
             >
-              <PageIcon className="text-ink-muted" />
-              <span className="sm:hidden">Read</span>
+              <PageIcon className="text-ink-muted max-sm:text-ink" />
               <span className="hidden sm:inline">Read as page</span>
               {!isTouch && <Kbd className="ml-0.5 hidden md:inline-flex">R</Kbd>}
             </Button>

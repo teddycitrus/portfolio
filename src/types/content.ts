@@ -70,6 +70,9 @@ export type BeaconKind = Beacon['kind'];
 export type PlanetTime = 'noon' | 'dawn' | 'dusk' | 'twilight' | 'night';
 export type PlanetStyle = 'oceanic' | 'rocky' | 'gas-giant' | 'forested' | 'molten';
 
+/** Building style shared by every monument on a planet */
+export type Architecture = 'obelisk' | 'deco' | 'classical' | 'pagoda' | 'gothic';
+
 export interface PlanetSurface {
   /** Base ground colour */
   ground: string;
@@ -95,6 +98,9 @@ export interface Planet {
   palette: [string, string, string];
   rings?: boolean;
   surface: PlanetSurface;
+  architecture: Architecture;
+  /** Key of the ambient string drone on this planet, e.g. "F major" */
+  key: string;
   beacons: Beacon[];
 }
 

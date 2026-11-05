@@ -29,6 +29,8 @@
         "ground": "#3a1e12",
         "atmosphere": "#7a3420"
       },
+      "architecture": "obelisk",
+      "key": "F major",
       "beacons": [
         {
           "id": "about-hello",
@@ -102,6 +104,8 @@
         "ground": "#170c2a",
         "atmosphere": "#3b1b6e"
       },
+      "architecture": "deco",
+      "key": "C# minor",
       "beacons": [
         {
           "id": "proj-iris",
@@ -252,6 +256,8 @@
         "ground": "#2e1c0c",
         "atmosphere": "#8a5418"
       },
+      "architecture": "classical",
+      "key": "E major",
       "beacons": [
         {
           "id": "award-hackcanada",
@@ -319,6 +325,8 @@
         "ground": "#14283c",
         "atmosphere": "#2b5f8e"
       },
+      "architecture": "pagoda",
+      "key": "G major",
       "beacons": [
         {
           "id": "skill-languages",
@@ -394,7 +402,7 @@
         -3,
         -20.1
       ],
-      "radius": 2.0,
+      "radius": 2,
       "time": "twilight",
       "style": "forested",
       "palette": [
@@ -406,6 +414,8 @@
         "ground": "#0e2418",
         "atmosphere": "#1d5a40"
       },
+      "architecture": "gothic",
+      "key": "B minor",
       "beacons": [
         {
           "id": "contact-email",

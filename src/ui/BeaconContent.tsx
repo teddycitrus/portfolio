@@ -24,7 +24,7 @@ export type Variant = 'panel' | 'reader';
 const isMail = (url: string) => url.startsWith('mailto:');
 export const linkProps = (url: string) => (isMail(url) ? {} : { target: '_blank', rel: 'noreferrer' });
 
-const Heading = ({ variant, children, className }: { variant: Variant; children: ReactNode; className?: string }) => {
+export const Heading = ({ variant, children, className }: { variant: Variant; children: ReactNode; className?: string }) => {
   const cls = cx(ENTRY_HEADING, className);
   return variant === 'panel' ? (
     <h2 tabIndex={-1} data-panel-heading className={cx(cls, 'scroll-mt-4')}>
@@ -35,13 +35,13 @@ const Heading = ({ variant, children, className }: { variant: Variant; children:
   );
 };
 
-const Body = ({ children, variant }: { children: ReactNode; variant: Variant }) => (
+export const Body = ({ children, variant }: { children: ReactNode; variant: Variant }) => (
   <p className={cx('text-ink/85', variant === 'panel' ? 'text-[15px] leading-[1.65]' : 'text-[16px] leading-[1.7]')}>
     {children}
   </p>
 );
 
-const MetaLine = ({ items }: { items: ReactNode[] }) => (
+export const MetaLine = ({ items }: { items: ReactNode[] }) => (
   <p className="label flex flex-wrap items-center gap-x-3 gap-y-1">
     {items.map((m, i) => (
       <span key={i}>{m}</span>
@@ -49,7 +49,7 @@ const MetaLine = ({ items }: { items: ReactNode[] }) => (
   </p>
 );
 
-const Highlights = ({ items, variant }: { items: string[]; variant: Variant }) => (
+export const Highlights = ({ items, variant }: { items: string[]; variant: Variant }) => (
   <ul className="space-y-2.5">
     {items.map((h) => (
       <li
@@ -67,7 +67,7 @@ const Highlights = ({ items, variant }: { items: string[]; variant: Variant }) =
 );
 
 /** Compact closing block: a small label, then the numbers inline. */
-const Aside = ({ heading, facts }: { heading: string; facts: Fact[] }) => (
+export const Aside = ({ heading, facts }: { heading: string; facts: Fact[] }) => (
   <section className="space-y-2 border-t border-line pt-4">
     <h4 className="label">{heading}</h4>
     <dl className="flex flex-wrap gap-x-8 gap-y-2">

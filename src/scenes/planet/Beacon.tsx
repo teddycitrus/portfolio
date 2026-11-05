@@ -1,21 +1,13 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
-import type { Beacon as BeaconData, BeaconKind, Planet, Vec3 } from '@/types/content';
+import type { Architecture, Beacon as BeaconData, Planet, Vec3 } from '@/types/content';
 import { useAppStore } from '@/state/useAppStore';
 import { dragLook, mouseLook } from '@/state/runtime';
 import { arrivalPulse } from './surfaceState';
 import { openBeacon } from '@/ui/navigation';
-
-
-/** Approximate monument height per kind, used for labels and screen-size estimates. */
-const BEACON_HEIGHT: Record<BeaconKind, number> = {
-  project: 4.2,
-  award: 3.05,
-  skills: 2.5,
-  link: 2.8,
-  profile: 2.9,
-};
+import { mulberry, seedOf } from './rng';
+import BeaconScreens from './BeaconScreens';
 
 /* ---------- meaning: award tiers, project glyphs, skill counts ---------- */
 
@@ -41,24 +33,102 @@ const AWARD_TIER: Record<1 | 2 | 3, { pillar: number; metal: string }> = {
   3: { pillar: 1.65, metal: '#b9865a' },
 };
 
-const skillPillars = (b: BeaconData): Array<[number, number, number]> => {
-  const n = b.kind === 'skills' ? Math.max(3, Math.min(6, b.content.items.length)) : 3;
-  const out: Array<[number, number, number]> = [];
-  for (let i = 0; i < n; i += 1) {
-    const a = (i / n) * Math.PI * 2 + 0.4;
-    const r = n <= 3 ? 0.36 : 0.44;
-    const f = Math.sin(i * 12.9898 + n * 3.7) * 43758.5453;
-    out.push([Math.cos(a) * r, Math.sin(a) * r, 1.1 + (f - Math.floor(f)) * 1.0]);
+/* ---------- architecture: one style per planet, varied per monument ---------- */
+
+interface Tier {
+  y: number;
+  h: number;
+  w: number;
+}
+
+type Spec =
+  | { theme: 'obelisk'; steps: number; H: number; bw: number; tw: number; capH: number; tilt: number; ticks: number }
+  | { theme: 'deco'; tiers: Tier[]; depthK: number; spire: number; fins: number; T: number }
+  | { theme: 'classical'; P: number; rc: number; flutes: number; ionic: boolean; capTop: number }
+  | { theme: 'pagoda'; tiers: Tier[]; over: number; roofH: number; finial: number; top: number }
+  | { theme: 'gothic'; S: number; sh: number; apex: number; pinH: number; rose: boolean };
+
+type PillarSpec = Spec & { height: number; floatY: number; shade: number };
+
+const BASE_Y = 0.1;
+
+const buildSpec = (theme: Architecture, b: BeaconData): PillarSpec => {
+  const rnd = mulberry(seedOf(b.id));
+  const v = Array.from({ length: 8 }, rnd);
+  const shade = (v[7] - 0.5) * 0.08;
+  switch (theme) {
+    case 'obelisk': {
+      const steps = v[0] < 0.5 ? 2 : 1;
+      const H = 2.3 + v[1] * 0.7;
+      const bw = 0.25 + v[2] * 0.06;
+      const capH = 0.24 + v[4] * 0.1;
+      const top = steps * 0.12 + H + capH;
+      return {
+        theme, steps, H, bw, tw: bw * (0.58 + v[3] * 0.1), capH, tilt: (v[5] - 0.5) * 0.06,
+        ticks: 3 + Math.floor(v[6] * 3), height: top + 0.42, floatY: top + 0.3, shade,
+      };
+    }
+    case 'deco': {
+      const n = v[0] < 0.4 ? 4 : 3;
+      const T = 3.0 + v[1] * 0.5;
+      const weights = [0.44, 0.3, 0.17, 0.09].slice(0, n);
+      const sum = weights.reduce((a, x) => a + x, 0);
+      const shrink = 0.72 + v[3] * 0.06;
+      let y = 0;
+      let w = 0.6 + v[2] * 0.1;
+      const tiers = weights.map((k) => {
+        const t = { y, h: (k / sum) * T, w };
+        y += t.h;
+        w *= shrink;
+        return t;
+      });
+      const spire = 0.45 + v[5] * 0.35;
+      return {
+        theme, tiers, T, depthK: 0.82 + v[4] * 0.2, spire, fins: v[6] < 0.5 ? 2 : 4,
+        height: T + spire + 0.5, floatY: T + spire + 0.3, shade,
+      };
+    }
+    case 'classical': {
+      const P = AWARD_TIER[awardRank(b).tier].pillar + (v[0] - 0.5) * 0.14;
+      const capTop = 0.12 + P + 0.2;
+      return {
+        theme, P, rc: 0.19 + v[1] * 0.04, flutes: v[2] < 0.5 ? 12 : 16, ionic: v[3] < 0.5, capTop,
+        height: capTop + 0.7, floatY: capTop + 0.42, shade,
+      };
+    }
+    case 'pagoda': {
+      const n = b.kind === 'skills' ? Math.max(3, Math.min(6, b.content.items.length)) : 4;
+      const roofH = 0.13 + v[4] * 0.05;
+      const shrink = 0.84 + v[2] * 0.05;
+      let y = 0.14;
+      let h = 0.34 + v[0] * 0.06;
+      let w = 0.5 + v[1] * 0.08;
+      const tiers: Tier[] = [];
+      for (let i = 0; i < n; i += 1) {
+        tiers.push({ y, h, w });
+        y += h + roofH * 0.6;
+        h *= 0.93;
+        w *= shrink;
+      }
+      const finial = 0.32 + v[5] * 0.2;
+      const top = y + finial;
+      return {
+        theme, tiers, over: 0.15 + v[3] * 0.07, roofH, finial, top, height: top + 0.38, floatY: top + 0.22, shade,
+      };
+    }
+    case 'gothic': {
+      const S = 0.95 + v[0] * 0.3 + 0.16;
+      const sh = 1.45 + v[1] * 0.45;
+      const apex = sh + S * Math.sin(Math.PI / 3);
+      return {
+        theme, S, sh, apex, pinH: 0.32 + v[2] * 0.18, rose: v[3] < 0.55, height: apex + 0.6, floatY: apex + 0.42, shade,
+      };
+    }
   }
-  return out;
 };
 
 /** Monument height for one beacon (labels and HUD anchors sit just above it). */
-export const beaconHeight = (b: BeaconData): number => {
-  if (b.kind === 'award') return AWARD_TIER[awardRank(b).tier].pillar + 0.75;
-  if (b.kind === 'skills') return Math.max(...skillPillars(b).map((p) => p[2])) + 0.55;
-  return BEACON_HEIGHT[b.kind];
-};
+export const beaconHeight = (planet: Planet, b: BeaconData): number => buildSpec(planet.architecture, b).height;
 
 /** The DOM label sits this far above the monument top (incl. its floating piece); beaconScreen anchors here. */
 export const LABEL_ANCHOR = 0.12;
@@ -133,11 +203,13 @@ const addRim = (m: THREE.MeshStandardMaterial, color: THREE.Color, strength: num
   return m;
 };
 
+const SIN60 = Math.sin(Math.PI / 3);
+
 const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedMotion }: BeaconProps) => {
   const kind = beacon.kind;
-  const height = useMemo(() => beaconHeight(beacon), [beacon]);
+  const spec = useMemo(() => buildSpec(planet.architecture, beacon), [planet.architecture, beacon]);
+  const height = spec.height;
   const rank = useMemo(() => awardRank(beacon), [beacon]);
-  const pillars = useMemo(() => skillPillars(beacon), [beacon]);
   const glyph = /iris/.test(beacon.id)
     ? 'eye'
     : /eureka/.test(beacon.id)
@@ -164,6 +236,8 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
     if (kind === 'award') stoneColor.lerp(gold, 0.22);
     // skills pillars carry the ocean world's blue: tinted stone, blue metal caps, brighter seams
     if (kind === 'skills') stoneColor.lerp(accent, 0.28);
+    // every monument is cut from a slightly different block
+    stoneColor.offsetHSL(0, 0, spec.shade);
     const rc = rimColor ?? new THREE.Color(planet.accent);
     const stone = addRim(
       new THREE.MeshStandardMaterial({ color: stoneColor, roughness: 0.68, metalness: 0.02, flatShading: true }),
@@ -199,7 +273,7 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
       side: THREE.DoubleSide,
     });
     return { stone, plinth, metal, seam, seamBase, pool, ringMat };
-  }, [planet, kind, rim, rimColor, rank]);
+  }, [planet, kind, rim, rimColor, rank, spec.shade]);
 
   useEffect(
     () => () => {
@@ -250,7 +324,6 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
       (ring.current.material as THREE.MeshBasicMaterial).opacity = ro;
       ring.current.visible = ro > 0.005;
     }
-
   });
 
   const onClick = (e: ThreeEvent<MouseEvent>) => {
@@ -260,8 +333,8 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
     openBeacon(beacon.id, false);
   };
 
-  const seamStrip = (h: number, y: number, z: number, w = 0.028, tilt = 0) => (
-    <mesh material={mats.seam} position={[0, y, z]} rotation={[tilt, 0, 0]}>
+  const seamStrip = (h: number, y: number, z: number, w = 0.028, tilt = 0, x = 0) => (
+    <mesh material={mats.seam} position={[x, y, z]} rotation={[tilt, 0, 0]}>
       <boxGeometry args={[w, h, 0.012]} />
     </mesh>
   );
@@ -275,216 +348,339 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
     return seamStrip(len, cy, r * k + 0.01, w, -Math.atan(((rBot - rTop) * k) / H));
   };
 
-  let body: JSX.Element;
+  /** Two arcs of radius R meeting in a point above two springers S apart (an equilateral arch when R = S). */
+  const pointedArch = (S: number, R: number, tube: number, y: number, z: number, mat: THREE.Material) => {
+    const th = Math.acos(S / (2 * R));
+    return (
+      <>
+        <mesh material={mat} position={[-S / 2, y, z]} castShadow>
+          <torusGeometry args={[R, tube, 6, 20, th]} />
+        </mesh>
+        <mesh material={mat} position={[S / 2, y, z]} rotation={[0, 0, Math.PI - th]} castShadow>
+          <torusGeometry args={[R, tube, 6, 20, th]} />
+        </mesh>
+      </>
+    );
+  };
+
+  /* ---------- floating piece: carries the meaning (glyph, crown, count) ---------- */
+  let crown: JSX.Element;
   switch (kind) {
     case 'project':
-      body = (
-        <group>
-          <mesh material={mats.stone} position={[0, 1.7, 0]} rotation={[0, Math.PI / 4, 0]} castShadow receiveShadow>
-            <cylinderGeometry args={[0.2, 0.34, 3.4, 4, 1]} />
-          </mesh>
-          <mesh material={mats.metal} position={[0, 3.52, 0]} rotation={[0, Math.PI / 4, 0]} castShadow>
-            <coneGeometry args={[0.2, 0.32, 4]} />
-          </mesh>
-          {faceSeam(0.2, 0.34, 3.4, 1.7, 2.9, Math.SQRT1_2)}
-          <group ref={floater}>
-            <group position={[0, 4.0, 0]}>
-              {glyph === 'eye' && (
-                <>
-                  <mesh material={mats.metal} scale={[1.35, 0.8, 1]}>
-                    <torusGeometry args={[0.15, 0.016, 8, 48]} />
-                  </mesh>
-                  <mesh material={mats.seam}>
-                    <sphereGeometry args={[0.06, 16, 12]} />
-                  </mesh>
-                </>
-              )}
-              {glyph === 'globe' && (
-                <>
-                  <mesh material={mats.metal}>
-                    <sphereGeometry args={[0.11, 20, 14]} />
-                  </mesh>
-                  <mesh material={mats.seam} rotation={[Math.PI / 2, 0, 0]}>
-                    <torusGeometry args={[0.15, 0.008, 6, 48]} />
-                  </mesh>
-                  <mesh material={mats.seam} rotation={[0, 0, 0.4]}>
-                    <torusGeometry args={[0.15, 0.006, 6, 48]} />
-                  </mesh>
-                </>
-              )}
-              {glyph === 'prism' && (
-                <>
-                  <mesh material={mats.metal}>
-                    <cylinderGeometry args={[0.13, 0.13, 0.3, 3]} />
-                  </mesh>
-                  <mesh material={mats.seam}>
-                    <cylinderGeometry args={[0.05, 0.05, 0.32, 3]} />
-                  </mesh>
-                </>
-              )}
-              {glyph === 'shield' && (
-                <>
-                  <mesh material={mats.metal} position={[0, 0, -0.02]}>
-                    <extrudeGeometry
-                      args={[SHIELD, { depth: 0.04, bevelEnabled: true, bevelSize: 0.01, bevelThickness: 0.01, bevelSegments: 1 }]}
-                    />
-                  </mesh>
-                  <mesh material={mats.seam} position={[0, 0.01, 0.035]} scale={0.5}>
-                    <shapeGeometry args={[SHIELD]} />
-                  </mesh>
-                </>
-              )}
-              {glyph === 'spark' && (
-                <mesh material={mats.seam}>
-                  <octahedronGeometry args={[0.09, 0]} />
-                </mesh>
-              )}
-            </group>
-          </group>
-        </group>
+      crown = (
+        <>
+          {glyph === 'eye' && (
+            <>
+              <mesh material={mats.metal} scale={[1.35, 0.8, 1]}>
+                <torusGeometry args={[0.15, 0.016, 8, 48]} />
+              </mesh>
+              <mesh material={mats.seam}>
+                <sphereGeometry args={[0.06, 16, 12]} />
+              </mesh>
+            </>
+          )}
+          {glyph === 'globe' && (
+            <>
+              <mesh material={mats.metal}>
+                <sphereGeometry args={[0.11, 20, 14]} />
+              </mesh>
+              <mesh material={mats.seam} rotation={[Math.PI / 2, 0, 0]}>
+                <torusGeometry args={[0.15, 0.008, 6, 48]} />
+              </mesh>
+              <mesh material={mats.seam} rotation={[0, 0, 0.4]}>
+                <torusGeometry args={[0.15, 0.006, 6, 48]} />
+              </mesh>
+            </>
+          )}
+          {glyph === 'prism' && (
+            <>
+              <mesh material={mats.metal}>
+                <cylinderGeometry args={[0.13, 0.13, 0.3, 3]} />
+              </mesh>
+              <mesh material={mats.seam}>
+                <cylinderGeometry args={[0.05, 0.05, 0.32, 3]} />
+              </mesh>
+            </>
+          )}
+          {glyph === 'shield' && (
+            <>
+              <mesh material={mats.metal} position={[0, 0, -0.02]}>
+                <extrudeGeometry
+                  args={[SHIELD, { depth: 0.04, bevelEnabled: true, bevelSize: 0.01, bevelThickness: 0.01, bevelSegments: 1 }]}
+                />
+              </mesh>
+              <mesh material={mats.seam} position={[0, 0.01, 0.035]} scale={0.5}>
+                <shapeGeometry args={[SHIELD]} />
+              </mesh>
+            </>
+          )}
+          {glyph === 'spark' && (
+            <mesh material={mats.seam}>
+              <octahedronGeometry args={[0.09, 0]} />
+            </mesh>
+          )}
+        </>
       );
       break;
-    case 'award': {
-      const P = AWARD_TIER[rank.tier].pillar;
-      const crownY = P + 0.48;
-      body = (
-        <group>
-          <mesh material={mats.stone} position={[0, P / 2, 0]} castShadow receiveShadow>
-            <cylinderGeometry args={[0.2, 0.26, P, 8]} />
-          </mesh>
-          <mesh material={mats.metal} position={[0, P + 0.06, 0]} castShadow>
-            <cylinderGeometry args={[0.3, 0.22, 0.12, 8]} />
-          </mesh>
-          {faceSeam(0.2, 0.26, P, P / 2, P * 0.82, 1, 0.022)}
-          <group ref={floater}>
-            {rank.tier === 1 && !rank.category && (
-              // winner: a level golden halo
-              <group position={[0, crownY, 0]} rotation={[1.3, 0, 0.1]}>
-                <mesh material={mats.metal} castShadow>
-                  <torusGeometry args={[0.42, 0.018, 8, 72]} />
-                </mesh>
-                <mesh material={mats.seam} scale={0.8}>
-                  <torusGeometry args={[0.42, 0.006, 6, 96]} />
-                </mesh>
-              </group>
-            )}
-            {rank.category && (
-              // category win: an armillary of two crossed rings around a star
-              <group position={[0, crownY, 0]}>
-                <mesh material={mats.metal} rotation={[0, 0, 0.5]}>
-                  <torusGeometry args={[0.32, 0.014, 8, 64]} />
-                </mesh>
-                <mesh material={mats.metal} rotation={[0, Math.PI / 2, -0.5]}>
-                  <torusGeometry args={[0.32, 0.014, 8, 64]} />
-                </mesh>
-                <mesh material={mats.seam} rotation={[Math.PI / 2, 0, 0]}>
-                  <torusGeometry args={[0.32, 0.005, 6, 64]} />
-                </mesh>
-              </group>
-            )}
-            {rank.tier === 2 && (
-              <group position={[0, crownY, 0]} rotation={[1.3, 0, 0.1]}>
-                <mesh material={mats.metal}>
-                  <torusGeometry args={[0.3, 0.014, 8, 64]} />
-                </mesh>
-              </group>
-            )}
-            {rank.tier === 3 && (
-              // distinction: a small upright medal
-              <group position={[0, crownY - 0.05, 0]} rotation={[Math.PI / 2, 0, 0]}>
-                <mesh material={mats.metal}>
-                  <cylinderGeometry args={[0.16, 0.16, 0.03, 32]} />
-                </mesh>
-                <mesh material={mats.seam} position={[0, 0.017, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-                  <ringGeometry args={[0.1, 0.12, 32]} />
-                </mesh>
-              </group>
-            )}
-            {rank.category ? (
-              <mesh material={mats.seam} position={[0, crownY, 0]}>
-                <octahedronGeometry args={[0.075, 0]} />
+    case 'award':
+      crown = (
+        <>
+          {rank.tier === 1 && !rank.category && (
+            // winner: a level golden halo
+            <group rotation={[1.3, 0, 0.1]}>
+              <mesh material={mats.metal} castShadow>
+                <torusGeometry args={[0.42, 0.018, 8, 72]} />
               </mesh>
-            ) : (
-              rank.tier !== 3 && (
-                <mesh material={mats.seam} position={[0, crownY, 0]}>
-                  <sphereGeometry args={[0.055, 16, 12]} />
-                </mesh>
-              )
-            )}
-          </group>
+              <mesh material={mats.seam} scale={0.8}>
+                <torusGeometry args={[0.42, 0.006, 6, 96]} />
+              </mesh>
+            </group>
+          )}
+          {rank.category && (
+            // category win: an armillary of two crossed rings around a star
+            <>
+              <mesh material={mats.metal} rotation={[0, 0, 0.5]}>
+                <torusGeometry args={[0.32, 0.014, 8, 64]} />
+              </mesh>
+              <mesh material={mats.metal} rotation={[0, Math.PI / 2, -0.5]}>
+                <torusGeometry args={[0.32, 0.014, 8, 64]} />
+              </mesh>
+              <mesh material={mats.seam} rotation={[Math.PI / 2, 0, 0]}>
+                <torusGeometry args={[0.32, 0.005, 6, 64]} />
+              </mesh>
+            </>
+          )}
+          {rank.tier === 2 && (
+            <mesh material={mats.metal} rotation={[1.3, 0, 0.1]}>
+              <torusGeometry args={[0.3, 0.014, 8, 64]} />
+            </mesh>
+          )}
+          {rank.tier === 3 && (
+            // distinction: a small upright medal
+            <group position={[0, -0.05, 0]} rotation={[Math.PI / 2, 0, 0]}>
+              <mesh material={mats.metal}>
+                <cylinderGeometry args={[0.16, 0.16, 0.03, 32]} />
+              </mesh>
+              <mesh material={mats.seam} position={[0, 0.017, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                <ringGeometry args={[0.1, 0.12, 32]} />
+              </mesh>
+            </group>
+          )}
+          {rank.category ? (
+            <mesh material={mats.seam}>
+              <octahedronGeometry args={[0.075, 0]} />
+            </mesh>
+          ) : (
+            rank.tier !== 3 && (
+              <mesh material={mats.seam}>
+                <sphereGeometry args={[0.055, 16, 12]} />
+              </mesh>
+            )
+          )}
+        </>
+      );
+      break;
+    case 'skills':
+      crown = (
+        <mesh material={mats.seam} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.16, 0.012, 6, 48]} />
+        </mesh>
+      );
+      break;
+    case 'link':
+      crown = (
+        <mesh material={mats.seam}>
+          <sphereGeometry args={[0.06, 14, 10]} />
+        </mesh>
+      );
+      break;
+    default:
+      crown = (
+        <mesh material={mats.seam}>
+          <octahedronGeometry args={[0.06, 0]} />
+        </mesh>
+      );
+  }
+
+  /* ---------- the building itself ---------- */
+  let body: JSX.Element;
+  switch (spec.theme) {
+    case 'obelisk': {
+      // stepped base, tapering square shaft, gilded pyramidion, a column of glyph cuts near the top
+      const { steps, H, bw, tw, capH, tilt, ticks } = spec;
+      const y0 = steps * 0.12;
+      const slope = Math.atan((bw - tw) / H);
+      body = (
+        <group rotation={[0, 0, tilt]}>
+          {Array.from({ length: steps }, (_, i) => (
+            <mesh key={i} material={mats.stone} position={[0, i * 0.12 + 0.06, 0]} castShadow receiveShadow>
+              <boxGeometry args={[0.78 - i * 0.16, 0.12, 0.78 - i * 0.16]} />
+            </mesh>
+          ))}
+          <mesh material={mats.stone} position={[0, y0 + H / 2, 0]} rotation={[0, Math.PI / 4, 0]} castShadow receiveShadow>
+            <cylinderGeometry args={[tw * Math.SQRT2, bw * Math.SQRT2, H, 4, 1]} />
+          </mesh>
+          <mesh material={mats.metal} position={[0, y0 + H + capH / 2, 0]} rotation={[0, Math.PI / 4, 0]} castShadow>
+            <coneGeometry args={[tw * Math.SQRT2, capH, 4]} />
+          </mesh>
+          {faceSeam(tw * Math.SQRT2, bw * Math.SQRT2, H, y0 + H * 0.36, H * 0.5, Math.SQRT1_2, 0.02)}
+          {Array.from({ length: ticks }, (_, i) => {
+            const y = y0 + H * (0.68 + i * (0.24 / ticks));
+            const half = bw + (tw - bw) * ((y - y0) / H);
+            return (
+              <mesh key={i} material={mats.seam} position={[0, y, half + 0.008]} rotation={[-slope, 0, 0]}>
+                <boxGeometry args={[half * (i % 2 ? 0.7 : 1.1), 0.018, 0.012]} />
+              </mesh>
+            );
+          })}
         </group>
       );
       break;
     }
-    case 'skills': {
-      const w = pillars.length > 4 ? 0.22 : 0.28;
-      const top = Math.max(...pillars.map((p) => p[2]));
+    case 'deco': {
+      // stacked setbacks with metal ledges, front fins on the base tier and a needle spire
+      const { tiers, depthK, spire, fins, T } = spec;
       body = (
         <group>
-          {pillars.map(([x, z, h], i) => (
-            <group key={i} position={[x, 0, z]}>
-              <mesh material={mats.stone} position={[0, h / 2, 0]} castShadow receiveShadow>
-                <boxGeometry args={[w, h, w]} />
+          {tiers.map((t, i) => {
+            const d = t.w * depthK;
+            return (
+              <group key={i}>
+                <mesh material={mats.stone} position={[0, t.y + t.h / 2, 0]} castShadow receiveShadow>
+                  <boxGeometry args={[t.w, t.h, d]} />
+                </mesh>
+                <mesh material={mats.metal} position={[0, t.y + t.h - 0.02, 0]} castShadow>
+                  <boxGeometry args={[t.w * 1.08, 0.04, d * 1.08]} />
+                </mesh>
+                {seamStrip(t.h * 0.72, t.y + t.h * 0.48, d / 2 + 0.008, i === 0 ? 0.03 : 0.022)}
+                {i === 0 &&
+                  Array.from({ length: fins }, (_, f) => {
+                    const x = ((f + 0.5) / fins - 0.5) * t.w * 0.8;
+                    return Math.abs(x) < 0.05 ? null : (
+                      <mesh key={f} material={mats.metal} position={[x, t.y + t.h * 0.46, d / 2 + 0.035]} castShadow>
+                        <boxGeometry args={[0.035, t.h * 0.86, 0.07]} />
+                      </mesh>
+                    );
+                  })}
+              </group>
+            );
+          })}
+          <mesh material={mats.metal} position={[0, T + spire / 2, 0]} castShadow>
+            <coneGeometry args={[0.055, spire, 6]} />
+          </mesh>
+        </group>
+      );
+      break;
+    }
+    case 'classical': {
+      // fluted column with entasis on a square base; Doric or Ionic capital
+      const { P, rc, flutes, ionic, capTop } = spec;
+      const y0 = 0.12;
+      const rTop = rc * 0.86;
+      body = (
+        <group>
+          <mesh material={mats.stone} position={[0, 0.06, 0]} castShadow receiveShadow>
+            <boxGeometry args={[0.62, 0.12, 0.62]} />
+          </mesh>
+          <mesh material={mats.stone} position={[0, y0 + 0.03, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+            <torusGeometry args={[rc + 0.025, 0.035, 6, flutes]} />
+          </mesh>
+          <mesh material={mats.stone} position={[0, y0 + P / 2, 0]} castShadow receiveShadow>
+            <cylinderGeometry args={[rTop, rc, P, flutes]} />
+          </mesh>
+          <mesh material={mats.stone} position={[0, y0 + P + 0.05, 0]} castShadow>
+            <cylinderGeometry args={[rTop * 1.45, rTop * 1.05, 0.1, flutes]} />
+          </mesh>
+          <mesh material={mats.metal} position={[0, capTop - 0.05, 0]} castShadow>
+            <boxGeometry args={[rTop * 3.1, 0.1, rTop * 3.1]} />
+          </mesh>
+          {ionic &&
+            [-1, 1].map((sx) => (
+              <mesh key={sx} material={mats.metal} position={[sx * rTop * 1.5, capTop - 0.16, rTop * 0.6]}>
+                <torusGeometry args={[0.06, 0.02, 6, 20]} />
               </mesh>
-              <mesh material={mats.metal} position={[0, h + 0.045, 0]} castShadow>
-                <boxGeometry args={[w * 1.14, 0.09, w * 1.14]} />
+            ))}
+          {faceSeam(rTop, rc, P, y0 + P / 2, P * 0.82, Math.cos(Math.PI / flutes), 0.022)}
+        </group>
+      );
+      break;
+    }
+    case 'pagoda': {
+      // one storey per skill: shrinking bodies under wide flared roofs, a lit window on each
+      const { tiers, over, roofH, finial, top } = spec;
+      const last = tiers[tiers.length - 1];
+      const roofTop = last.y + last.h + roofH;
+      body = (
+        <group>
+          <mesh material={mats.stone} position={[0, 0.07, 0]} castShadow receiveShadow>
+            <boxGeometry args={[0.92, 0.14, 0.92]} />
+          </mesh>
+          {tiers.map((t, i) => (
+            <group key={i}>
+              <mesh material={mats.stone} position={[0, t.y + t.h / 2, 0]} castShadow receiveShadow>
+                <boxGeometry args={[t.w, t.h, t.w]} />
               </mesh>
-              <mesh material={mats.seam} position={[0, h + 0.095, 0]}>
-                <boxGeometry args={[w * 0.6, 0.012, w * 0.6]} />
+              <mesh
+                material={mats.metal}
+                position={[0, t.y + t.h + roofH / 2 - 0.02, 0]}
+                rotation={[0, Math.PI / 4, 0]}
+                castShadow
+              >
+                <coneGeometry args={[(t.w / 2 + over * (1 - i * 0.06)) * Math.SQRT2, roofH, 4]} />
               </mesh>
-              {seamStrip(h * 0.75, h * 0.45, w / 2 + 0.005, 0.02)}
+              <mesh material={mats.seam} position={[0, t.y + t.h * 0.48, t.w / 2 + 0.006]}>
+                <boxGeometry args={[t.w * 0.28, t.h * 0.42, 0.012]} />
+              </mesh>
             </group>
           ))}
-          <group ref={floater}>
-            <mesh material={mats.seam} position={[0, top + 0.35, 0]} rotation={[Math.PI / 2, 0, 0]}>
-              <torusGeometry args={[0.16, 0.012, 6, 48]} />
+          <mesh material={mats.metal} position={[0, (roofTop + top) / 2, 0]}>
+            <cylinderGeometry args={[0.018, 0.03, top - roofTop, 6]} />
+          </mesh>
+          {[0.35, 0.6].map((k) => (
+            <mesh key={k} material={mats.metal} position={[0, roofTop + finial * k, 0]}>
+              <sphereGeometry args={[0.045 - k * 0.03, 10, 8]} />
             </mesh>
-          </group>
+          ))}
         </group>
       );
       break;
     }
-    case 'link':
+    case 'gothic': {
+      // pointed-arch gateway: twin piers with pinnacles, ribbed arch, optional rose ring
+      const { S, sh, apex, pinH, rose } = spec;
       body = (
         <group>
-          <group scale={[0.62, 1.7, 1]}>
-            <mesh material={mats.metal} castShadow>
-              <torusGeometry args={[0.95, 0.045, 8, 64, Math.PI]} />
-            </mesh>
-            <mesh material={mats.seam} position={[0, 0, 0.05]}>
-              <torusGeometry args={[0.95, 0.008, 6, 96, Math.PI]} />
-            </mesh>
-          </group>
-          <mesh material={mats.stone} position={[0, 1.25, -0.15]} castShadow>
-            <cylinderGeometry args={[0.025, 0.04, 2.5, 6]} />
+          {[-1, 1].map((sx) => (
+            <group key={sx} position={[(sx * S) / 2, 0, 0]}>
+              <mesh material={mats.stone} position={[0, sh / 2, 0]} castShadow receiveShadow>
+                <boxGeometry args={[0.16, sh, 0.22]} />
+              </mesh>
+              <mesh material={mats.metal} position={[0, sh + 0.04, 0]} castShadow>
+                <boxGeometry args={[0.22, 0.06, 0.28]} />
+              </mesh>
+              <mesh material={mats.metal} position={[0, sh + 0.07 + pinH / 2, 0]} rotation={[0, Math.PI / 4, 0]} castShadow>
+                <coneGeometry args={[0.08, pinH, 4]} />
+              </mesh>
+              {seamStrip(sh * 0.6, sh * 0.42, 0.116, 0.018)}
+            </group>
+          ))}
+          {pointedArch(S, S, 0.07, sh, 0, mats.stone)}
+          {pointedArch(S, S - 0.075, 0.012, sh, 0.06, mats.seam)}
+          <mesh material={mats.metal} position={[0, apex + 0.12, 0]} castShadow>
+            <coneGeometry args={[0.05, 0.26, 4]} />
           </mesh>
-          <group ref={floater}>
-            <mesh material={mats.seam} position={[0, 2.62, -0.15]}>
-              <sphereGeometry args={[0.06, 14, 10]} />
+          {rose && (
+            <mesh material={mats.seam} position={[0, sh + S * SIN60 * 0.42, 0.04]}>
+              <torusGeometry args={[S * 0.13, 0.01, 6, 40]} />
             </mesh>
-          </group>
+          )}
           <mesh material={mats.seam} position={[0, 1.05, 0]}>
             <octahedronGeometry args={[0.06, 0]} />
           </mesh>
         </group>
       );
       break;
-    default:
-      body = (
-        <group rotation={[0, 0, 0.035]}>
-          <group scale={[1.15, 1, 0.55]}>
-            <mesh material={mats.stone} position={[0, 1.2, 0]} rotation={[0, Math.PI / 4, 0]} castShadow receiveShadow>
-              <cylinderGeometry args={[0.3, 0.42, 2.4, 4, 1]} />
-            </mesh>
-          </group>
-          {faceSeam(0.3, 0.42, 2.4, 1.15, 1.7, Math.SQRT1_2 * 0.55, 0.02)}
-          <group ref={floater}>
-            <mesh material={mats.seam} position={[0, 2.75, 0]}>
-              <octahedronGeometry args={[0.06, 0]} />
-            </mesh>
-          </group>
-        </group>
-      );
+    }
   }
 
   return (
@@ -494,7 +690,12 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
         <mesh material={mats.plinth} position={[0, 0.04, 0]} receiveShadow castShadow>
           <cylinderGeometry args={[0.85, 0.95, 0.14, 8]} />
         </mesh>
-        <group position={[0, 0.1, 0]}>{body}</group>
+        <group position={[0, BASE_Y, 0]}>
+          {body}
+          <group ref={floater}>
+            <group position={[0, spec.floatY - BASE_Y, 0]}>{crown}</group>
+          </group>
+        </group>
       </group>
 
       {/* soft light pool and focus ring */}
@@ -504,6 +705,8 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
       <mesh ref={ring} material={mats.ringMat} position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={3}>
         <ringGeometry args={[1.0, 1.035, 96]} />
       </mesh>
+
+      <BeaconScreens beacon={beacon} planet={planet} height={height} index={index} reducedMotion={reducedMotion} />
 
       {/* generous invisible hit volume */}
       <mesh

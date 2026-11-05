@@ -169,7 +169,7 @@ const TourBar = () => {
 
       // placement: above the chips, left of the desktop panel, or above the phone sheet
       if (bar.current && frame++ % 6 === 0) {
-        const panel = document.querySelector<HTMLElement>('[data-beacon-panel]');
+        const panel = document.querySelector<HTMLElement>('[data-beacon-panel]:not([data-beacon-screen])');
         const r = panel?.getBoundingClientRect();
         const zoom = parseFloat(getComputedStyle(bar.current).getPropertyValue('--hud-zoom')) || 1;
         const st = bar.current.style;

@@ -35,7 +35,7 @@ const BEACON_COLLIDE = 1.15;
 const EDGE_INSET = 48;
 /** Resting gaze sits slightly above level so monuments fill more of the frame */
 const PITCH_BIAS = 0.1;
-/** Docked content panel on wide screens; the glide leaves the beacon clear of it */
+/** Room kept beside the monument on wide screens, where its content screens fan out */
 const PANEL_WIDTH = 420;
 const GLIDE_DISTANCE = 6;
 /** Gaze focus stays off this long after the arrival settle */

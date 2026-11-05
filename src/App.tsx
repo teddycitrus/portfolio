@@ -65,6 +65,8 @@ const App = () => {
           </Canvas>
         </SceneBoundary>
       )}
+      {/* in-world beacon screens (drei Html) render here: above the canvas, below the HUD */}
+      <div id="screen-layer" className="pointer-events-none absolute inset-0 z-[5] overflow-hidden" />
       <UiRoot />
     </div>
   );
