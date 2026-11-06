@@ -66,9 +66,9 @@ export const Highlights = ({ items, variant }: { items: string[]; variant: Varia
   </ul>
 );
 
-/** Compact closing block: a small label, then the numbers inline. */
-export const Aside = ({ heading, facts }: { heading: string; facts: Fact[] }) => (
-  <section className="space-y-2 border-t border-line pt-4">
+/** Compact closing block: a small label, then the numbers inline. `bare` drops the divider when it stands alone. */
+export const Aside = ({ heading, facts, bare }: { heading: string; facts: Fact[]; bare?: boolean }) => (
+  <section className={cx('space-y-2', !bare && 'border-t border-line pt-4')}>
     <h4 className="label">{heading}</h4>
     <dl className="flex flex-wrap gap-x-8 gap-y-2">
       {facts.map((f) => (

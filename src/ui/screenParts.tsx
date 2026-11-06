@@ -26,12 +26,6 @@ export interface ScreenPart {
 const NARROW = 380;
 const WIDE = 440;
 
-const chunk = <T,>(items: T[], size: number): T[][] => {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
-  return out;
-};
-
 /** Splits a beacon's content into the parts shown on its screens, title first. */
 export const screenParts = (beacon: Beacon): ScreenPart[] => {
   const v = 'panel' as const;
@@ -52,7 +46,7 @@ export const screenParts = (beacon: Beacon): ScreenPart[] => {
         { key: 'body', width: WIDE, node: <Body variant={v}>{c.body}</Body> },
       ];
       if (c.highlights?.length) parts.push({ key: 'hl', width: WIDE, node: <Highlights items={c.highlights} variant={v} /> });
-      if (c.aside) parts.push({ key: 'aside', width: NARROW, node: <Aside {...c.aside} /> });
+      if (c.aside) parts.push({ key: 'aside', width: NARROW, node: <Aside {...c.aside} bare /> });
       return parts;
     }
     case 'project': {
@@ -94,16 +88,19 @@ export const screenParts = (beacon: Beacon): ScreenPart[] => {
     }
     case 'award': {
       const c = beacon.content;
+      // event and result read as one line of thought; the project link gets its own screen
       const parts: ScreenPart[] = [
-        { key: 'title', width: NARROW, node: <Heading variant={v}>{c.event}</Heading> },
         {
-          key: 'result',
-          width: 320,
+          key: 'title',
+          width: NARROW,
           node: (
-            <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <span className="text-[17px] text-ink">{c.result}</span>
-              {c.year && <span className="label">{c.year}</span>}
-            </p>
+            <div className="space-y-3">
+              <Heading variant={v}>{c.event}</Heading>
+              <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="text-[17px] text-ink">{c.result}</span>
+                {c.year && <span className="label">{c.year}</span>}
+              </p>
+            </div>
           ),
         },
       ];
@@ -124,11 +121,7 @@ export const screenParts = (beacon: Beacon): ScreenPart[] => {
       const c = beacon.content;
       return [
         { key: 'title', width: NARROW, node: <Heading variant={v}>{c.heading}</Heading> },
-        ...chunk(c.items, 3).map((items, i) => ({
-          key: `items-${i}`,
-          width: 340,
-          node: <StackChips items={items} label="Skills" />,
-        })),
+        { key: 'items', width: WIDE, node: <StackChips items={c.items} label="Skills" /> },
       ];
     }
     case 'link': {
