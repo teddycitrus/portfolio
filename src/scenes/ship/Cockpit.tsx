@@ -587,8 +587,9 @@ const Cockpit = () => {
       const d = dashScreens[key];
       const mesh = displays.current[i];
       const mat = i === 0 ? screenL : screenR;
-      const lit = asControls ? (d.hover ? 0.38 : 0.2) : 1;
-      mat.uniforms.uLit.value += (lit - mat.uniforms.uLit.value) * damp(12, dt);
+      // in orbit the display turns into a plain key face; the graphics come back in flight
+      mat.uniforms.uFace.value += ((asControls ? 1 : 0) - mat.uniforms.uFace.value) * damp(8, dt);
+      mat.uniforms.uHover.value += ((asControls && d.hover ? 1 : 0) - mat.uniforms.uHover.value) * damp(14, dt);
       d.visible = asControls && !!mesh;
       if (!d.visible || !mesh) return;
       let x0 = Infinity;

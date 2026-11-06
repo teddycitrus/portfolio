@@ -73,7 +73,8 @@ export const instrumentMaterial = (kind: 0 | 1) =>
   new THREE.ShaderMaterial({
     fog: false,
     transparent: true,
-    uniforms: { uTime: { value: 0 }, uKind: { value: kind }, uLit: { value: 1 } },
+    // the site opens in orbit, where the displays are key faces
+    uniforms: { uTime: { value: 0 }, uKind: { value: kind }, uFace: { value: 1 }, uHover: { value: 0 } },
     vertexShader: /* glsl */ `
       varying vec2 vUv;
       void main() {
@@ -84,8 +85,9 @@ export const instrumentMaterial = (kind: 0 | 1) =>
     fragmentShader: /* glsl */ `
       uniform float uTime;
       uniform float uKind;
-      // 1 = full graphics; lower while the display carries a control label
-      uniform float uLit;
+      // 1 = a plain console key face for a control label (no graphics under the text)
+      uniform float uFace;
+      uniform float uHover;
       varying vec2 vUv;
       void main() {
         vec2 uv = vUv;
@@ -125,7 +127,22 @@ export const instrumentMaterial = (kind: 0 | 1) =>
         float scan = 0.85 + 0.15 * sin(uv.y * 160.0);
         vec2 e = min(uv, 1.0 - uv);
         float vig = smoothstep(0.0, 0.06, min(e.x, e.y * 2.0));
-        vec3 col = vec3(0.01, 0.024, 0.04) + ink * (grid + g) * scan * 0.85 * uLit;
+        vec3 col = vec3(0.01, 0.024, 0.04) + ink * (grid + g) * scan * 0.85;
+
+        // key face: dark glass, an inset hairline frame, a status light in the corner, a glow on hover
+        vec2 q = uv - 0.5;
+        vec2 fe = abs(q) - vec2(0.44, 0.38);
+        float box = max(fe.x, fe.y * 0.5);
+        float line = smoothstep(0.006, 0.0, abs(box));
+        float led = smoothstep(0.022, 0.0, length((uv - vec2(0.105, 0.78)) * vec2(2.0, 1.0)));
+        float ledOn = 0.55 + 0.45 * sin(uTime * 1.6);
+        float glow = exp(-dot(q * vec2(1.6, 3.0), q * vec2(1.6, 3.0)) * 4.0);
+        vec3 faceCol = mix(vec3(0.012, 0.022, 0.04), vec3(0.03, 0.05, 0.08), uv.y)
+          + ink * line * (0.22 + 0.45 * uHover)
+          + ink * glow * (0.03 + 0.1 * uHover)
+          + vec3(0.45, 1.0, 0.7) * led * ledOn * 0.9
+          + ink * (0.5 + 0.5 * sin(uv.y * 160.0)) * 0.006;
+        col = mix(col, faceCol, uFace);
         gl_FragColor = vec4(col * vig, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>

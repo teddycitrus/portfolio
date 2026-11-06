@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import DeepSky from './DeepSky';
 import Starfield from './Starfield';
 import PlanetNode from './PlanetNode';
 import TelescopeCamera from './TelescopeCamera';
@@ -87,6 +88,7 @@ const OverworldScene = () => {
       <directionalLight position={SUN_LIGHT_POS} intensity={2.2} color="#fff3e2" />
       <SpaceBackdrop />
       <Starfield />
+      <DeepSky />
       <Sun />
       {planets.map((p) => (
         <PlanetNode key={p.id} planet={p} />
