@@ -3,10 +3,12 @@ import { planetById } from '@/data/content';
 import { useAppStore } from '@/state/useAppStore';
 
 /**
- * Ambient string drone, synthesised with Web Audio. Each planet has a key;
- * the drone crossfades to it on arrival and sits quieter in orbit. Audio can
- * only start after a user gesture, so the first click or key press starts it
- * (when the stored preference is on).
+ * Ambient string pad, synthesised with Web Audio. Each planet has a key; the
+ * pad walks a slow chord progression in it that keeps cadencing home (V to I),
+ * with a suspended fourth resolving on every dominant, a soft bass and a sparse
+ * high chime. It sits quieter in orbit. Audio can only start after a user
+ * gesture, so the first click or key press starts it (when the stored
+ * preference is on). Wildlife calls share the same graph (see critterCall).
  */
 
 const PREF_KEY = 'sound';
@@ -14,8 +16,13 @@ const PREF_KEY = 'sound';
 const ORBIT_KEY = 'D major';
 const LEVEL_PLANET = 0.2;
 const LEVEL_ORBIT = 0.08;
-const CROSSFADE_S = 4;
-const ATTACK_S = 3;
+/** Seconds per chord on a planet and in orbit */
+const CHORD_S = 8;
+const CHORD_S_ORBIT = 11;
+/** Overlap between one chord and the next */
+const XFADE_S = 3.2;
+/** Key changes on travel blend over this long */
+const KEY_XFADE_S = 4;
 
 const NOTE: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 
@@ -30,6 +37,69 @@ const parseKey = (key: string): { root: number; minor: boolean } => {
 };
 
 const hz = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
+
+/* ---------- harmony ---------- */
+
+interface Chord {
+  /** Semitones above the key root */
+  root: number;
+  /** Chord tones above the chord root */
+  tones: number[];
+  /** Dominant: start on a suspended fourth and resolve it to the third halfway through */
+  sus?: boolean;
+}
+
+const MAJ = [0, 4, 7];
+const MIN = [0, 3, 7];
+
+/** Two phrases, each closing on a V to I cadence (the loop returns to I). */
+const PROGRESSION_MAJOR: Chord[] = [
+  { root: 0, tones: MAJ },
+  { root: 9, tones: MIN },
+  { root: 5, tones: [0, 4, 7, 11] },
+  { root: 7, tones: MAJ, sus: true },
+  { root: 0, tones: MAJ },
+  { root: 4, tones: MIN },
+  { root: 2, tones: [0, 3, 7, 10] },
+  { root: 7, tones: [0, 4, 7, 10], sus: true },
+];
+
+/** Natural minor colour, harmonic minor dominant for a real pull home. */
+const PROGRESSION_MINOR: Chord[] = [
+  { root: 0, tones: MIN },
+  { root: 8, tones: [0, 4, 7, 11] },
+  { root: 5, tones: MIN },
+  { root: 7, tones: MAJ, sus: true },
+  { root: 0, tones: MIN },
+  { root: 3, tones: MAJ },
+  { root: 10, tones: MAJ },
+  { root: 7, tones: [0, 4, 7, 10], sus: true },
+];
+
+/**
+ * Places the chord's upper tones as close as possible to the previous voicing
+ * (smooth voice leading) inside one octave above the key root.
+ */
+const voice = (keyRoot: number, c: Chord, prev: number[] | null): number[] => {
+  const pcs = c.tones.map((x) => (keyRoot + c.root + x) % 12);
+  const lo = keyRoot + 7;
+  const notes = pcs.map((pc) => {
+    // candidates for this pitch class in the pad register
+    const cands = [0, 12, 24].map((o) => lo + ((((pc - lo) % 12) + 12) % 12) + o).filter((n) => n < lo + 19);
+    if (!prev) return cands[0];
+    let best = cands[0];
+    let bestD = Infinity;
+    for (const n of cands) {
+      const d = Math.min(...prev.map((p) => Math.abs(p - n)));
+      if (d < bestD) {
+        bestD = d;
+        best = n;
+      }
+    }
+    return best;
+  });
+  return [...new Set(notes)].sort((a, b) => a - b);
+};
 
 /* ---------- preference ---------- */
 
@@ -55,8 +125,13 @@ interface Voice {
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let bus: GainNode | null = null;
-let voice: Voice | null = null;
+let sfx: GainNode | null = null;
+let verbIn: GainNode | null = null;
+let current: Voice | null = null;
 let currentKey = '';
+let step = 0;
+let lastVoicing: number[] | null = null;
+let timer = 0;
 
 const impulse = (c: AudioContext, seconds: number) => {
   const len = Math.floor(c.sampleRate * seconds);
@@ -72,18 +147,27 @@ const build = () => {
   const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!AC) return false;
   ctx = new AC();
-  master = ctx.createGain();
-  master.gain.value = 0;
   const comp = ctx.createDynamicsCompressor();
   comp.threshold.value = -20;
   comp.ratio.value = 3;
-  master.connect(comp).connect(ctx.destination);
+  comp.connect(ctx.destination);
+  master = ctx.createGain();
+  master.gain.value = 0;
+  master.connect(comp);
 
-  // dark section sound: lowpass with a slow breathing cutoff, then a long hall
+  // shared hall for the pad and the critters
+  const verb = ctx.createConvolver();
+  verb.buffer = impulse(ctx, 5);
+  verbIn = ctx.createGain();
+  const wet = ctx.createGain();
+  wet.gain.value = 1.3;
+  verbIn.connect(verb).connect(wet).connect(comp);
+
+  // dark section sound: lowpass with a slow breathing cutoff
   bus = ctx.createGain();
   const lp = ctx.createBiquadFilter();
   lp.type = 'lowpass';
-  lp.frequency.value = 900;
+  lp.frequency.value = 950;
   lp.Q.value = 0.4;
   const sweep = ctx.createOscillator();
   sweep.frequency.value = 0.04;
@@ -94,47 +178,59 @@ const build = () => {
   bus.connect(lp);
   const dry = ctx.createGain();
   dry.gain.value = 0.55;
-  const wet = ctx.createGain();
-  wet.gain.value = 0.75;
-  const verb = ctx.createConvolver();
-  verb.buffer = impulse(ctx, 5);
   lp.connect(dry).connect(master);
-  lp.connect(verb).connect(wet).connect(master);
+  // the pad's hall send rides on the master level
+  master.connect(verbIn);
+
+  // critter calls bypass the pad level but obey the sound toggle
+  sfx = ctx.createGain();
+  sfx.gain.value = enabled ? 1 : 0;
+  sfx.connect(comp);
   return true;
 };
 
-/** One sustained chord: root, fifth, octave and third, each a few detuned saws with slow swells. */
-const makeVoice = (c: AudioContext, key: string): Voice => {
-  const { root, minor } = parseKey(key);
+/** One sustained chord: each tone a few detuned saws with its own slow swell. */
+const makeChord = (c: AudioContext, keyRoot: number, chord: Chord, notes: number[], dur: number): Voice => {
   const out = c.createGain();
   out.gain.value = 0;
   out.connect(bus!);
   const nodes: AudioScheduledSourceNode[] = [];
-  const notes = [root - 12, root, root + 7, root + 12, root + (minor ? 15 : 16)];
-  const weights = [0.5, 0.9, 0.7, 0.55, 0.4];
-  notes.forEach((n, i) => {
+  const now = c.currentTime;
+  const bass = keyRoot - 12 + chord.root - (chord.root > 6 ? 12 : 0);
+  const all = [bass, ...notes];
+  // the suspended tone: the chord's third, sounded as a fourth first
+  const thirdPc = (keyRoot + chord.root + chord.tones[1]) % 12;
+  all.forEach((n, i) => {
+    const isBass = i === 0;
     const g = c.createGain();
-    g.gain.value = weights[i] * 0.05;
-    // each note swells on its own slow cycle, like players bowing out of step
+    const w = isBass ? 0.55 : 0.75 - i * 0.07;
+    g.gain.value = w * 0.05;
     const swell = c.createOscillator();
-    swell.frequency.value = 0.05 + i * 0.013;
+    swell.frequency.value = 0.06 + i * 0.017;
     const swellAmt = c.createGain();
-    swellAmt.gain.value = weights[i] * 0.02;
+    swellAmt.gain.value = w * 0.018;
     swell.connect(swellAmt).connect(g.gain);
-    swell.start(c.currentTime + Math.random() * 2);
+    swell.start(now + Math.random() * 2);
     nodes.push(swell);
-    // gentle shared vibrato
     const vib = c.createOscillator();
-    vib.frequency.value = 4.6 + Math.random() * 0.6;
+    vib.frequency.value = 4.4 + Math.random() * 0.8;
     const vibAmt = c.createGain();
-    vibAmt.gain.value = 3;
+    vibAmt.gain.value = isBass ? 0 : 3;
     vib.connect(vibAmt);
     vib.start();
     nodes.push(vib);
-    for (const cents of [-7, 0, 6]) {
+    const sus = chord.sus && !isBass && n % 12 === thirdPc;
+    for (const cents of isBass ? [0, 5] : [-7, 0, 6]) {
       const o = c.createOscillator();
-      o.type = i === 0 ? 'triangle' : 'sawtooth';
-      o.frequency.value = hz(n);
+      o.type = isBass ? 'triangle' : 'sawtooth';
+      if (sus) {
+        // hold the fourth, then lean down onto the third
+        o.frequency.setValueAtTime(hz(n + (chord.tones[1] === 3 ? 2 : 1)), now);
+        o.frequency.setValueAtTime(hz(n + (chord.tones[1] === 3 ? 2 : 1)), now + dur * 0.45);
+        o.frequency.exponentialRampToValueAtTime(hz(n), now + dur * 0.45 + 0.9);
+      } else {
+        o.frequency.value = hz(n);
+      }
       o.detune.value = cents;
       vibAmt.connect(o.detune);
       o.connect(g);
@@ -146,35 +242,84 @@ const makeVoice = (c: AudioContext, key: string): Voice => {
   return { out, nodes };
 };
 
+/** A soft high chime on a chord tone: sine plus a quiet octave, long decay into the hall. */
+const chime = (c: AudioContext, midi: number, at: number, level: number) => {
+  const g = c.createGain();
+  g.gain.setValueAtTime(0, at);
+  g.gain.linearRampToValueAtTime(level, at + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + 3.5);
+  g.connect(master!);
+  g.connect(verbIn!);
+  for (const [mult, amp] of [
+    [1, 1],
+    [2, 0.25],
+  ]) {
+    const o = c.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = hz(midi) * mult;
+    const og = c.createGain();
+    og.gain.value = amp;
+    o.connect(og).connect(g);
+    o.start(at);
+    o.stop(at + 3.7);
+  }
+};
+
 const desiredKey = () => {
   const s = useAppStore.getState();
   const id = s.mode === 'overworld' ? null : s.mode === 'transitioning-in' ? s.lockedPlanetId : s.activePlanetId;
   return planetById(id)?.key ?? ORBIT_KEY;
 };
 
-const desiredLevel = () => {
-  const m = useAppStore.getState().mode;
-  return m === 'planet' ? LEVEL_PLANET : LEVEL_ORBIT;
+const onPlanet = () => useAppStore.getState().mode === 'planet';
+const desiredLevel = () => (onPlanet() ? LEVEL_PLANET : LEVEL_ORBIT);
+
+/** Fades the current chord out and the next one in; reschedules itself. */
+const advance = (fade: number) => {
+  window.clearTimeout(timer);
+  const dur = onPlanet() ? CHORD_S : CHORD_S_ORBIT;
+  timer = window.setTimeout(() => advance(XFADE_S), dur * 1000);
+  // nothing piles up while the context is paused (tab hidden, sound off)
+  if (!ctx || ctx.state !== 'running') return;
+  const now = ctx.currentTime;
+  const { root, minor } = parseKey(currentKey);
+  const prog = minor ? PROGRESSION_MINOR : PROGRESSION_MAJOR;
+  const chord = prog[step % prog.length];
+  step += 1;
+  const notes = voice(root, chord, lastVoicing);
+  lastVoicing = notes;
+  const old = current;
+  current = makeChord(ctx, root, chord, notes, dur);
+  current.out.gain.setTargetAtTime(1, now, fade / 3);
+  if (old) {
+    old.out.gain.setTargetAtTime(0, now, fade / 3);
+    const stopAt = now + fade * 1.6;
+    old.nodes.forEach((n) => n.stop(stopAt));
+    window.setTimeout(() => old.out.disconnect(), fade * 1600 + 200);
+  }
+  // a chime now and then, more often on a planet; always on the home chord
+  const chimeP = onPlanet() ? 0.7 : 0.35;
+  if (chord.root === 0 || Math.random() < chimeP) {
+    const top = notes[notes.length - 1] + 12;
+    chime(ctx, top, now + 0.6 + Math.random() * 1.2, 0.05);
+    if (Math.random() < 0.5) chime(ctx, notes[Math.floor(Math.random() * notes.length)] + 12, now + dur * 0.55, 0.035);
+  }
 };
 
 const sync = () => {
-  if (!ctx || !master) return;
+  if (!ctx || !master || !sfx) return;
   const now = ctx.currentTime;
   const key = desiredKey();
   if (key !== currentKey) {
+    // a new key starts its progression from home
     currentKey = key;
-    const old = voice;
-    voice = makeVoice(ctx, key);
-    voice.out.gain.setTargetAtTime(1, now, (old ? CROSSFADE_S : ATTACK_S) / 3);
-    if (old) {
-      old.out.gain.setTargetAtTime(0, now, CROSSFADE_S / 3);
-      const stopAt = now + CROSSFADE_S * 1.5;
-      old.nodes.forEach((n) => n.stop(stopAt));
-      window.setTimeout(() => old.out.disconnect(), CROSSFADE_S * 1500 + 200);
-    }
+    step = 0;
+    lastVoicing = null;
+    advance(current ? KEY_XFADE_S : 3);
   }
   master.gain.cancelScheduledValues(now);
   master.gain.setTargetAtTime(enabled ? desiredLevel() : 0, now, enabled ? 1.2 : 0.25);
+  sfx.gain.setTargetAtTime(enabled ? 1 : 0, now, 0.1);
 };
 
 let started = false;
@@ -199,6 +344,8 @@ export const initDrone = () => {
     (window as unknown as { __drone: () => object }).__drone = () => ({
       state: ctx?.state ?? 'none',
       key: currentKey,
+      step,
+      voicing: lastVoicing,
       level: master?.gain.value ?? 0,
       enabled,
     });
@@ -245,3 +392,98 @@ export const useSoundEnabled = () =>
     },
     () => enabled,
   );
+
+/* ---------- wildlife calls ---------- */
+
+export type CritterVoice = 'chirp' | 'squeak' | 'mew' | 'boop';
+
+let lastCall = 0;
+
+/**
+ * A short, cute call from a creature. `distance` (world units) sets the level,
+ * `pan` (-1 left .. 1 right) places it. Silent before the first gesture or
+ * while sound is off; rate-limited so a crowd never turns into noise.
+ */
+export const critterCall = (kind: CritterVoice, distance: number, pan: number) => {
+  if (!ctx || !sfx || !verbIn || !enabled || ctx.state !== 'running') return;
+  const nowMs = performance.now();
+  if (nowMs - lastCall < 220) return;
+  lastCall = nowMs;
+  const level = 0.16 * Math.max(0, 1 - distance / 28) ** 1.5;
+  if (level < 0.004) return;
+  const c = ctx;
+  const t0 = c.currentTime + 0.01;
+  const out = c.createGain();
+  out.gain.value = level;
+  const panner = c.createStereoPanner();
+  panner.pan.value = Math.max(-1, Math.min(1, pan));
+  out.connect(panner);
+  panner.connect(sfx);
+  const send = c.createGain();
+  send.gain.value = 0.35;
+  panner.connect(send).connect(verbIn);
+
+  /** One pitched blip with an attack/decay envelope and a pitch path. */
+  const blip = (type: OscillatorType, at: number, len: number, path: [number, number][], amp = 1, vibHz = 0) => {
+    const o = c.createOscillator();
+    o.type = type;
+    o.frequency.setValueAtTime(path[0][1], at);
+    for (const [dt, f] of path.slice(1)) o.frequency.exponentialRampToValueAtTime(f, at + dt);
+    if (vibHz) {
+      const v = c.createOscillator();
+      v.frequency.value = vibHz;
+      const va = c.createGain();
+      va.gain.value = path[0][1] * 0.04;
+      v.connect(va).connect(o.frequency);
+      v.start(at);
+      v.stop(at + len + 0.05);
+    }
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(amp, at + Math.min(0.02, len * 0.2));
+    g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+    o.connect(g).connect(out);
+    o.start(at);
+    o.stop(at + len + 0.05);
+  };
+
+  const r = (a: number, b: number) => a + Math.random() * (b - a);
+  switch (kind) {
+    case 'chirp': {
+      // two or three quick rising tweets
+      const n = Math.random() < 0.5 ? 2 : 3;
+      const base = r(2400, 3200);
+      for (let i = 0; i < n; i += 1)
+        blip('sine', t0 + i * 0.09, 0.07, [
+          [0, base * (1 + i * 0.06)],
+          [0.05, base * 1.45 * (1 + i * 0.06)],
+        ], 0.6);
+      break;
+    }
+    case 'squeak': {
+      // a bouncy "bi-bip" up the scale
+      const base = r(620, 820);
+      blip('triangle', t0, 0.13, [[0, base], [0.1, base * 1.5]], 0.9, 18);
+      blip('triangle', t0 + 0.15, 0.16, [[0, base * 1.2], [0.12, base * 1.9]], 0.8, 18);
+      break;
+    }
+    case 'mew': {
+      // a soft rising-falling "mrrp"
+      const base = r(330, 420);
+      blip('triangle', t0, 0.42, [[0, base], [0.16, base * 1.35], [0.4, base * 1.05]], 0.8, 28);
+      break;
+    }
+    case 'boop': {
+      // a round, falling bubble with a little echo
+      const base = r(380, 520);
+      blip('sine', t0, 0.5, [[0, base], [0.45, base * 0.6]], 1);
+      blip('sine', t0 + 0.18, 0.35, [[0, base * 1.5], [0.3, base * 1.0]], 0.4);
+      break;
+    }
+  }
+  window.setTimeout(() => {
+    out.disconnect();
+    panner.disconnect();
+    send.disconnect();
+  }, 2000);
+};

@@ -8,6 +8,7 @@ import { screenParts } from '@/ui/screenParts';
 import { panelFocusIntent } from '@/ui/navigation';
 import { CloseIcon, useNarrow } from '@/ui/primitives';
 import { mulberry, seedOf } from './rng';
+import { hologramMaterial, holoLook } from './hologram';
 
 /* ---------- tuning ---------- */
 
@@ -27,7 +28,13 @@ const REANCHOR = 1.8;
 const GAP = 0.08;
 /** Chamfer / point depth of screen outlines, world units */
 const CUT = 0.09;
-const STAGGER_S = 0.07;
+/** Panels leave one after another, this far apart */
+const STAGGER_S = 0.16;
+/** Flight time out to the screen slot and back home */
+const OUT_S = 1.35;
+const IN_S = 1.0;
+/** How high the flight path bows above the straight line */
+const ARC = 0.28;
 
 type ShapeKind = 'rect' | 'hex' | 'oct' | 'tag';
 const SHAPES: ShapeKind[] = ['hex', 'rect', 'oct', 'tag'];
@@ -98,6 +105,8 @@ const screenShape = (k: ShapeKind, w: number, h: number): [number, number][] => 
 };
 
 const damp = (rate: number, dt: number) => 1 - Math.exp(-rate * dt);
+/** Slow start, slow landing: nothing snaps */
+const easeInOut = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 const smooth = (a: number, b: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
@@ -154,12 +163,16 @@ interface Panel {
   kind: ShapeKind;
   orbit: [number, number][];
   geo: THREE.BufferGeometry;
-  line: THREE.BufferGeometry;
-  fill: THREE.MeshBasicMaterial;
-  edge: THREE.LineBasicMaterial;
+  mat: THREE.ShaderMaterial;
+  /** Linear flight progress 0..1; m is its eased value */
+  prog: number;
   m: number;
   pos: THREE.Vector3;
   quat: THREE.Quaternion;
+  /** Smoothed screen slot and facing; kept while folding home */
+  target: THREE.Vector3;
+  face: THREE.Quaternion;
+  hasTarget: boolean;
   /** Measured content size, world units (before fit scaling) */
   size: Box;
 }
@@ -180,8 +193,6 @@ const _o = new THREE.Object3D();
 const _op = new THREE.Vector3();
 const _oq = new THREE.Quaternion();
 const _tp = new THREE.Vector3();
-const ORBIT_FILL = new THREE.Color();
-const SCREEN_FILL = new THREE.Color('#080b14');
 
 /**
  * Flat polygon panels that orbit a monument, one per part of its content.
@@ -217,25 +228,20 @@ const BeaconScreens = ({ beacon, planet, height, index, reducedMotion }: Props) 
       const idx: number[] = [];
       for (let k = 0; k < n; k += 1) idx.push(0, 1 + k, 1 + ((k + 1) % n));
       geo.setIndex(idx);
-      const line = new THREE.BufferGeometry();
-      line.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+      const mat = hologramMaterial(accent, holoLook(rnd), rnd() * 10);
+      mat.uniforms.uN.value = n;
       return {
         kind,
         orbit: orbitShape(kind, r),
         geo,
-        line,
-        fill: new THREE.MeshBasicMaterial({
-          color: accent.clone().multiplyScalar(0.35),
-          transparent: true,
-          opacity: 0.5,
-          side: THREE.DoubleSide,
-          depthWrite: false,
-          fog: false,
-        }),
-        edge: new THREE.LineBasicMaterial({ color: accent.clone(), transparent: true, opacity: 0.9, fog: false }),
+        mat,
+        prog: 0,
         m: -1,
         pos: new THREE.Vector3(NaN, 0, 0),
         quat: new THREE.Quaternion(),
+        target: new THREE.Vector3(),
+        face: new THREE.Quaternion(),
+        hasTarget: false,
         size: { w: p.width / PX, h: 0.6 },
       };
     });
@@ -245,9 +251,7 @@ const BeaconScreens = ({ beacon, planet, height, index, reducedMotion }: Props) 
     () => () => {
       panels.forEach((p) => {
         p.geo.dispose();
-        p.line.dispose();
-        p.fill.dispose();
-        p.edge.dispose();
+        p.mat.dispose();
       });
     },
     [panels],
@@ -345,10 +349,11 @@ const BeaconScreens = ({ beacon, planet, height, index, reducedMotion }: Props) 
       const grp = groups.current[i];
       if (!grp) return;
       const go = s.active && t - s.since >= i * STAGGER_S;
-      const rate = reducedMotion ? 30 : go ? 4.2 : 3.2;
       const prevM = p.m;
-      p.m += ((go ? 1 : 0) - Math.max(0, p.m)) * damp(rate, dt);
-      if (p.m < 0.0005 && !go) p.m = 0;
+      p.prog = reducedMotion
+        ? go ? 1 : 0
+        : Math.min(1, Math.max(0, p.prog + (go ? dt / OUT_S : -dt / IN_S)));
+      p.m = easeInOut(p.prog);
 
       // orbit pose
       const th = index * 1.3 + t * spin + (i / n) * Math.PI * 2;
@@ -359,61 +364,61 @@ const BeaconScreens = ({ beacon, planet, height, index, reducedMotion }: Props) 
       _o.rotateZ(Math.sin(i * 2.1 + index) * 0.5);
       const orbitPos = _op.copy(_o.position);
       const orbitQuat = _oq.copy(_o.quaternion);
-      if (Number.isNaN(p.pos.x)) {
-        p.pos.copy(orbitPos);
-        p.quat.copy(orbitQuat);
-      }
 
-      const w = p.size.w * s.fit;
-      const h = p.size.h * s.fit;
-      if (lay && go) {
-        // fly out to the screen slot, turning to face the viewer
+      if (lay && s.active) {
+        // the screen slot, re-anchored gently when the viewer walks
         const [lx, ly] = lay.pos[i];
         _tp.set(regionX + lx * lay.s, topY - ly * lay.s, -PLANE_D).applyQuaternion(s.anchorQuat).add(s.anchorPos);
-        p.pos.lerp(_tp, damp(reducedMotion ? 30 : 5, dt));
-        _o.position.copy(p.pos);
+        _o.position.copy(_tp);
         _o.lookAt(cam);
-        p.quat.slerp(_o.quaternion, damp(reducedMotion ? 30 : 7, dt));
-        htmlGroups.current[i]?.scale.setScalar(lay.s);
-      } else if (p.m > 0.0005) {
-        // folding home: chase the orbit slot
-        p.pos.lerp(orbitPos, damp(reducedMotion ? 30 : 4.5, dt));
-        p.quat.slerp(orbitQuat, damp(reducedMotion ? 30 : 4.5, dt));
+        if (!p.hasTarget) {
+          p.target.copy(_tp);
+          p.face.copy(_o.quaternion);
+          p.hasTarget = true;
+        } else {
+          p.target.lerp(_tp, damp(reducedMotion ? 30 : 2.2, dt));
+          p.face.slerp(_o.quaternion, damp(reducedMotion ? 30 : 2.2, dt));
+        }
+      }
+      if (p.prog <= 0) p.hasTarget = false;
+
+      if (p.hasTarget && p.m > 0) {
+        // one smooth bowed path between the orbit slot and the screen slot
+        p.pos.copy(orbitPos).lerp(p.target, p.m);
+        p.pos.y += Math.sin(Math.PI * p.m) * ARC;
+        p.quat.copy(orbitQuat).slerp(p.face, p.m);
       } else {
         p.pos.copy(orbitPos);
         p.quat.copy(orbitQuat);
       }
       grp.position.copy(p.pos);
       grp.quaternion.copy(p.quat);
-      if (p.m > 0.0005) anyOut = true;
+      htmlGroups.current[i]?.scale.setScalar(s.fit);
+      if (p.prog > 0) anyOut = true;
 
       // morph the outline from orbiting polygon to screen
+      const w = p.size.w * s.fit;
+      const h = p.size.h * s.fit;
       if (Math.abs(p.m - prevM) > 1e-5 || prevM < 0 || lay) {
         const scr = screenShape(p.kind, w, h);
         const pa = p.geo.getAttribute('position') as THREE.BufferAttribute;
-        const la = p.line.getAttribute('position') as THREE.BufferAttribute;
-        const m = p.m * p.m * (3 - 2 * p.m);
+        const poly = p.mat.uniforms.uPoly.value as THREE.Vector2[];
         pa.setXYZ(0, 0, 0, 0);
         for (let k = 0; k < p.orbit.length; k += 1) {
-          const x = p.orbit[k][0] + (scr[k][0] - p.orbit[k][0]) * m;
-          const y = p.orbit[k][1] + (scr[k][1] - p.orbit[k][1]) * m;
+          const x = p.orbit[k][0] + (scr[k][0] - p.orbit[k][0]) * p.m;
+          const y = p.orbit[k][1] + (scr[k][1] - p.orbit[k][1]) * p.m;
           pa.setXYZ(k + 1, x, y, 0);
-          la.setXYZ(k, x, y, 0.001);
+          poly[k].set(x, y);
         }
         pa.needsUpdate = true;
-        la.needsUpdate = true;
         p.geo.computeBoundingSphere();
-        p.line.computeBoundingSphere();
       }
-
-      ORBIT_FILL.set(planet.accent).multiplyScalar(0.35);
-      p.fill.color.copy(ORBIT_FILL).lerp(SCREEN_FILL, p.m);
-      p.fill.opacity = 0.5 + 0.44 * p.m;
-      p.edge.opacity = 0.9 - 0.35 * p.m;
+      p.mat.uniforms.uM.value = p.m;
+      p.mat.uniforms.uTime.value = t;
 
       const el = contents.current[i];
       if (el) {
-        const o = smooth(0.82, 0.98, p.m);
+        const o = smooth(0.72, 0.97, p.m);
         el.style.opacity = o.toFixed(3);
         el.style.visibility = o > 0.01 ? 'visible' : 'hidden';
         el.style.pointerEvents = o > 0.6 ? 'auto' : 'none';
@@ -444,8 +449,7 @@ const BeaconScreens = ({ beacon, planet, height, index, reducedMotion }: Props) 
             groups.current[i] = el;
           }}
         >
-          <mesh geometry={p.geo} material={p.fill} renderOrder={5} />
-          <lineLoop geometry={p.line} material={p.edge} renderOrder={6} />
+          <mesh geometry={p.geo} material={p.mat} renderOrder={5} />
           {open && (
             <group
               ref={(el) => {

@@ -39,7 +39,7 @@ flowchart LR
     veil["TransitionVeil"]
   end
   content[("content.json")]
-  drone["drone.ts<br/><sub>Web Audio string drone</sub>"]
+  drone["drone.ts<br/><sub>Web Audio chord pad, critter calls</sub>"]
 
   bridge -->|"look, keys"| runtime
   bridge -->|"shortcuts"| store
@@ -48,6 +48,7 @@ flowchart LR
   surface -->|"beaconScreen, focus"| runtime & store
   runtime -->|"rAF markers"| hud
   surface --> screens
+  surface -->|"critterCall"| drone
   store -->|"focusedBeaconId"| screens
   store -->|"mode, planet key"| drone
   content --> overworld & surface & hud & panel & reader & screens
@@ -82,7 +83,7 @@ sequenceDiagram
   V->>P: click a monument
   P->>S: glideToBeacon, setFocusedBeacon
   S-->>B: focusedBeaconId = proj-iris
-  B->>B: panels fly out, face the camera, grow into screens
+  B->>B: panels ease out on a bowed path, face the camera, grow into hologram screens
   Note over V,B: One screen per part (title, video, description, highlights, stack) beside the monument
 ```
 
@@ -95,10 +96,10 @@ Guarantees and limits:
 - The render loop pauses while the reader is open.
 - `prefers-reduced-motion` replaces camera flights with a short crossfade and removes head bob.
 - Each surface matches its planet from orbit: basalt and lava rifts on Awards, an island in shallow water on Skills, a mesa above a cloud deck on Projects. Walking is clamped to 30 units, or to the island or mesa edge.
-- Every planet has one architecture for its monuments (obelisks, art deco towers, classical columns, pagodas, gothic arches); each monument varies its proportions from a hash of its id, and its floating crown carries its meaning (award tier, project glyph).
-- Beacon screens are real DOM (drei `Html` in transform mode, portalled into `#screen-layer` between the canvas and the HUD), so links, the video and keyboard focus work. They lay out in up to three columns on a plane 3.2 units in front of the camera, on whichever side of the monument has room, and shrink to fit the view. They fold back past 8.5 units.
-- Wildlife is picked by planet style: gulls on Skills, birds and deer on Contact, hopping aliens and birds on About, glowing drifters on Projects, nothing on Awards. Birds are one instanced mesh with wing flaps in the vertex shader; walkers wander a ring behind the monuments and trot away from the viewer.
-- The ambient drone is synthesised (detuned saws through a slow lowpass and a generated reverb), plays each planet's `key` from content.json, crossfades over 4 s on travel and sits at 0.08 gain in orbit against 0.2 on a planet. It starts on the first click or key press; the Sound toggle is stored in `localStorage` and suspends the audio context when off.
+- Every planet has one architecture for its monuments (obelisks, art deco towers, classical columns, pagodas, gothic arches), and each monument on a planet takes a different form of it by its index (for example column, twin columns with a beam, tholos and victory column on Awards). Proportions vary from a hash of the id, and the floating crown carries its meaning (award tier, project glyph).
+- Beacon screens are real DOM (drei `Html` in transform mode, portalled into `#screen-layer` between the canvas and the HUD), so links, the video and keyboard focus work. They lay out in up to three columns on a plane 3.2 units in front of the camera, on whichever side of the monument has room, and shrink to fit the view. They fold back past 8.5 units. Each panel flies on a time-based ease-in-out (1.35 s out, 1 s back, 0.16 s stagger) along a slightly bowed path. Panels are drawn by a hologram shader (`hologram.ts`): distance to the morphing outline drives a noise-eroded, fizzing edge with specks, a rim glow, scanlines, a refresh band and a rare flicker, and each panel seeds its own scan angle and density, dot grid, edge width and tint.
+- Wildlife is picked by planet style: gulls on Skills, birds and deer on Contact, hopping aliens and birds on About, glowing drifters on Projects, nothing on Awards. Birds are one instanced mesh with wing flaps in the vertex shader. The animals notice the viewer: walkers inside 13 units come over and follow at about 2.4 units, fanned out on their own sides, face the viewer when stopped, greet a viewer who stands still (deer prance and bob, hoppers spin-hop), skip back when rushed, and lose interest after 60 s or past 24 units. They walk around monuments and each other. Two birds swoop down to circle a viewer who stands still for 3 s and leave when the viewer walks on; drifters within 15 units hover around the viewer. A click on any animal makes it greet. Reduced motion keeps them still.
+- The ambient pad is synthesised (detuned saws through a slow lowpass and a generated reverb) in each planet's `key` from content.json. It walks an eight-chord progression with voice-led triads and a bass (I vi IV V I iii ii V in major, i VI iv V i III VII V in minor, harmonic-minor V), so every phrase cadences home; each V holds a suspended fourth and resolves it halfway through, and soft chimes land on chord tones. Chords last 8 s on a planet and 11 s in orbit with a 3.2 s overlap; a new key restarts on I and blends over 4 s. It sits at 0.08 gain in orbit against 0.2 on a planet. Animal calls (chirp, squeak, mew, boop) are short synthesised sweeps levelled by distance, panned around the camera and rate-limited. It starts on the first click or key press; the Sound toggle is stored in `localStorage` and suspends the audio context when off.
 - Type is one self-hosted family, Archivo (expanded cut for display, normal for text), with JetBrains Mono only for key caps and handles. No font CDN.
 - Post-processing renders in linear HDR with AgX tone mapping and a light contrast lift; only values above 1.0 bloom (sun, lava, glints, focused seams). Touch devices drop multisampling and film grain.
 

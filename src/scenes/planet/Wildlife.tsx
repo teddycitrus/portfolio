@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Planet, PlanetStyle } from '@/types/content';
 import type { HeightFn } from './Terrain';
 import { mulberry, seedOf } from './rng';
+import { critterCall, type CritterVoice } from '@/audio/drone';
+import { dragLook, mouseLook } from '@/state/runtime';
 
 /* ---------- which creatures live where ---------- */
 
@@ -35,6 +37,39 @@ const FAUNA: Record<PlanetStyle, Fauna> = {
 
 const damp = (rate: number, dt: number) => 1 - Math.exp(-rate * dt);
 const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+const smooth01 = (x: number) => {
+  const t = Math.min(1, Math.max(0, x));
+  return t * t * (3 - 2 * t);
+};
+
+/* ---------- the viewer, as the animals see them ---------- */
+
+/** Smoothed walking speed (units/s) and how long the viewer has stood still (s). */
+interface Viewer {
+  x: number;
+  z: number;
+  speed: number;
+  still: number;
+}
+type ViewerRef = { current: Viewer };
+
+const _right = new THREE.Vector3();
+/** Plays a call from a world point, levelled by distance and panned around the camera. */
+const callFrom = (camera: THREE.Camera, kind: CritterVoice, x: number, y: number, z: number) => {
+  const dx = x - camera.position.x;
+  const dy = y - camera.position.y;
+  const dz = z - camera.position.z;
+  const d = Math.hypot(dx, dy, dz);
+  _right.set(1, 0, 0).applyQuaternion(camera.quaternion);
+  const pan = d > 1e-3 ? (dx * _right.x + dy * _right.y + dz * _right.z) / d : 0;
+  critterCall(kind, d, pan * 0.85);
+};
+
+/** A real click on a creature (not the end of a drag, not a locked-cursor press). */
+const isPoke = (e: ThreeEvent<MouseEvent>) => {
+  e.stopPropagation();
+  return dragLook.travel < 6 && !mouseLook.pressLocked;
+};
 
 /* ---------- birds: one instanced mesh, wings flap in the vertex shader ---------- */
 
@@ -85,7 +120,22 @@ const birdMaterial = (color: string, time: { value: number }) => {
   return m;
 };
 
-const Birds = ({ planet, cfg, reducedMotion }: { planet: Planet; cfg: NonNullable<Fauna['birds']>; reducedMotion?: boolean }) => {
+/** Seconds of standing still before a couple of birds come down to circle the viewer */
+const BIRD_VISIT_AFTER = 3;
+const BIRD_VISIT_S = 16;
+
+const Birds = ({
+  planet,
+  cfg,
+  viewer,
+  reducedMotion,
+}: {
+  planet: Planet;
+  cfg: NonNullable<Fauna['birds']>;
+  viewer: ViewerRef;
+  reducedMotion?: boolean;
+}) => {
+  const camera = useThree((s) => s.camera);
   const mesh = useRef<THREE.InstancedMesh>(null);
   const time = useMemo(() => ({ value: 0 }), []);
   const flocks = useMemo(() => {
@@ -105,8 +155,18 @@ const Birds = ({ planet, cfg, reducedMotion }: { planet: Planet; cfg: NonNullabl
       da: (rnd() - 0.5) * 2.5,
       phase: rnd(),
       scale: 1.3 + rnd() * 0.5,
+      // visiting state
+      k: 0,
+      visit: false,
+      until: 0,
+      slot: 0,
+      callIn: 0,
+      last: new THREE.Vector3(NaN, 0, 0),
+      yaw: 0,
+      bank: 0,
     }));
   }, [planet.id, cfg]);
+  const visits = useRef({ cool: 4 });
   const geo = useMemo(() => birdGeometry(cfg.count, flocks.map((f) => f.phase)), [cfg.count, flocks]);
   const mat = useMemo(() => birdMaterial(cfg.color, time), [cfg.color, time]);
   useEffect(
@@ -118,22 +178,79 @@ const Birds = ({ planet, cfg, reducedMotion }: { planet: Planet; cfg: NonNullabl
   );
 
   const dummy = useMemo(() => new THREE.Object3D(), []);
-  useFrame(({ clock }) => {
+  const _p = useMemo(() => new THREE.Vector3(), []);
+  useFrame(({ clock }, delta) => {
     const m = mesh.current;
     if (!m) return;
     const t = reducedMotion ? 4 : clock.elapsedTime;
+    const dt = reducedMotion ? 0 : Math.min(delta, 0.05);
     time.value = t;
+    const v = viewer.current;
+    const cam = camera.position;
+
+    // a still viewer gets company; walking off sends the visitors home
+    const vs = visits.current;
+    vs.cool -= dt;
+    const visiting = flocks.filter((f) => f.visit);
+    if (!reducedMotion && visiting.length === 0 && vs.cool <= 0 && v.still > BIRD_VISIT_AFTER) {
+      flocks
+        .map((f, i) => ({ f, i }))
+        .filter(({ i }) => i % 3 !== 2)
+        .slice(0, 2)
+        .forEach(({ f }, j) => {
+          f.visit = true;
+          f.until = t + BIRD_VISIT_S + j * 3;
+          f.slot = j;
+          f.callIn = 1.5 + j;
+        });
+      vs.cool = 14;
+    }
     flocks.forEach((f, i) => {
+      if (f.visit && (t > f.until || v.speed > 2.2)) {
+        f.visit = false;
+        vs.cool = Math.max(vs.cool, 10);
+        callFrom(camera, 'chirp', f.last.x, f.last.y, f.last.z);
+      }
+      f.k += ((f.visit ? 1 : 0) - f.k) * damp(0.7, dt);
+
       const a = f.c.w * t + f.off;
       const r = f.c.r + f.dr;
-      dummy.position.set(f.c.x + Math.cos(a) * r, f.c.alt + f.da + Math.sin(t * 0.4 + i) * 0.6, f.c.z + Math.sin(a) * r);
-      // heading along the circle; the model's nose is -z
-      const dir = Math.sign(f.c.w) || 1;
-      const tx = -Math.sin(a) * dir;
-      const tz = Math.cos(a) * dir;
-      dummy.rotation.set(0, Math.atan2(-tx, -tz), 0);
-      dummy.rotateZ(-0.35 * dir);
-      dummy.scale.setScalar(f.scale);
+      _p.set(f.c.x + Math.cos(a) * r, f.c.alt + f.da + Math.sin(t * 0.4 + i) * 0.6, f.c.z + Math.sin(a) * r);
+      const k = smooth01(f.k);
+      if (k > 0.001) {
+        // circle low over the viewer's head, the pair on opposite sides
+        const va = t * 0.85 + f.slot * Math.PI;
+        const vr = 2.6 + f.slot * 0.8;
+        _p.lerp(
+          dummy.position.set(cam.x + Math.cos(va) * vr, cam.y + 1.4 + Math.sin(t * 1.2 + f.slot) * 0.3, cam.z + Math.sin(va) * vr),
+          k,
+        );
+        f.callIn -= dt;
+        if (f.callIn <= 0 && k > 0.6) {
+          callFrom(camera, 'chirp', _p.x, _p.y, _p.z);
+          f.callIn = 2.5 + Math.random() * 3;
+        }
+      }
+      // heading from motion; the model's nose is -z
+      if (!Number.isNaN(f.last.x) && dt > 0) {
+        const vx = _p.x - f.last.x;
+        const vz = _p.z - f.last.z;
+        if (vx * vx + vz * vz > 1e-8) {
+          const want = Math.atan2(-vx, -vz);
+          const turn = wrapAngle(want - f.yaw);
+          f.yaw += turn * damp(6, dt);
+          f.bank += (Math.max(-0.6, Math.min(0.6, -turn * 8)) - f.bank) * damp(3, dt);
+        }
+      } else {
+        const dir = Math.sign(f.c.w) || 1;
+        f.yaw = Math.atan2(Math.sin(a) * dir, -Math.cos(a) * dir);
+        f.bank = -0.35 * dir;
+      }
+      f.last.copy(_p);
+      dummy.position.copy(_p);
+      dummy.rotation.set(0, f.yaw, 0);
+      dummy.rotateZ(f.bank);
+      dummy.scale.setScalar(f.scale * (1 - k * 0.25));
       dummy.updateMatrix();
       m.setMatrixAt(i, dummy.matrix);
     });
@@ -145,6 +262,8 @@ const Birds = ({ planet, cfg, reducedMotion }: { planet: Planet; cfg: NonNullabl
 
 /* ---------- walkers: deer and alien hoppers that graze, wander and shy away ---------- */
 
+type Mode = 'wander' | 'curious' | 'shy';
+
 interface Walker {
   x: number;
   z: number;
@@ -154,25 +273,51 @@ interface Walker {
   moving: boolean;
   timer: number;
   phase: number;
-  flee: boolean;
   head: number;
+  mode: Mode;
+  /** Seconds spent following; they get bored eventually */
+  bond: number;
+  /** Seconds before it can notice the viewer again */
+  cool: number;
+  shyT: number;
+  callIn: number;
+  /** Greeting animation time left, and the wait before the next one */
+  greet: number;
+  greetCool: number;
+  /** 0..1 how much the head tracks the viewer */
+  look: number;
+  /** Angle and distance offset of its spot beside the viewer, so a group fans out */
+  slot: number;
+  slotD: number;
 }
 
 const WALK_MIN_R = 14;
 const WALK_MAX_R = 26;
-const SHY_DISTANCE = 4;
+/** They notice the viewer inside this range and give up beyond LOSE */
+const NOTICE = 13;
+const LOSE = 24;
+/** Following distance and how long before they lose interest */
+const FOLLOW = 2.4;
+const BORED_S = 60;
+const GREET_S = 1.3;
+const WORLD_R = 34;
 
 const Walkers = ({
   planet,
   kind,
   count,
   ground,
+  obstacles,
+  viewer,
   reducedMotion,
 }: {
   planet: Planet;
   kind: 'deer' | 'hopper';
   count: number;
   ground: HeightFn;
+  /** Monument footprints (x, z) to walk around */
+  obstacles: [number, number][];
+  viewer: ViewerRef;
   reducedMotion?: boolean;
 }) => {
   const camera = useThree((s) => s.camera);
@@ -205,8 +350,17 @@ const Walkers = ({
           moving: false,
           timer: 1 + rnd() * 5,
           phase: rnd() * 10,
-          flee: false,
           head: 0,
+          mode: 'wander',
+          bond: 0,
+          cool: 2 + rnd() * 4,
+          shyT: 0,
+          callIn: 0,
+          greet: 0,
+          greetCool: 0,
+          look: 0,
+          slot: (i % 2 ? 1 : -1) * (0.35 + Math.floor(i / 2) * 0.45),
+          slotD: (i % 3) * 0.6,
         };
         w.tx = w.x;
         w.tz = w.z;
@@ -236,41 +390,88 @@ const Walkers = ({
   }, [kind, planet.accent]);
   useEffect(() => () => Object.values(mats).forEach((m) => m?.dispose()), [mats]);
 
+  const speak = (w: Walker) => callFrom(camera, kind === 'deer' ? 'mew' : 'squeak', w.x, ground(w.x, w.z) + 0.6, w.z);
+  const greet = (w: Walker) => {
+    w.greet = GREET_S;
+    w.greetCool = 7 + rnd() * 6;
+    speak(w);
+  };
+
   useFrame(({ clock }, delta) => {
     const dt = reducedMotion ? 0 : Math.min(delta, 0.05);
     const t = clock.elapsedTime;
+    const v = viewer.current;
+    const px = camera.position.x;
+    const pz = camera.position.z;
     walkers.forEach((w, i) => {
       const g = refs.current[i];
       if (!g) return;
-      // shy: trot away from the viewer when they come close
-      const cdx = w.x - camera.position.x;
-      const cdz = w.z - camera.position.z;
+      const cdx = w.x - px;
+      const cdz = w.z - pz;
       const cd = Math.hypot(cdx, cdz);
-      if (!reducedMotion && cd < SHY_DISTANCE && !w.flee) {
-        w.flee = true;
-        w.moving = true;
-        w.tx = w.x + (cdx / (cd || 1)) * 6;
-        w.tz = w.z + (cdz / (cd || 1)) * 6;
-        const tr = Math.hypot(w.tx, w.tz);
-        if (tr > WALK_MAX_R + 4) {
-          w.tx *= (WALK_MAX_R + 4) / tr;
-          w.tz *= (WALK_MAX_R + 4) / tr;
+      w.cool -= dt;
+      w.greetCool -= dt;
+      w.callIn -= dt;
+      w.greet = Math.max(0, w.greet - dt);
+
+      if (!reducedMotion) {
+        if (w.mode === 'wander' && cd < NOTICE && w.cool <= 0) {
+          // noticed you: perk up and come over
+          w.mode = 'curious';
+          w.bond = 0;
+          w.callIn = 0.4 + rnd() * 1.2;
+        }
+        if (w.mode === 'shy') {
+          w.shyT -= dt;
+          if (w.shyT <= 0) w.mode = 'curious';
+        } else if (w.mode === 'curious') {
+          w.bond += dt;
+          if (cd > LOSE || w.bond > BORED_S) {
+            // lost you, or lost interest: back to grazing for a while
+            w.mode = 'wander';
+            w.cool = cd > LOSE ? 6 : 20 + rnd() * 15;
+            w.moving = false;
+            w.timer = 0.5 + rnd();
+          } else if (v.speed > 3.4 && cd < 3.2) {
+            // rushed at: skip back a few steps, then come again
+            w.mode = 'shy';
+            w.shyT = 1.6;
+            w.tx = w.x + (cdx / (cd || 1)) * 3;
+            w.tz = w.z + (cdz / (cd || 1)) * 3;
+            w.moving = true;
+            speak(w);
+          } else {
+            // a spot beside the viewer on its own side; a group fans out around you
+            const a = Math.atan2(cdz, cdx) + w.slot;
+            const fd = FOLLOW + w.slotD;
+            w.tx = px + Math.cos(a) * fd;
+            w.tz = pz + Math.sin(a) * fd;
+            const dd = Math.hypot(w.tx - w.x, w.tz - w.z);
+            if (!w.moving && dd > 1.2) w.moving = true;
+            if (w.callIn <= 0) {
+              speak(w);
+              w.callIn = 7 + rnd() * 9;
+            }
+            // standing beside a still viewer: say hello
+            if (!w.moving && cd < fd + 1.4 && v.still > 1.1 && w.greetCool <= 0) greet(w);
+          }
         }
       }
+
       w.timer -= dt;
-      if (!w.moving && w.timer <= 0) {
+      if (w.mode === 'wander' && !w.moving && w.timer <= 0) {
         pick(w);
         w.moving = true;
       }
       const dx = w.tx - w.x;
       const dz = w.tz - w.z;
       const d = Math.hypot(dx, dz);
-      const speed = (kind === 'deer' ? 0.9 : 1.1) * (w.flee ? 2.4 : 1);
-      if (w.moving) {
-        if (d < 0.15) {
+      const hurry = w.mode === 'shy' ? 2.6 : w.mode === 'curious' && d > 5 ? 2.3 : 1;
+      const speed = (kind === 'deer' ? 0.9 : 1.1) * hurry;
+      if (w.moving && w.greet <= 0) {
+        if (d < (w.mode === 'wander' ? 0.15 : 0.4)) {
           w.moving = false;
-          w.flee = false;
-          w.timer = 3 + rnd() * 6;
+          if (w.mode === 'wander') w.timer = 3 + rnd() * 6;
         } else {
           const want = Math.atan2(dx, dz);
           w.yaw += wrapAngle(want - w.yaw) * damp(3, dt);
@@ -281,7 +482,42 @@ const Walkers = ({
           w.z += Math.cos(w.yaw) * step;
           w.phase += step * (kind === 'deer' ? 5.5 : 4.2);
         }
+      } else if (w.mode !== 'wander') {
+        // stopped near you: turn to face you
+        w.yaw += wrapAngle(Math.atan2(px - w.x, pz - w.z) - w.yaw) * damp(2.5, dt);
       }
+
+      // walk around monuments and each other, stay on the island
+      for (const [ox, oz] of obstacles) {
+        const ex = w.x - ox;
+        const ez = w.z - oz;
+        const e = Math.hypot(ex, ez);
+        if (e < 1.35 && e > 1e-4) {
+          w.x = ox + (ex / e) * 1.35;
+          w.z = oz + (ez / e) * 1.35;
+        }
+      }
+      for (let j = 0; j < i; j += 1) {
+        const o = walkers[j];
+        const ex = w.x - o.x;
+        const ez = w.z - o.z;
+        const e = Math.hypot(ex, ez);
+        if (e < 0.9 && e > 1e-4) {
+          const push = (0.9 - e) / 2;
+          w.x += (ex / e) * push;
+          w.z += (ez / e) * push;
+          o.x -= (ex / e) * push;
+          o.z -= (ez / e) * push;
+        }
+      }
+      const wr = Math.hypot(w.x, w.z);
+      if (wr > WORLD_R) {
+        w.x *= WORLD_R / wr;
+        w.z *= WORLD_R / wr;
+      }
+      w.look += ((w.mode !== 'wander' ? 1 : 0) - w.look) * damp(2, dt);
+      const lookYaw = Math.max(-0.8, Math.min(0.8, wrapAngle(Math.atan2(px - w.x, pz - w.z) - w.yaw))) * w.look;
+      const gp = w.greet > 0 ? 1 - w.greet / GREET_S : 0;
       const gy = ground(w.x, w.z);
       g.position.set(w.x, gy, w.z);
       g.rotation.y = w.yaw;
@@ -291,30 +527,58 @@ const Walkers = ({
         legs.current[i]?.forEach((leg, k) => {
           if (leg) leg.rotation.x = (k === 0 || k === 3 ? 1 : -1) * swing;
         });
-        // graze with the head down while idle, look up now and then
-        const grazing = !w.moving && Math.sin(t * 0.5 + i * 2.3) > -0.3;
+        // graze with the head down while idle, look up now and then; head up and watching when curious
+        const grazing = w.mode === 'wander' && !w.moving && Math.sin(t * 0.5 + i * 2.3) > -0.3;
         w.head += ((grazing ? 1 : 0) - w.head) * damp(2.5, dt);
         const neck = necks.current[i];
-        if (neck) neck.rotation.x = -0.35 + w.head * 1.35 + (grazing ? Math.sin(t * 3 + i) * 0.04 : 0);
+        if (neck) {
+          neck.rotation.x =
+            -0.35 + w.head * 1.35 + (grazing ? Math.sin(t * 3 + i) * 0.04 : 0) + Math.sin(gp * Math.PI * 4) * 0.3 * (gp > 0 ? 1 : 0);
+          neck.rotation.y = lookYaw;
+        }
+        // a hello is two little prancing hops
+        if (gp > 0) g.position.y += Math.abs(Math.sin(gp * Math.PI * 2)) * 0.16;
       } else {
-        // hoppers bounce along with a squash on landing
-        const hop = w.moving ? Math.abs(Math.sin(w.phase)) : 0;
+        // hoppers bounce along with a squash on landing; near you they bounce in place
+        const excited = w.mode === 'curious' && !w.moving && cd < 5;
+        const hop = w.moving
+          ? Math.abs(Math.sin(w.phase))
+          : gp > 0
+            ? Math.sin(gp * Math.PI) * 1.8
+            : excited
+              ? Math.abs(Math.sin(t * 5 + i)) * 0.3
+              : 0;
         const body = g.children[0];
         body.position.y = 0.24 + hop * 0.38;
-        const squash = w.moving ? 1 - (1 - hop) * 0.25 : 1 + Math.sin(t * 2 + i) * 0.03;
+        // a hello is a big hop with a full spin
+        body.rotation.y = gp > 0 ? smooth01(gp) * Math.PI * 2 : 0;
+        const squash = w.moving || excited ? 1 - (1 - Math.min(1, hop)) * 0.25 : 1 + Math.sin(t * 2 + i) * 0.03;
         body.scale.set(1 / Math.sqrt(squash), squash, 1 / Math.sqrt(squash));
         const neck = necks.current[i];
-        if (neck) neck.rotation.z = Math.sin(t * 1.3 + i * 1.7) * 0.25;
+        if (neck) {
+          neck.rotation.z = Math.sin(t * (w.mode === 'wander' ? 1.3 : 4.5) + i * 1.7) * (w.mode === 'wander' ? 0.25 : 0.35);
+          neck.rotation.y = lookYaw;
+        }
       }
     });
   });
+
+  const poke = (e: ThreeEvent<MouseEvent>, i: number) => {
+    if (!isPoke(e)) return;
+    const w = walkers[i];
+    if (w.greet > 0) return;
+    w.mode = 'curious';
+    w.bond = 0;
+    w.moving = false;
+    greet(w);
+  };
 
   return (
     <>
       {walkers.map((_, i) => {
         if (!legs.current[i]) legs.current[i] = [];
         return kind === 'deer' ? (
-          <group key={i} ref={(el) => (refs.current[i] = el)}>
+          <group key={i} ref={(el) => (refs.current[i] = el)} onClick={(e) => poke(e, i)}>
             {/* body and legs; the model faces +z */}
             <mesh material={mats.body} position={[0, 0.72, 0]} castShadow>
               <boxGeometry args={[0.32, 0.34, 0.78]} />
@@ -349,7 +613,7 @@ const Walkers = ({
             </group>
           </group>
         ) : (
-          <group key={i} ref={(el) => (refs.current[i] = el)} scale={1.4}>
+          <group key={i} ref={(el) => (refs.current[i] = el)} scale={1.4} onClick={(e) => poke(e, i)}>
             <group>
               <mesh material={mats.body} castShadow>
                 <icosahedronGeometry args={[0.24, 1]} />
@@ -380,7 +644,11 @@ const Walkers = ({
 
 /* ---------- jellies: translucent drifters that pulse and rise over the clouds ---------- */
 
+/** Jellies drift over to hover around a viewer inside this range */
+const JELLY_NEAR = 15;
+
 const Jellies = ({ planet, count, reducedMotion }: { planet: Planet; count: number; reducedMotion?: boolean }) => {
+  const camera = useThree((s) => s.camera);
   const refs = useRef<(THREE.Group | null)[]>([]);
   const bells = useRef<(THREE.Object3D | null)[]>([]);
   const tentacles = useRef<(THREE.Object3D | null)[][]>([]);
@@ -393,6 +661,10 @@ const Jellies = ({ planet, count, reducedMotion }: { planet: Planet; count: numb
       w: (0.008 + rnd() * 0.01) * (rnd() < 0.5 ? -1 : 1),
       ph: rnd() * 10,
       size: 0.45 + rnd() * 0.45,
+      k: 0,
+      met: false,
+      callIn: 4 + rnd() * 6,
+      pulse: 0,
     }));
   }, [planet.id, count]);
 
@@ -418,17 +690,47 @@ const Jellies = ({ planet, count, reducedMotion }: { planet: Planet; count: numb
   }, [planet.accent]);
   useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats]);
 
-  useFrame(({ clock }) => {
+  const _base = useMemo(() => new THREE.Vector3(), []);
+  const _near = useMemo(() => new THREE.Vector3(), []);
+  const boop = (j: (typeof jellies)[number], g: THREE.Object3D) => {
+    j.pulse = 1;
+    callFrom(camera, 'boop', g.position.x, g.position.y, g.position.z);
+  };
+  useFrame(({ clock }, delta) => {
     const t = reducedMotion ? 3 : clock.elapsedTime;
+    const dt = reducedMotion ? 0 : Math.min(delta, 0.05);
+    const cam = camera.position;
     jellies.forEach((j, i) => {
       const g = refs.current[i];
       if (!g) return;
       const a = j.a + t * j.w;
       // a pulse pushes it up, then it sinks slowly
       const beat = Math.sin(t * 1.4 + j.ph);
-      g.position.set(Math.cos(a) * j.r, j.y + Math.sin(t * 0.25 + j.ph) * 1.2 + beat * 0.12, Math.sin(a) * j.r);
+      _base.set(Math.cos(a) * j.r, j.y + Math.sin(t * 0.25 + j.ph) * 1.2 + beat * 0.12, Math.sin(a) * j.r);
+      // curious drifters come over and hover around you, each on its own slow ring
+      const near = !reducedMotion && Math.hypot(_base.x - cam.x, _base.z - cam.z) < JELLY_NEAR;
+      j.k += ((near ? 1 : 0) - j.k) * damp(0.45, dt);
+      const k = smooth01(j.k) * 0.92;
+      if (k > 0.001) {
+        const va = j.a * 3 + t * 0.16 * (i % 2 ? 1 : -1);
+        const vr = 3.1 + (i % 3) * 0.8;
+        _near.set(cam.x + Math.cos(va) * vr, cam.y + 0.7 + (i % 2) * 1.1 + beat * 0.15, cam.z + Math.sin(va) * vr);
+        _base.lerp(_near, k);
+      }
+      g.position.copy(_base);
+      if (j.k > 0.55 && !j.met) {
+        j.met = true;
+        boop(j, g);
+      } else if (j.k < 0.2) j.met = false;
+      j.callIn -= dt;
+      if (j.k > 0.8 && j.callIn <= 0) {
+        boop(j, g);
+        j.callIn = 8 + Math.random() * 10;
+      }
+      j.pulse = Math.max(0, j.pulse - dt * 1.4);
       const b = bells.current[i];
-      if (b) b.scale.set(1 - beat * 0.08, 1 + beat * 0.12, 1 - beat * 0.08);
+      const swell = 1 + j.pulse * 0.35;
+      if (b) b.scale.set((1 - beat * 0.08) * swell, (1 + beat * 0.12) * swell, (1 - beat * 0.08) * swell);
       tentacles.current[i]?.forEach((tn, k) => {
         if (tn) {
           tn.rotation.x = Math.sin(t * 1.1 + j.ph + k) * 0.18;
@@ -443,7 +745,15 @@ const Jellies = ({ planet, count, reducedMotion }: { planet: Planet; count: numb
       {jellies.map((j, i) => {
         if (!tentacles.current[i]) tentacles.current[i] = [];
         return (
-          <group key={i} ref={(el) => (refs.current[i] = el)} scale={j.size}>
+          <group
+            key={i}
+            ref={(el) => (refs.current[i] = el)}
+            scale={j.size}
+            onClick={(e) => {
+              const g = refs.current[i];
+              if (isPoke(e) && g) boop(j, g);
+            }}
+          >
             <group ref={(el) => (bells.current[i] = el)}>
               <mesh material={mats.bell}>
                 <sphereGeometry args={[0.6, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2]} />
@@ -473,18 +783,42 @@ const Jellies = ({ planet, count, reducedMotion }: { planet: Planet; count: numb
   );
 };
 
-/** Ambient creatures, chosen by planet style. Fewer on touch devices. */
+/**
+ * Creatures chosen by planet style, fewer on touch devices. They notice the
+ * viewer: walkers come over, follow and greet, birds circle a still viewer,
+ * jellies drift close; each has its own call (see critterCall).
+ */
 const Wildlife = ({
   planet,
   ground,
+  obstacles,
   isTouch,
   reducedMotion,
 }: {
   planet: Planet;
   ground: HeightFn;
+  /** Monument footprints (x, z) */
+  obstacles: [number, number][];
   isTouch?: boolean;
   reducedMotion?: boolean;
 }) => {
+  const camera = useThree((s) => s.camera);
+  const viewer = useRef<Viewer>({ x: NaN, z: NaN, speed: 0, still: 0 });
+  useFrame((_, delta) => {
+    const v = viewer.current;
+    const dt = Math.min(delta, 0.05);
+    const c = camera.position;
+    if (Number.isNaN(v.x) || dt <= 0) {
+      v.x = c.x;
+      v.z = c.z;
+      return;
+    }
+    const sp = Math.hypot(c.x - v.x, c.z - v.z) / dt;
+    v.speed += (Math.min(sp, 20) - v.speed) * damp(5, dt);
+    v.still = v.speed < 0.3 ? v.still + dt : 0;
+    v.x = c.x;
+    v.z = c.z;
+  });
   const f = FAUNA[planet.style];
   const k = isTouch ? 0.6 : 1;
   const birds = useMemo(
@@ -493,13 +827,15 @@ const Wildlife = ({
   );
   return (
     <>
-      {birds && <Birds planet={planet} cfg={birds} reducedMotion={reducedMotion} />}
+      {birds && <Birds planet={planet} cfg={birds} viewer={viewer} reducedMotion={reducedMotion} />}
       {f.walkers && (
         <Walkers
           planet={planet}
           kind={f.walkers.kind}
           count={Math.max(2, Math.round(f.walkers.count * k))}
           ground={ground}
+          obstacles={obstacles}
+          viewer={viewer}
           reducedMotion={reducedMotion}
         />
       )}

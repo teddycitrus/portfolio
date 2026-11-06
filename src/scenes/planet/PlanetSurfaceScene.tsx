@@ -84,7 +84,7 @@ const Surface = ({ planet }: { planet: Planet }) => {
       <Terrain planet={planet} sky={sky} reducedMotion={reducedMotion} />
       <Surroundings planet={planet} sky={sky} reducedMotion={reducedMotion} />
       <Vegetation planet={planet} beacons={clearings} reducedMotion={reducedMotion} />
-      <Wildlife planet={planet} ground={ground} isTouch={isTouch} reducedMotion={reducedMotion} />
+      <Wildlife planet={planet} ground={ground} obstacles={clearings} isTouch={isTouch} reducedMotion={reducedMotion} />
 
       {planet.beacons.map((b, i) => (
         <Beacon
