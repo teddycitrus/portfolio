@@ -2,16 +2,24 @@
  * Shared transition timeline (milliseconds). The camera controller and the
  * DOM veil both read these so the cut always lands under full cover.
  *
- * Enter: camera dives for ENTER_DIVE, the veil (planet colour) reaches full
- * cover at ENTER_TOTAL, the mode switches to 'planet', then the veil lifts
- * over VEIL_LIFT while the camera settles onto the surface.
+ * Enter: the ship burns toward the planet for ENTER_DIVE, the canopy heats up
+ * on entry and the veil (planet sky) reaches full cover at ENTER_TOTAL. The
+ * mode switches to 'planet', the veil lifts over ENTER_VEIL_LIFT while the
+ * ship descends for DESCENT_MS, touches down, and the cockpit frame clears
+ * over COCKPIT_CLEAR_MS. Click to walking: about 1.5 s.
  *
  * Exit: camera launches for EXIT_TOTAL with the veil covering from
  * EXIT_VEIL_START, then the mode switches to 'overworld' and the veil lifts.
  */
-export const ENTER_DIVE = 1500;
-export const ENTER_VEIL_START = 1200;
-export const ENTER_TOTAL = 1600;
+export const ENTER_DIVE = 760;
+export const ENTER_VEIL_START = 560;
+export const ENTER_VEIL_FADE = 200;
+export const ENTER_TOTAL = 760;
+export const ENTER_VEIL_LIFT = 380;
+export const DESCENT_MS = 540;
+export const COCKPIT_CLEAR_MS = 220;
+/** The cockpit closes back around the viewer this fast on launch */
+export const COCKPIT_CLOSE_MS = 600;
 
 export const EXIT_VEIL_START = 900;
 export const EXIT_TOTAL = 1500;

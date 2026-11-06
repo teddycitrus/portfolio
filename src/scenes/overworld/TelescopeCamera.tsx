@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { useAppStore, type SceneMode } from '@/state/useAppStore';
 import { dragLook, pointerState } from '@/state/runtime';
 import { setOverworldView } from '@/data/content';
+import { WINDOW_FIT } from '@/scenes/ship/shape';
 
 const MOUSE_YAW = 0.12;
 const MOUSE_PITCH = 0.07;
@@ -50,7 +51,7 @@ const TelescopeCamera = () => {
   useLayoutEffect(() => {
     const f = frame.current;
     if (f.aspect === 0) f.aspect = size.width / Math.max(size.height, 1);
-    setOverworldView(f.aspect, responsiveFov(f.aspect));
+    setOverworldView(f.aspect, responsiveFov(f.aspect) * WINDOW_FIT);
   }, [size]);
 
   useEffect(() => {
@@ -95,7 +96,7 @@ const TelescopeCamera = () => {
     const aspect = size.width / Math.max(size.height, 1);
     f.aspect += (aspect - f.aspect) * (1 - Math.exp(-5 * dt));
     if (Math.abs(aspect - f.aspect) < 1e-3) f.aspect = aspect;
-    setOverworldView(f.aspect, responsiveFov(f.aspect));
+    setOverworldView(f.aspect, responsiveFov(f.aspect) * WINDOW_FIT);
 
     l.yaw = smoothDamp(l.yaw, ty, l.vy, 0.45, dt);
     l.pitch = smoothDamp(l.pitch, tp, l.vp, 0.45, dt);

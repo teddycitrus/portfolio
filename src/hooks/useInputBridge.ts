@@ -75,7 +75,14 @@ export const useInputBridge = (): void => {
       if (e.pointerType === 'touch') store().setIsTouch(true);
       mouseLook.pressLocked = mouseLook.locked;
       if (mouseLook.locked) {
-        if (e.button === 0 && mouseLook.aimId) openBeacon(mouseLook.aimId, false);
+        if (e.button !== 0) return;
+        // a link or button on an in-world screen under the crosshair takes the click
+        const hit = document
+          .elementsFromPoint(window.innerWidth / 2, window.innerHeight / 2)
+          .find((el) => el.closest('[data-beacon-screen]'))
+          ?.closest<HTMLElement>('a[href], button');
+        if (hit) hit.click();
+        else if (mouseLook.aimId) openBeacon(mouseLook.aimId, false);
         return;
       }
       if (!(e.target instanceof HTMLCanvasElement)) return;

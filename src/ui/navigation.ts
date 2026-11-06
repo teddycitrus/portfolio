@@ -10,10 +10,29 @@ let cancelPending: (() => void) | null = null;
  */
 export const panelFocusIntent = { id: null as string | null };
 
-/** Glide to a beacon and open its panel. `takeFocus` moves focus to the panel heading. */
+/** Opens a URL the way its link would: a new tab, or the mail client in place. */
+export const followLink = (url: string) => {
+  if (url.startsWith('mailto:')) window.location.href = url;
+  else window.open(url, '_blank', 'noopener,noreferrer');
+};
+
+const beaconById = (id: string) => {
+  for (const p of planets) for (const b of p.beacons) if (b.id === id) return b;
+  return undefined;
+};
+
+/**
+ * Glide to a beacon and open its panel. `takeFocus` moves focus to the panel heading.
+ * Clicking a link monument that is already focused follows its link.
+ */
 export const openBeacon = (id: string, takeFocus = true) => {
-  panelFocusIntent.id = takeFocus ? id : null;
   const s = useAppStore.getState();
+  const b = beaconById(id);
+  if (b?.kind === 'link' && s.focusedBeaconId === id) {
+    followLink(b.content.url);
+    return;
+  }
+  panelFocusIntent.id = takeFocus ? id : null;
   s.glideToBeacon(id);
   s.setFocusedBeacon(id);
 };

@@ -26,8 +26,11 @@ const DEPLOY_FOLD = 8.5;
 /** Camera drift that re-anchors the layout */
 const REANCHOR = 1.8;
 const GAP = 0.08;
-/** Chamfer / point depth of screen outlines, world units */
-const CUT = 0.09;
+/** Corner radius of a deployed screen, world units (drawn in the hologram shader) */
+const CORNER = 0.085;
+/** Deployed screens float: bob height (world units) and sway (radians) */
+const BOB = 0.014;
+const SWAY = 0.018;
 /** Panels leave one after another, this far apart */
 const STAGGER_S = 0.16;
 /** Flight time out to the screen slot and back home */
@@ -60,11 +63,14 @@ const orbitShape = (k: ShapeKind, r: number): [number, number][] => {
   });
 };
 
-/** Screen form: a w x h panel keeping the polygon's character in its corners. */
+/**
+ * Screen form: every polygon opens into a w x h rectangle (extra vertices land
+ * on its edges); the shader rounds the corners.
+ */
 const screenShape = (k: ShapeKind, w: number, h: number): [number, number][] => {
   const x = w / 2;
   const y = h / 2;
-  const c = Math.min(CUT, w * 0.2, h * 0.3);
+  const c = 0;
   switch (k) {
     case 'rect':
       return [
@@ -393,6 +399,15 @@ const BeaconScreens = ({ beacon, planet, height, index, reducedMotion }: Props) 
       }
       grp.position.copy(p.pos);
       grp.quaternion.copy(p.quat);
+      if (!reducedMotion && p.m > 0) {
+        // deployed screens drift gently, each on its own slow rhythm
+        const k = p.m * p.m;
+        grp.translateY(Math.sin(t * 0.9 + i * 1.7) * BOB * k);
+        grp.translateX(Math.sin(t * 0.6 + i * 2.9) * BOB * 0.5 * k);
+        grp.rotateX(Math.sin(t * 0.7 + i * 1.3) * SWAY * k);
+        grp.rotateY(Math.sin(t * 0.55 + i * 2.2) * SWAY * k);
+        grp.rotateZ(Math.sin(t * 0.8 + i * 0.9) * SWAY * 0.4 * k);
+      }
       htmlGroups.current[i]?.scale.setScalar(s.fit);
       if (p.prog > 0) anyOut = true;
 
@@ -414,6 +429,8 @@ const BeaconScreens = ({ beacon, planet, height, index, reducedMotion }: Props) 
         p.geo.computeBoundingSphere();
       }
       p.mat.uniforms.uM.value = p.m;
+      (p.mat.uniforms.uHalf.value as THREE.Vector2).set(w / 2, h / 2);
+      p.mat.uniforms.uRad.value = Math.min(CORNER * s.fit, w * 0.25, h * 0.25);
       p.mat.uniforms.uTime.value = t;
 
       const el = contents.current[i];

@@ -5,6 +5,8 @@ import type { Planet } from '@/types/content';
 import { useAppStore } from '@/state/useAppStore';
 import {
   CHAIN_TOTAL,
+  ENTER_VEIL_FADE,
+  ENTER_VEIL_LIFT,
   ENTER_VEIL_START,
   EXIT_CHAIN_VEIL_START,
   EXIT_VEIL_START,
@@ -57,7 +59,7 @@ const TransitionVeil = () => {
         setV({ cover: 0, coverMs: 0, tint: 1, tintMs: 0, planetId });
         later(reduced ? Math.max(0, REDUCED_TOTAL - REDUCED_FADE - 50) : ENTER_VEIL_START, () => {
           covered.current = true;
-          setV((s) => ({ ...s, cover: 1, coverMs: fadeIn }));
+          setV((s) => ({ ...s, cover: 1, coverMs: reduced ? fadeIn : ENTER_VEIL_FADE }));
         });
       }
     } else if (mode === 'transitioning-out') {
@@ -75,7 +77,8 @@ const TransitionVeil = () => {
       });
     } else if (covered.current) {
       covered.current = false;
-      setV((s) => ({ ...s, cover: 0, coverMs: lift }));
+      // landing: the atmosphere clears fast while the ship is still descending
+      setV((s) => ({ ...s, cover: 0, coverMs: mode === 'planet' && !reduced ? ENTER_VEIL_LIFT : lift }));
     }
     return () => timers.forEach((t) => window.clearTimeout(t));
   }, [mode, lockedId, reduced]);

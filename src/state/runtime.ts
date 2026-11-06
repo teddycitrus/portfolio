@@ -79,3 +79,16 @@ export const planetScreen: Record<string, PlanetScreenInfo> = {};
  * written by the surface scene and read by the planet HUD.
  */
 export const beaconScreen: Record<string, PlanetScreenInfo> = {};
+
+/**
+ * Ship flight state, written by the transition controller and the ship rig,
+ * read by the cockpit (speed lines, canopy heat) and the camera rig.
+ */
+export const flight = {
+  /** World-space speed of the viewer, units per second (smoothed) */
+  speed: 0,
+  /** 0..1 heat of atmospheric entry on the canopy */
+  heat: 0,
+  /** Destination planet accent while a dive is in progress */
+  heatColor: '#ffb070',
+};

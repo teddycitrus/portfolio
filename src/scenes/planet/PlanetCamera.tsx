@@ -8,6 +8,7 @@ import type { Vec3 } from '@/types/content';
 import type { HeightFn } from './Terrain';
 import { LABEL_ANCHOR } from './Beacon';
 import { arrivalPulse } from './surfaceState';
+import { DESCENT_MS } from '@/state/timing';
 
 export interface SurfaceBeacon {
   id: string;
@@ -20,8 +21,9 @@ export interface SurfaceBeacon {
 const WALK_SPEED = 3.4;
 const RUN_SPEED = 6.8;
 const PITCH_LIMIT = 0.6;
-const SETTLE_MS = 900;
-const SETTLE_RISE = 2.5;
+/** The descent itself is drawn by the ship rig; this only gates input and focus */
+const SETTLE_MS = DESCENT_MS;
+const SETTLE_RISE = 0;
 const GLIDE_S = 1.1;
 const NEAR_FOCUS = 5.5;
 const GAZE_RANGE = 14;
@@ -181,7 +183,7 @@ const PlanetCamera = ({ planetId, beacons, ground, walkRadius }: PlanetCameraPro
     s.gazeUnlock = settleEnd + GAZE_LOCKOUT_MS;
     arrivalPulse.start = settleEnd + PULSE_DELAY_MS;
     camera.position.set(SURFACE_SPAWN[0], s.y, sz);
-    euler.current.set(reduced ? s.bias : s.bias - 0.12, 0, 0);
+    euler.current.set(s.bias, 0, 0);
     camera.quaternion.setFromEuler(euler.current);
   }, [mode, planetId, camera, beacons, ground, walkRadius]);
 
@@ -335,8 +337,7 @@ const PlanetCamera = ({ planetId, beacons, ground, walkRadius }: PlanetCameraPro
       pos.y = s.y;
     }
 
-    const settlePitch = (1 - settleE) * -0.12;
-    const viewPitch = s.pitch + s.bias + settlePitch;
+    const viewPitch = s.pitch + s.bias;
     euler.current.set(viewPitch, s.yaw, 0, 'YXZ');
     camera.quaternion.setFromEuler(euler.current);
     camera.updateMatrixWorld();

@@ -132,10 +132,12 @@ export const screenParts = (beacon: Beacon): ScreenPart[] => {
           key: 'title',
           width: NARROW,
           node: (
-            <div className="space-y-2">
+            <a href={c.url} {...linkProps(c.url)} className="group block space-y-2">
               <Heading variant={v}>{beacon.label}</Heading>
-              <p className="break-all font-mono text-[13px] text-[var(--accent)]">{c.handle}</p>
-            </div>
+              <p className="break-all font-mono text-[13px] text-[var(--accent)] underline-offset-4 group-hover:underline">
+                {c.handle}
+              </p>
+            </a>
           ),
         },
         {

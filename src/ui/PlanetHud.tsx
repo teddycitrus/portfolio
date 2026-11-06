@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { planetById, planets, profile } from '@/data/content';
+import { planetById } from '@/data/content';
 import type { Planet } from '@/types/content';
 import { beaconScreen, dragLook, isKeyDown, joystickState } from '@/state/runtime';
 import { useAppStore } from '@/state/useAppStore';
@@ -8,7 +8,6 @@ import {
   Button,
   ChevronIcon,
   EASE,
-  EmailLink,
   FLOAT_TEXT,
   HUD_ZOOM,
   HintRow,
@@ -26,7 +25,6 @@ import { useScreenMarkers, type Box } from './useScreenMarkers';
 import { arrivalPulse } from '@/scenes/planet/surfaceState';
 import { openBeacon } from './navigation';
 import { useTour } from './tour';
-import SoundToggle from './SoundToggle';
 
 const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 
@@ -146,77 +144,6 @@ const BeaconMarkers = ({ planet, focused }: { planet: Planet; focused: string | 
           </div>
         );
       })}
-    </div>
-  );
-};
-
-const TravelMenu = ({ current, isTouch }: { current: string; isTouch: boolean }) => {
-  const [open, setOpen] = useState(false);
-  const travelTo = useAppStore((s) => s.travelTo);
-  const root = useRef<HTMLDivElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: PointerEvent) => {
-      if (!root.current?.contains(e.target as Node)) setOpen(false);
-    };
-    window.addEventListener('pointerdown', away);
-    return () => window.removeEventListener('pointerdown', away);
-  }, [open]);
-
-  return (
-    <div
-      ref={root}
-      className="relative"
-      onKeyDown={(e) => {
-        // Esc closes the menu instead of leaving the planet
-        if (e.key === 'Escape' && open) {
-          e.stopPropagation();
-          setOpen(false);
-          trigger.current?.focus();
-        }
-      }}
-    >
-      <Button
-        ref={trigger}
-        size="sm"
-        aria-expanded={open}
-        aria-haspopup="true"
-        onClick={() => setOpen((v) => !v)}
-        className="max-sm:gap-1.5 max-sm:px-3"
-      >
-        Travel
-        <ChevronIcon
-          className={cx('text-ink-muted transition-transform duration-200 ease-out', open ? '-rotate-90' : 'rotate-90')}
-        />
-      </Button>
-      {open && (
-        <ul
-          data-hud-block
-          className="panel pointer-events-auto absolute right-0 top-full mt-2 w-max min-w-56 animate-fade-in rounded-xl p-1.5"
-        >
-          {planets
-            .filter((p) => p.id !== current)
-            .map((p) => (
-              <li key={p.id} style={{ '--accent': p.accent } as CSSProperties}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpen(false);
-                    travelTo(p.id);
-                  }}
-                  className="group flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors duration-150 hover:bg-white/[0.05]"
-                >
-                  <span className="flex-1 text-[14px] text-ink transition-colors duration-150 group-hover:text-[var(--accent)]">
-                    {p.title}
-                  </span>
-                  {!isTouch && <Kbd>{p.index}</Kbd>}
-                </button>
-              </li>
-            ))}
-        </ul>
-      )}
     </div>
   );
 };
@@ -347,7 +274,7 @@ const PlanetHud = () => {
       <BeaconMarkers planet={planet} focused={focused} />
       {locked && <Crosshair />}
 
-      {/* z-40 keeps the Travel menu above the beacon panel (z-30) */}
+      {/* z-40 keeps the header above the beacon panel (z-30) */}
       <header
         ref={header}
         className={cx('absolute inset-x-0 top-0 z-40', HUD_ZOOM)}
@@ -375,9 +302,6 @@ const PlanetHud = () => {
             <span className="truncate font-display text-[18px] leading-none text-ink">{planet.title}</span>
           </p>
           <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <TravelMenu current={planet.id} isTouch={isTouch} />
-            <SoundToggle />
-            <EmailLink email={profile.email} name={profile.name} />
             <Button
               size="sm"
               onClick={() => openReader(planet.id)}

@@ -48,6 +48,8 @@ const frag = /* glsl */ `
   uniform vec3 uCore;
   uniform vec4 uLook;   // scan, angle, grid, edge
   uniform vec2 uLook2;  // grain, tint
+  uniform vec2 uHalf;   // deployed screen half size
+  uniform float uRad;   // deployed corner radius
   varying vec2 vP;
 
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -72,9 +74,16 @@ const frag = /* glsl */ `
     return d;
   }
 
+  // inside distance to a rounded rectangle (negative outside it)
+  float roundDist(vec2 p) {
+    vec2 q = abs(p) - uHalf + uRad;
+    return -(length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - uRad);
+  }
+
   void main() {
     float t = uTime;
-    float d = edgeDist(vP);
+    // the flying polygon settles into a rounded screen
+    float d = mix(edgeDist(vP), roundDist(vP), smoothstep(0.55, 1.0, uM));
     float ew = mix(0.012, uLook.w, uM);
 
     // the border erodes along drifting noise and keeps fizzing
@@ -85,7 +94,7 @@ const frag = /* glsl */ `
 
     // specks that crackle off just outside the eroded line
     vec2 cell = floor(vP * 190.0);
-    float spark = step(0.965, hash(cell + floor(t * 12.0) + uSeed)) * (1.0 - smoothstep(0.0, ew * 1.6, d)) * (1.0 - body);
+    float spark = step(0.965, hash(cell + floor(t * 12.0) + uSeed)) * (1.0 - smoothstep(0.0, ew * 1.6, d)) * (1.0 - body) * step(-ew, d);
 
     // soft rim light hugging the eroded edge
     float rim = exp(-max(d - erode, 0.0) / max(ew * 0.35, 0.002)) * body;
@@ -140,5 +149,7 @@ export const hologramMaterial = (accent: THREE.Color, look: HoloLook, seed: numb
       uCore: { value: new THREE.Color('#070a12').lerp(accent, 0.05) },
       uLook: { value: new THREE.Vector4(look.scan, look.angle, look.grid, look.edge) },
       uLook2: { value: new THREE.Vector2(look.grain, look.tint) },
+      uHalf: { value: new THREE.Vector2(1, 1) },
+      uRad: { value: 0 },
     },
   });

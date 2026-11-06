@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber';
 import OverworldScene from '@/scenes/overworld/OverworldScene';
 import PlanetSurfaceScene from '@/scenes/planet/PlanetSurfaceScene';
 import TransitionController from '@/scenes/transition/TransitionController';
+import Cockpit from '@/scenes/ship/Cockpit';
 import Effects from '@/scenes/Effects';
 import UiRoot from '@/ui/UiRoot';
 import { useInputBridge } from '@/hooks/useInputBridge';
@@ -60,6 +61,7 @@ const App = () => {
               <OverworldScene />
               <PlanetSurfaceScene />
               <TransitionController />
+              <Cockpit />
               <Effects />
             </Suspense>
           </Canvas>

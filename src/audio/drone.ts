@@ -487,3 +487,89 @@ export const critterCall = (kind: CritterVoice, distance: number, pan: number) =
     send.disconnect();
   }, 2000);
 };
+
+/* ---------- ship ---------- */
+
+export type ShipSound = 'dive' | 'land' | 'launch';
+
+let noiseBuf: AudioBuffer | null = null;
+const whiteNoise = (c: AudioContext) => {
+  if (noiseBuf) return noiseBuf;
+  noiseBuf = c.createBuffer(1, c.sampleRate * 2, c.sampleRate);
+  const d = noiseBuf.getChannelData(0);
+  for (let i = 0; i < d.length; i += 1) d[i] = Math.random() * 2 - 1;
+  return noiseBuf;
+};
+
+/**
+ * Engine and air sounds for the flight: the burn and entry rumble of a dive,
+ * the retro hiss and touchdown thud of a landing (`touchdown` seconds later),
+ * and the climb of a launch. Silent while sound is off.
+ */
+export const shipSound = (kind: ShipSound, touchdown = 0.54) => {
+  if (!ctx || !sfx || !verbIn || !enabled || ctx.state !== 'running') return;
+  const c = ctx;
+  const t0 = c.currentTime + 0.005;
+  const out = c.createGain();
+  out.gain.value = 1;
+  out.connect(sfx);
+  const send = c.createGain();
+  send.gain.value = 0.22;
+  out.connect(send).connect(verbIn);
+
+  /** Filtered noise with a frequency sweep and an attack/decay envelope. */
+  const air = (at: number, dur: number, f0: number, f1: number, q: number, peak: number, attack: number, type: BiquadFilterType = 'bandpass') => {
+    const src = c.createBufferSource();
+    src.buffer = whiteNoise(c);
+    src.loop = true;
+    const f = c.createBiquadFilter();
+    f.type = type;
+    f.Q.value = q;
+    f.frequency.setValueAtTime(f0, at);
+    f.frequency.exponentialRampToValueAtTime(f1, at + dur);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(peak, at + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    src.connect(f).connect(g).connect(out);
+    src.start(at, Math.random());
+    src.stop(at + dur + 0.05);
+  };
+  /** A low pitched body: thrust kick or ground thud. */
+  const body = (at: number, dur: number, f0: number, f1: number, peak: number) => {
+    const o = c.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(f0, at);
+    o.frequency.exponentialRampToValueAtTime(f1, at + dur);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(peak, at + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    o.connect(g).connect(out);
+    o.start(at);
+    o.stop(at + dur + 0.05);
+  };
+
+  switch (kind) {
+    case 'dive':
+      // thrust kick, a rush that climbs with the speed, entry rumble underneath
+      body(t0, 0.55, 64, 38, 0.32);
+      air(t0, 0.9, 240, 2800, 0.9, 0.16, 0.72);
+      air(t0 + 0.2, 0.75, 70, 260, 0.7, 0.32, 0.52, 'lowpass');
+      break;
+    case 'land':
+      // retro burn hiss bleeding off, then the legs taking the weight
+      air(t0, touchdown + 0.15, 1500, 280, 0.7, 0.13, 0.03);
+      body(t0 + touchdown, 0.42, 82, 33, 0.42);
+      air(t0 + touchdown, 0.3, 700, 140, 0.6, 0.18, 0.01, 'lowpass');
+      break;
+    case 'launch':
+      body(t0, 0.7, 46, 70, 0.26);
+      air(t0, 1.3, 180, 2200, 0.8, 0.13, 1.0);
+      break;
+  }
+  window.setTimeout(() => {
+    out.disconnect();
+    send.disconnect();
+  }, 3000);
+};

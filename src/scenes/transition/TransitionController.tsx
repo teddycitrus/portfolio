@@ -4,16 +4,20 @@ import * as THREE from 'three';
 import type { Planet, Vec3 } from '@/types/content';
 import { getOrbitalPosition, planetById } from '@/data/content';
 import { useAppStore } from '@/state/useAppStore';
+import { flight } from '@/state/runtime';
 import { CHAIN_TOTAL, ENTER_DIVE, ENTER_TOTAL, EXIT_CHAIN_TOTAL, EXIT_TOTAL, REDUCED_TOTAL } from '@/state/timing';
 import { responsiveFov, surfaceFov } from '@/scenes/overworld/TelescopeCamera';
 
-/** The dive narrows the lens by this factor. */
-const DIVE_ZOOM = 0.85;
+/** The burn widens the lens by this many degrees at full speed. */
+const DIVE_FOV_GAIN = 15;
+/** Exponent of the burn: slow off the line, then hard acceleration into the atmosphere */
+const DIVE_POWER = 1.75;
 /** Dive stops this many radii from the centre so baked detail is never magnified into texels. */
 const DIVE_END = 1.85;
 const LAUNCH_FOV = 80;
 const LAUNCH_PITCH = 1.2;
-const LOOK_SETTLE = 700;
+/** The ship swings onto its target this fast */
+const LOOK_SETTLE = 280;
 const TILT_TIME = 900;
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -27,7 +31,10 @@ const _euler = new THREE.Euler(0, 0, 0, 'YXZ');
 
 const clamp01 = (x: number) => Math.min(Math.max(x, 0), 1);
 const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+const smoothstep = (a: number, b: number, x: number) => {
+  const t = clamp01((x - a) / (b - a));
+  return t * t * (3 - 2 * t);
+};
 
 interface Run {
   kind: 'in' | 'out' | null;
@@ -153,14 +160,18 @@ const TransitionController = () => {
       if (!p) return finish();
       getOrbitalPosition(p, clock.elapsedTime, _orb);
       _target.set(_orb[0], _orb[1], _orb[2]);
-      const e = easeInOutCubic(clamp01(elapsed / ENTER_DIVE));
+      const u = clamp01(elapsed / ENTER_DIVE);
+      const e = Math.pow(u, DIVE_POWER);
       _dir.copy(_target).sub(r.pos).normalize();
       _end.copy(_target).addScaledVector(_dir, -p.radius * DIVE_END);
       camera.position.lerpVectors(r.pos, _end, e);
       _m.lookAt(camera.position, _target, UP);
       _q.setFromRotationMatrix(_m);
-      camera.quaternion.copy(r.quat).slerp(_q, easeOutCubic(clamp01(elapsed / LOOK_SETTLE)));
-      setFov(camera, r.fov * (1 - (1 - DIVE_ZOOM) * e));
+      camera.quaternion.copy(r.quat).slerp(_q, easeInOutCubic(clamp01(elapsed / LOOK_SETTLE)));
+      setFov(camera, r.fov + DIVE_FOV_GAIN * u * u);
+      // the canopy glows as the planet's air hits it
+      flight.heat = smoothstep(0.45, 0.88, u);
+      flight.heatColor = p.accent;
       if (elapsed >= r.total) finish();
       return;
     }
