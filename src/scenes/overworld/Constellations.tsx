@@ -5,11 +5,8 @@ import type { Planet, Vec3 } from '@/types/content';
 import { getOrbitalPosition, planetById } from '@/data/content';
 import { useAppStore } from '@/state/useAppStore';
 
-/** Related sections: awards won by projects, skills used by projects. */
-const LINKS: [string, string][] = [
-  ['awards', 'projects'],
-  ['skills', 'projects'],
-];
+/** Related sections: awards won by projects. */
+const LINKS: [string, string][] = [['awards', 'projects']];
 const SEGMENTS = 64;
 
 const VERTEX = /* glsl */ `

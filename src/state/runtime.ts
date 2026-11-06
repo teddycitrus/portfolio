@@ -91,4 +91,23 @@ export const flight = {
   heat: 0,
   /** Destination planet accent while a dive is in progress */
   heatColor: '#ffb070',
+  /** ms on the arrival clock since the first frame on a planet (-1 before it); drives the takeoff */
+  arrivalMs: -1,
+};
+
+/** Screen rect (CSS px) of a dash display in orbit, written by the cockpit each frame. */
+export interface DashScreen {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  visible: boolean;
+  /** Set by the DOM control; brightens the display */
+  hover: boolean;
+}
+
+/** The two dash displays double as controls: left starts the tour, right opens contact. */
+export const dashScreens: Record<'tour' | 'contact', DashScreen> = {
+  tour: { x: 0, y: 0, w: 0, h: 0, visible: false, hover: false },
+  contact: { x: 0, y: 0, w: 0, h: 0, visible: false, hover: false },
 };

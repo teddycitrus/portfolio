@@ -2,47 +2,62 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { ResolvedSky } from '@/data/skyPresets';
+import { flight } from '@/state/runtime';
+import { ARRIVAL_MS } from '@/state/timing';
+import { shipSound } from '@/audio/drone';
 
 /*
- * The ship that dropped the viewer off, parked high overhead. Out of view at
- * the resting pitch; look up past the monuments to find it. Too far for fog,
- * so the hull is tinted toward the sky by hand to sit in the haze.
+ * The ship that dropped the viewer off. It sits on the ground just behind the
+ * spawn while the viewer steps out, then lifts off, passes low overhead into
+ * view, climbs away and holds station high above: out of view at the resting
+ * pitch, in view once you look up past about 40 degrees. Fog would erase it
+ * at that range, so the hull is tinted toward the sky by distance instead.
  */
 
-/** Ahead of the spawn and well up: about 45 degrees above the horizon */
-const POS = new THREE.Vector3(40, 255, -250);
-const YAW = 0.55;
-/** Share of the sky colour mixed into the hull, standing in for aerial haze */
+/** Takeoff starts this long after the hatch has opened, and lasts TAKEOFF_MS */
+const TAKEOFF_DELAY_MS = 350;
+const TAKEOFF_MS = 7000;
+/** Flight path: parked behind the spawn, low over the viewer, out ahead, up to station */
+const P1 = new THREE.Vector3(0, 52, -20);
+const P2 = new THREE.Vector3(10, 45, -190);
+/** Station: about 53 degrees above the horizon from the spawn */
+const STATION = new THREE.Vector3(40, 245, -175);
+/** Broadside to the landing spot, so looking up shows its full profile */
+const STATION_YAW = -0.22;
+/** Hull runs along x; it waits broadside behind the viewer, low enough that its ring clears the ground */
+const PARK_Z = 30;
+const PARK_LIFT = 21;
+/** Share of the sky colour mixed into the hull at station range, standing in for aerial haze */
 const HAZE = 0.42;
+
+const smooth = (a: number, b: number, x: number) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+const easeInOut = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const _p = new THREE.Vector3();
+const _base = new THREE.Color();
 
 const noRaycast = () => null;
 
 interface Props {
   sky: ResolvedSky;
+  /** Ground height at (x, z) */
+  ground: (x: number, z: number) => number;
   reducedMotion?: boolean;
 }
 
-const Mothership = ({ sky, reducedMotion }: Props) => {
+const Mothership = ({ sky, ground, reducedMotion }: Props) => {
   const root = useRef<THREE.Group>(null);
+  const roared = useRef(false);
+  const park = useMemo(() => new THREE.Vector3(0, ground(0, PARK_Z) + PARK_LIFT, PARK_Z), [ground]);
   const strobe = useRef<THREE.MeshBasicMaterial>(null);
   const beacon = useRef<THREE.MeshBasicMaterial>(null);
 
   const parts = useMemo(() => {
     const haze = sky.fogColor.clone();
-    const hull = new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#5d6573').lerp(haze, HAZE),
-      emissive: haze.clone().multiplyScalar(0.28),
-      metalness: 0.4,
-      roughness: 0.6,
-      fog: false,
-    });
-    const dark = new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#2b3039').lerp(haze, HAZE),
-      emissive: haze.clone().multiplyScalar(0.22),
-      metalness: 0.3,
-      roughness: 0.7,
-      fog: false,
-    });
+    const hull = new THREE.MeshStandardMaterial({ color: '#5d6573', metalness: 0.4, roughness: 0.6, fog: false });
+    const dark = new THREE.MeshStandardMaterial({ color: '#2b3039', metalness: 0.3, roughness: 0.7, fog: false });
     const glow = (c: string, k = 1) =>
       new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(k), fog: false, toneMapped: false });
     const engine = glow('#9cc8ff', 2.2);
@@ -63,7 +78,7 @@ const Mothership = ({ sky, reducedMotion }: Props) => {
           o.updateMatrix();
           winMats.push(o.matrix.clone());
         }
-    return { hull, dark, engine, windows, winGeo, winMats, red: glow('#ff3b30', 2), green: glow('#2bff88', 2) };
+    return { haze, hull, dark, engine, windows, winGeo, winMats, red: glow('#ff3b30', 2), green: glow('#2bff88', 2) };
   }, [sky]);
 
   useEffect(
@@ -82,15 +97,47 @@ const Mothership = ({ sky, reducedMotion }: Props) => {
     m.instanceMatrix.needsUpdate = true;
   }, [parts]);
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock, camera }) => {
     const g = root.current;
     if (!g) return;
     const t = clock.elapsedTime;
-    if (!reducedMotion) {
-      // holding station: a slow heave and a little yaw against the wind
-      g.position.set(POS.x + Math.sin(t * 0.05) * 3, POS.y + Math.sin(t * 0.13) * 1.4, POS.z);
-      g.rotation.set(Math.sin(t * 0.09) * 0.012, YAW + Math.sin(t * 0.04) * 0.03, Math.sin(t * 0.11 + 1) * 0.015);
+    const ms = flight.arrivalMs;
+    // before the first planet frame the arrival clock is -1: sit on the pad
+    const k = reducedMotion ? 1 : ms < 0 ? 0 : Math.min(1, Math.max(0, (ms - ARRIVAL_MS - TAKEOFF_DELAY_MS) / TAKEOFF_MS));
+    if (k > 0 && k < 1 && !roared.current) {
+      roared.current = true;
+      shipSound('takeoff');
     }
+    if (k <= 0) roared.current = false;
+
+    // one cubic curve from the pad to station; the easing gives a slow lift and a long glide in
+    const u = easeInOut(k);
+    const a = 1 - u;
+    _p.copy(park)
+      .multiplyScalar(a * a * a)
+      .addScaledVector(P1, 3 * a * a * u)
+      .addScaledVector(P2, 3 * a * u * u)
+      .addScaledVector(STATION, u * u * u);
+    // holding station: a slow heave and drift, fading in as it arrives
+    const hold = reducedMotion ? 0 : smooth(0.85, 1, k);
+    _p.x += Math.sin(t * 0.05) * 3 * hold;
+    _p.y += Math.sin(t * 0.13) * 1.4 * hold;
+    g.position.copy(_p);
+    // prow onto the flight path, nose up through the climb, then onto the station heading
+    const yaw = (-Math.PI / 2) * smooth(0.02, 0.3, k) + (STATION_YAW + Math.PI / 2) * smooth(0.6, 1, k);
+    const pitch = 0.22 * Math.sin(Math.PI * smooth(0.05, 0.8, k));
+    const bank = 0.14 * Math.sin(Math.PI * smooth(0.55, 1, k));
+    g.rotation.set(bank + Math.sin(t * 0.09) * 0.012 * hold, yaw + Math.sin(t * 0.04) * 0.03 * hold, -pitch, 'YZX');
+
+    // aerial haze by distance; the engines open up for the climb
+    const d = camera.position.distanceTo(g.position);
+    const hz = HAZE * smooth(40, 320, d);
+    parts.hull.color.copy(_base.set('#5d6573')).lerp(parts.haze, hz);
+    parts.hull.emissive.copy(parts.haze).multiplyScalar(0.66 * hz);
+    parts.dark.color.copy(_base.set('#2b3039')).lerp(parts.haze, hz);
+    parts.dark.emissive.copy(parts.haze).multiplyScalar(0.52 * hz);
+    const burn = k > 0 && k < 1 ? 1 + 2.2 * Math.sin(Math.PI * Math.min(1, k * 1.6)) : 1;
+    parts.engine.color.set('#9cc8ff').multiplyScalar(2.2 * burn);
     const s = strobe.current;
     if (s) s.color.setScalar(t % 1.6 < 0.07 ? 4 : 0.05);
     const b = beacon.current;
@@ -98,7 +145,7 @@ const Mothership = ({ sky, reducedMotion }: Props) => {
   });
 
   return (
-    <group ref={root} position={POS} rotation={[0, YAW, 0]} scale={1.5} raycast={noRaycast}>
+    <group ref={root} scale={1.5} raycast={noRaycast}>
       {/* main hull: a long tapered body, flattened, running along x */}
       <mesh material={parts.hull} rotation={[0, 0, Math.PI / 2]} scale={[1, 1, 0.62]} raycast={noRaycast}>
         <cylinderGeometry args={[4.6, 6.4, 54, 10, 1]} />

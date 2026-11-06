@@ -4,6 +4,7 @@ import { dragLook, keyboardState, mouseLook, pointerState } from '@/state/runtim
 import { planetByIndex } from '@/data/content';
 import { openBeacon } from '@/ui/navigation';
 import { useTour } from '@/ui/tour';
+import { useContact } from '@/ui/contact';
 
 const DRAG_SENSITIVITY = 0.0042;
 const TOUCH_DRAG_SENSITIVITY = 0.0065;
@@ -104,6 +105,7 @@ export const useInputBridge = (): void => {
     /* ---- keyboard ---- */
     const onKeyDown = (e: KeyboardEvent) => {
       if (isTypingTarget(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (useContact.getState().open) return;
       keyboardState[e.code] = true;
       const s = store();
 

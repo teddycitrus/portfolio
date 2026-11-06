@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useAppStore, type SceneMode } from '@/state/useAppStore';
-import { flight } from '@/state/runtime';
+import { dashScreens, flight } from '@/state/runtime';
 import { COCKPIT_CLOSE_MS, DESCENT_MS, DOOR_AT, DOOR_OPEN_AT, DOOR_OPEN_MS, DOOR_SHUT_MS, ENTER_DIVE } from '@/state/timing';
 import { responsiveFov } from '@/scenes/overworld/TelescopeCamera';
 import { shipSound } from '@/audio/drone';
@@ -37,6 +37,8 @@ const DESCENT_BANK = 0.09;
 const TOUCH_DIP = 0.24;
 /** How far behind the spawn the viewer stands at the hatch, world units */
 const HATCH_STEP = 1.3;
+/** Arrival clock value meaning "long since landed" */
+const ARRIVAL_DONE = 1e9;
 
 const noRaycast = () => null;
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
@@ -50,8 +52,14 @@ const wobble = (t: number, k: number) =>
 interface Rig {
   mode: SceneMode;
   diveAt: number;
-  /** First rendered frame on the planet; -1 until then */
+  /**
+   * Arrival clock in ms, advanced by clamped frame time from the first frame
+   * on the planet (-1 until then). Frame time, not the wall clock: the first
+   * frames on a new planet can stall on shader compiles, and a wall clock
+   * would skip the whole landing.
+   */
   arriveAt: number;
+  arriveTick: boolean;
   arrivePending: boolean;
   launchAt: number;
   chained: boolean;
@@ -78,6 +86,14 @@ const _qShip = new THREE.Quaternion();
 const _qHead = new THREE.Quaternion();
 const _target = new THREE.Quaternion();
 const ID = new THREE.Quaternion();
+const _corner = new THREE.Vector3();
+/** Corners of a dash display face (its plane is 0.12 x 0.06) */
+const DISPLAY_CORNERS = [
+  [-0.06, -0.03],
+  [0.06, -0.03],
+  [0.06, 0.03],
+  [-0.06, 0.03],
+] as const;
 
 /* ---------- geometry ---------- */
 
@@ -297,12 +313,14 @@ const Cockpit = () => {
   const lamp = useRef<THREE.MeshBasicMaterial>(null);
   const hatch = useHatchParts();
   const glass = useMemo(() => glassMaterial(), []);
+  const displays = useRef<(THREE.Mesh | null)[]>([]);
   const screenL = useMemo(() => instrumentMaterial(0), []);
   const screenR = useMemo(() => instrumentMaterial(1), []);
   const rig = useRef<Rig>({
     mode: useAppStore.getState().mode,
     diveAt: -1,
     arriveAt: -1,
+    arriveTick: false,
     arrivePending: false,
     launchAt: -1,
     chained: false,
@@ -344,7 +362,9 @@ const Cockpit = () => {
           if (!r.chained && !s.reducedMotion) shipSound('dive');
         } else if (s.mode === 'planet') {
           r.arriveAt = -1;
+          r.arriveTick = false;
           r.arrivePending = true;
+          flight.arrivalMs = -1;
           r.doorSound = false;
         } else if (s.mode === 'transitioning-out') {
           r.launchAt = now;
@@ -398,7 +418,7 @@ const Cockpit = () => {
     if (r.arrivePending && mode === 'planet') {
       // the first frame after the surface mounts starts the descent clock
       r.arrivePending = false;
-      r.arriveAt = now;
+      r.arriveAt = 0;
       if (!reduced) shipSound('land', DESCENT_MS / 1000);
     }
 
@@ -421,8 +441,14 @@ const Cockpit = () => {
     /** hatch: -1 hidden, else 0..1 fade in while it shuts; open is the 0..1 slide */
     let hatchIn = -1;
     let open = 0;
+    if (mode === 'planet' && r.arriveAt >= 0) {
+      // the first frame starts the clock at 0; a stalled frame counts as one frame
+      if (r.arriveTick) r.arriveAt += Math.min(delta, 0.1) * 1000;
+      r.arriveTick = true;
+      flight.arrivalMs = reduced ? ARRIVAL_DONE : r.arriveAt;
+    }
     if (mode === 'planet' && r.arriveAt >= 0 && !reduced) {
-      const ms = now - r.arriveAt;
+      const ms = r.arriveAt;
       if (ms >= DOOR_AT) {
         hatchIn = clamp01((ms - DOOR_AT) / DOOR_SHUT_MS);
         open = clamp01((ms - DOOR_OPEN_AT) / DOOR_OPEN_MS);
@@ -493,7 +519,7 @@ const Cockpit = () => {
     let deploy = 1;
     if (mode === 'planet') {
       if (reduced) deploy = 0;
-      else if (r.arriveAt >= 0 && now - r.arriveAt >= DOOR_AT + DOOR_SHUT_MS) deploy = 0;
+      else if (r.arriveAt >= DOOR_AT + DOOR_SHUT_MS) deploy = 0;
     } else if (mode === 'transitioning-out') {
       deploy = reduced ? 0 : easeOutCubic(clamp01((now - r.launchAt) / COCKPIT_CLOSE_MS));
     }
@@ -553,6 +579,37 @@ const Cockpit = () => {
     (glass.uniforms.uHeatColor.value as THREE.Color).set(flight.heatColor);
     screenL.uniforms.uTime.value = t;
     screenR.uniforms.uTime.value = t;
+
+    /* the dash displays are controls in orbit: publish their screen rects for the DOM labels */
+    const asControls = mode === 'overworld' && deploy > 0.999;
+    ship.updateMatrixWorld();
+    (['tour', 'contact'] as const).forEach((key, i) => {
+      const d = dashScreens[key];
+      const mesh = displays.current[i];
+      const mat = i === 0 ? screenL : screenR;
+      const lit = asControls ? (d.hover ? 0.38 : 0.2) : 1;
+      mat.uniforms.uLit.value += (lit - mat.uniforms.uLit.value) * damp(12, dt);
+      d.visible = asControls && !!mesh;
+      if (!d.visible || !mesh) return;
+      let x0 = Infinity;
+      let y0 = Infinity;
+      let x1 = -Infinity;
+      let y1 = -Infinity;
+      for (const [cx, cy] of DISPLAY_CORNERS) {
+        _corner.set(cx, cy, 0);
+        mesh.localToWorld(_corner).project(camera);
+        const px = ((_corner.x + 1) / 2) * size.width;
+        const py = ((1 - _corner.y) / 2) * size.height;
+        x0 = Math.min(x0, px);
+        x1 = Math.max(x1, px);
+        y0 = Math.min(y0, py);
+        y1 = Math.max(y1, py);
+      }
+      d.x = x0;
+      d.y = y0;
+      d.w = x1 - x0;
+      d.h = y1 - y0;
+    });
     const l = leds.current;
     if (l) {
       for (let i = 0; i < LED_COUNT; i += 1) {
@@ -620,12 +677,20 @@ const Cockpit = () => {
         {[
           { x: -0.3, m: screenL },
           { x: 0.3, m: screenR },
-        ].map(({ x, m }) => (
+        ].map(({ x, m }, i) => (
           <group key={x} position={[x * 0.97, -0.372, -0.49]} rotation={[-0.32, -Math.sign(x) * 0.16, 0]}>
             <mesh material={parts.trim} raycast={noRaycast} renderOrder={30}>
               <boxGeometry args={[0.13, 0.07, 0.008]} />
             </mesh>
-            <mesh material={m} position={[0, 0, 0.0045]} raycast={noRaycast} renderOrder={31}>
+            <mesh
+              ref={(el) => {
+                displays.current[i] = el;
+              }}
+              material={m}
+              position={[0, 0, 0.0045]}
+              raycast={noRaycast}
+              renderOrder={31}
+            >
               <planeGeometry args={[0.12, 0.06]} />
             </mesh>
           </group>

@@ -223,18 +223,6 @@ export const MailIcon = ({ className }: IconProps) => (
   </svg>
 );
 
-/** Direct contact pill for the HUD top bars; icon-only on phones. */
-export const EmailLink = ({ email, name }: { email: string; name: string }) => (
-  <a
-    href={`mailto:${email}`}
-    aria-label={`Email ${name}`}
-    className={cx(buttonClass('panel', 'sm'), 'max-sm:w-9 max-sm:justify-center')}
-  >
-    <MailIcon className="text-ink-muted max-sm:text-ink" />
-    <span className="hidden sm:inline">Email</span>
-  </a>
-);
-
 /** Slightly larger HUD on very wide screens; set by UiRoot as --hud-zoom. */
 export const HUD_ZOOM = '[zoom:var(--hud-zoom,1)]';
 

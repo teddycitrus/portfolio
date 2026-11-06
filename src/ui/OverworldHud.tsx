@@ -5,11 +5,9 @@ import { useAppStore } from '@/state/useAppStore';
 import {
   DISPLAY,
   FLOAT_TEXT,
-  PlayIcon,
   Button,
   ChevronIcon,
   EASE,
-  EmailLink,
   HUD_ZOOM,
   IN_WORLD,
   Kbd,
@@ -19,8 +17,7 @@ import {
   usePresence,
 } from './primitives';
 import { useScreenMarkers } from './useScreenMarkers';
-import SoundToggle from './SoundToggle';
-import { useTour } from './tour';
+import DashControls from './DashControls';
 
 const SAFE_BANDS = { top: 84, bottom: 104 };
 /** Clears the hover reticle (about 1.15x the planet radius) with room to spare. */
@@ -171,18 +168,6 @@ const OverworldHud = () => {
           <p className={cx('font-display leading-none text-ink', DISPLAY.d24, FLOAT_TEXT)}>{profile.name}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          {/* icon-only on phones so the bar stays on one line */}
-          <Button
-            size="sm"
-            onClick={() => useTour.getState().start()}
-            aria-label="Take the tour"
-            className="max-sm:w-9 max-sm:justify-center"
-          >
-            <PlayIcon className="h-3 w-3 text-ink-muted max-sm:text-ink" />
-            <span className="hidden sm:inline">Tour</span>
-          </Button>
-          <SoundToggle />
-          <EmailLink email={profile.email} name={profile.name} />
           <Button
             size="sm"
             onClick={() => openReader()}
@@ -197,6 +182,7 @@ const OverworldHud = () => {
       </header>
 
       <Dock hovered={hovered} isTouch={isTouch} />
+      <DashControls />
     </div>
   );
 };

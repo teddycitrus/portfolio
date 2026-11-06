@@ -109,6 +109,14 @@ export interface Profile {
   role: string;
   location?: string;
   email: string;
+  /** Email and socials, shown in the contact modal and the reader header */
+  links: ProfileLink[];
+}
+
+export interface ProfileLink {
+  label: string;
+  url: string;
+  handle: string;
 }
 
 export interface ContentDocument {

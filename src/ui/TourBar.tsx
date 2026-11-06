@@ -1,20 +1,9 @@
 import { useEffect, useRef, type CSSProperties } from 'react';
-import { planetById, profile } from '@/data/content';
+import { planetById } from '@/data/content';
 import { dragLook, isKeyDown, joystickState } from '@/state/runtime';
 import { useAppStore } from '@/state/useAppStore';
-import {
-  ArrowIcon,
-  BackIcon,
-  Button,
-  CloseIcon,
-  EASE,
-  PageIcon,
-  SAFE,
-  buttonClass,
-  cx,
-  useNarrow,
-  usePresence,
-} from './primitives';
+import { ArrowIcon, BackIcon, Button, EASE, SAFE, cx, useNarrow, usePresence } from './primitives';
+import { useContact } from './contact';
 import { TOUR_DWELL_MS, TOUR_STOPS, useTour } from './tour';
 
 const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
@@ -98,7 +87,7 @@ const TourBar = () => {
   const bar = useRef<HTMLDivElement>(null);
   const line = useRef<HTMLDivElement>(null);
   const nextBtn = useRef<HTMLButtonElement>(null);
-  const endBtn = useRef<HTMLAnchorElement>(null);
+  const endBtn = useRef<HTMLButtonElement>(null);
   /** Focus was in the bar (removed elements fire no blur, so this survives re-renders) */
   const focusInside = useRef(false);
 
@@ -205,6 +194,10 @@ const TourBar = () => {
   const end = phase === 'end';
   const tour = useTour.getState();
 
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const iconBtn =
+    'inline-flex h-8 w-8 items-center justify-center rounded-md border border-white/[0.1] text-ink/80 transition-colors duration-200 hover:border-white/25 hover:text-white disabled:pointer-events-none disabled:opacity-30';
+
   return (
     <div
       ref={bar}
@@ -226,75 +219,59 @@ const TourBar = () => {
         }}
         data-hud-block
         aria-label="Guided tour"
-        className="panel pointer-events-auto relative w-full max-w-[560px] overflow-hidden rounded-2xl px-4 pb-3 pt-3 sm:px-5"
+        className="pointer-events-auto relative w-full max-w-[600px] overflow-hidden rounded-xl border border-white/[0.09] bg-[#0b0f18]/[0.92] shadow-[0_24px_60px_-28px_rgba(0,0,0,0.8)] backdrop-blur-md"
       >
-        <div className="flex items-center justify-between gap-3">
-          <p className="label flex items-center gap-2.5">
-            <span className="flex items-center gap-1" aria-hidden="true">
-              {TOUR_STOPS.map((_, i) => (
+        {/* one segment per stop; the current one fills with the dwell clock */}
+        <div aria-hidden="true" className="flex gap-[3px] px-[3px] pt-[3px]">
+          {TOUR_STOPS.map((_, i) => (
+            <span key={i} className="relative h-[2px] flex-1 overflow-hidden rounded-full bg-white/[0.08]">
+              {(i < index || end) && <span className="absolute inset-0 bg-ink/50" />}
+              {i === index && !end && (
                 <span
-                  key={i}
-                  className={cx(
-                    'h-1.5 rounded-full transition-[width,background-color] duration-300 ease-out',
-                    i === index && !end ? 'w-4 bg-[var(--accent)]' : 'w-1.5',
-                    (i < index || end) && 'bg-ink/60',
-                    i > index && !end && 'bg-white/15',
-                  )}
+                  ref={reduced ? undefined : line}
+                  key={stamp}
+                  className="absolute inset-0 origin-left bg-[var(--accent)]"
+                  style={{ transform: reduced ? 'none' : 'scaleX(0)' }}
                 />
-              ))}
+              )}
             </span>
-            <span>{end ? 'Tour complete' : `Tour ${index + 1} / ${total}`}</span>
-          </p>
-          <div className="flex items-center gap-1">
-            {!end && (
-              <button
-                type="button"
-                onClick={tour.togglePause}
-                aria-pressed={paused}
-                aria-label={paused ? 'Resume tour' : 'Pause tour'}
-                className="inline-flex h-8 items-center gap-1.5 rounded-full px-2.5 text-[12px] text-ink-muted transition-colors duration-200 hover:bg-white/[0.06] hover:text-ink"
-              >
-                <PauseIcon playing={!paused} />
-                <span className="hidden sm:inline">{paused ? 'Resume' : 'Pause'}</span>
-              </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-4 px-4 py-3 sm:px-5">
+          <span aria-hidden="true" className="shrink-0 self-start pt-[3px] font-mono text-[11px] tabular-nums tracking-[0.08em] text-ink-muted">
+            {end ? 'END' : `${pad(index + 1)}/${pad(total)}`}
+          </span>
+          <div aria-live="polite" className="min-w-0 flex-1">
+            {end ? (
+              <p className="text-[15px] leading-snug text-ink">That's the tour.</p>
+            ) : (
+              <p className="text-[14px] leading-snug text-ink sm:text-[15px]">
+                <span className="sr-only">
+                  Stop {index + 1} of {total}.{' '}
+                </span>
+                {stop.caption}
+              </p>
             )}
-            <button
-              type="button"
-              onClick={tour.end}
-              className="inline-flex h-8 items-center gap-1.5 rounded-full px-2.5 text-[12px] text-ink-muted transition-colors duration-200 hover:bg-white/[0.06] hover:text-ink"
-            >
-              <CloseIcon className="h-3 w-3" />
-              End tour
-            </button>
           </div>
         </div>
 
-        <div aria-live="polite" className="mt-2">
-          {end ? (
-            <p className="font-display text-[22px] leading-tight text-ink">That's the tour.</p>
-          ) : (
-            <p className="text-[14px] leading-snug text-ink sm:text-[15px]">
-              <span className="sr-only">
-                Stop {index + 1} of {total}.{' '}
-              </span>
-              {stop.caption}
-            </p>
-          )}
-        </div>
-
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 border-t border-white/[0.07] px-4 py-2.5 sm:px-5">
           {end ? (
             <>
-              <a
+              <button
                 ref={endBtn}
-                href={`mailto:${profile.email}`}
-                onClick={tour.end}
-                className={buttonClass('primary', 'sm')}
+                type="button"
+                onClick={() => {
+                  tour.end();
+                  useContact.getState().show();
+                }}
+                className="inline-flex h-8 items-center gap-2 rounded-md bg-ink px-3 text-[13px] font-medium text-[#0b0f18] transition-opacity duration-200 hover:opacity-90"
               >
-                Email John
+                Contact
                 <ArrowIcon />
-              </a>
-              <div className="flex items-center gap-2">
+              </button>
+              <div className="flex items-center gap-1">
                 <Button
                   size="sm"
                   variant="ghost"
@@ -303,7 +280,6 @@ const TourBar = () => {
                     useAppStore.getState().openReader();
                   }}
                 >
-                  <PageIcon className="text-ink-muted" />
                   Read as page
                 </Button>
                 <Button size="sm" variant="ghost" onClick={tour.end}>
@@ -313,34 +289,39 @@ const TourBar = () => {
             </>
           ) : (
             <>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={tour.prev}
-                disabled={index === 0}
-                className="disabled:opacity-40"
+              <div className="flex items-center gap-1.5">
+                <button type="button" onClick={tour.prev} disabled={index === 0} aria-label="Previous stop" className={iconBtn}>
+                  <BackIcon />
+                </button>
+                <button
+                  type="button"
+                  onClick={tour.togglePause}
+                  aria-pressed={paused}
+                  aria-label={paused ? 'Resume tour' : 'Pause tour'}
+                  className={iconBtn}
+                >
+                  <PauseIcon playing={!paused} />
+                </button>
+                <button
+                  ref={nextBtn}
+                  type="button"
+                  onClick={tour.next}
+                  aria-label={index === total - 1 ? 'Finish tour' : 'Next stop'}
+                  className={cx(iconBtn, 'border-white/20 text-white')}
+                >
+                  <ArrowIcon />
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={tour.end}
+                className="inline-flex h-8 items-center rounded-md px-2 text-[12px] text-ink-muted transition-colors duration-200 hover:text-ink"
               >
-                <BackIcon className="text-ink-muted" />
-                Previous
-              </Button>
-              <Button ref={nextBtn} size="sm" variant="primary" onClick={tour.next}>
-                {index === total - 1 ? 'Finish' : 'Next'}
-                <ArrowIcon />
-              </Button>
+                End tour
+              </button>
             </>
           )}
         </div>
-
-        {/* dwell progress; restarts each stop, holds while paused or hovered */}
-        {!reduced && (
-          <div
-            ref={line}
-            aria-hidden="true"
-            key={stamp}
-            className="absolute inset-x-0 bottom-0 h-0.5 origin-left bg-[var(--accent)] opacity-70"
-            style={{ transform: 'scaleX(0)' }}
-          />
-        )}
         {paused && !end && <p className="sr-only">Tour paused</p>}
       </section>
     </div>

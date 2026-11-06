@@ -33,11 +33,6 @@ export const TOUR_STOPS: TourStop[] = [
     beaconId: 'about-education',
     caption: 'First-year computer science at U of T, St. George.',
   },
-  {
-    planetId: 'contact',
-    beaconId: 'contact-email',
-    caption: 'Email is the fastest way to reach John.',
-  },
 ];
 
 /** Time each stop stays up once its panel is open. */

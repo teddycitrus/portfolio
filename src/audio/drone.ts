@@ -1,14 +1,16 @@
 import { useSyncExternalStore } from 'react';
 import { planetById } from '@/data/content';
 import { useAppStore } from '@/state/useAppStore';
+import { TRACKS, startTrack, type Sequencer } from './tracks';
 
 /**
- * Ambient string pad, synthesised with Web Audio. Each planet has a key; the
- * pad walks a slow chord progression in it that keeps cadencing home (V to I),
- * with a suspended fourth resolving on every dominant, a soft bass and a sparse
- * high chime. It sits quieter in orbit. Audio can only start after a user
- * gesture, so the first click or key press starts it (when the stored
- * preference is on). Wildlife calls share the same graph (see critterCall).
+ * Music, synthesised with Web Audio. In orbit an ambient string pad walks a
+ * slow chord progression that keeps cadencing home (V to I), with a suspended
+ * fourth resolving on every dominant, a soft bass and a sparse high chime.
+ * Each planet has its own track (see tracks.ts), which takes over from the
+ * pad from the dive onward. Audio can only start after a user gesture, so the
+ * first click or key press starts it (when the stored preference is on).
+ * Wildlife calls and ship sounds share the same graph.
  */
 
 const PREF_KEY = 'sound';
@@ -16,6 +18,10 @@ const PREF_KEY = 'sound';
 const ORBIT_KEY = 'D major';
 const LEVEL_PLANET = 0.2;
 const LEVEL_ORBIT = 0.08;
+/** Planet tracks against the pad (drums read louder than sustained chords at the same level) */
+const TRACK_GAIN = 1.0;
+/** Planet tracks fade in and out over this long */
+const TRACK_XFADE_S = 2.5;
 /** Seconds per chord on a planet and in orbit */
 const CHORD_S = 8;
 const CHORD_S_ORBIT = 11;
@@ -127,6 +133,12 @@ let master: GainNode | null = null;
 let bus: GainNode | null = null;
 let sfx: GainNode | null = null;
 let verbIn: GainNode | null = null;
+/** Planet tracks: their own level and hall send, so drums do not drown in the pad's hall */
+let trackBus: GainNode | null = null;
+let trackVerb: GainNode | null = null;
+let seq: Sequencer | null = null;
+let seqId = '';
+let seqPump = 0;
 let current: Voice | null = null;
 let currentKey = '';
 let step = 0;
@@ -181,6 +193,13 @@ const build = () => {
   lp.connect(dry).connect(master);
   // the pad's hall send rides on the master level
   master.connect(verbIn);
+
+  trackBus = ctx.createGain();
+  trackBus.gain.value = 0;
+  trackBus.connect(comp);
+  trackVerb = ctx.createGain();
+  trackVerb.gain.value = 0;
+  trackVerb.connect(verbIn);
 
   // critter calls bypass the pad level but obey the sound toggle
   sfx = ctx.createGain();
@@ -265,10 +284,29 @@ const chime = (c: AudioContext, midi: number, at: number, level: number) => {
   }
 };
 
-const desiredKey = () => {
+const destinationId = () => {
   const s = useAppStore.getState();
-  const id = s.mode === 'overworld' ? null : s.mode === 'transitioning-in' ? s.lockedPlanetId : s.activePlanetId;
-  return planetById(id)?.key ?? ORBIT_KEY;
+  return s.mode === 'overworld' ? null : s.mode === 'transitioning-in' ? s.lockedPlanetId : s.activePlanetId;
+};
+const desiredKey = () => planetById(destinationId())?.key ?? ORBIT_KEY;
+/** The planet whose track should play, or '' for the pad */
+const desiredTrack = () => {
+  const id = destinationId();
+  return id && TRACKS[id] ? id : '';
+};
+
+/** Fades the pad out and stops its clock (a planet track takes over). */
+const stopPad = (fade: number) => {
+  window.clearTimeout(timer);
+  currentKey = '';
+  lastVoicing = null;
+  const old = current;
+  current = null;
+  if (!old || !ctx) return;
+  const now = ctx.currentTime;
+  old.out.gain.setTargetAtTime(0, now, fade / 3);
+  old.nodes.forEach((n) => n.stop(now + fade * 1.6));
+  window.setTimeout(() => old.out.disconnect(), fade * 1600 + 200);
 };
 
 const onPlanet = () => useAppStore.getState().mode === 'planet';
@@ -309,16 +347,38 @@ const advance = (fade: number) => {
 const sync = () => {
   if (!ctx || !master || !sfx) return;
   const now = ctx.currentTime;
-  const key = desiredKey();
-  if (key !== currentKey) {
-    // a new key starts its progression from home
-    currentKey = key;
-    step = 0;
-    lastVoicing = null;
-    advance(current ? KEY_XFADE_S : 3);
+  const trackId = desiredTrack();
+  if (trackId !== seqId) {
+    seq?.stop(TRACK_XFADE_S);
+    seq = null;
+    seqId = trackId;
+    if (trackId && trackBus && trackVerb && verbIn) {
+      stopPad(TRACK_XFADE_S);
+      seq = startTrack(ctx, TRACKS[trackId], trackBus, trackVerb, whiteNoise(ctx), now + 0.1, TRACK_XFADE_S);
+      seq.fill(now + 0.3);
+      if (!seqPump) {
+        // look-ahead scheduling: a coarse timer queues notes a little before they play
+        seqPump = window.setInterval(() => {
+          if (seq && ctx?.state === 'running') seq.fill(ctx.currentTime + 0.3);
+        }, 60);
+      }
+    }
+  }
+  if (!trackId) {
+    const key = desiredKey();
+    if (key !== currentKey) {
+      // a new key starts its progression from home
+      currentKey = key;
+      step = 0;
+      lastVoicing = null;
+      advance(current ? KEY_XFADE_S : 3);
+    }
   }
   master.gain.cancelScheduledValues(now);
   master.gain.setTargetAtTime(enabled ? desiredLevel() : 0, now, enabled ? 1.2 : 0.25);
+  const tl = enabled ? desiredLevel() * TRACK_GAIN : 0;
+  trackBus?.gain.setTargetAtTime(tl, now, enabled ? 1.2 : 0.25);
+  trackVerb?.gain.setTargetAtTime(tl * 0.6, now, enabled ? 1.2 : 0.25);
   sfx.gain.setTargetAtTime(enabled ? 1 : 0, now, 0.1);
 };
 
@@ -490,7 +550,7 @@ export const critterCall = (kind: CritterVoice, distance: number, pan: number) =
 
 /* ---------- ship ---------- */
 
-export type ShipSound = 'dive' | 'land' | 'launch' | 'door';
+export type ShipSound = 'dive' | 'land' | 'launch' | 'door' | 'takeoff';
 
 let noiseBuf: AudioBuffer | null = null;
 const whiteNoise = (c: AudioContext) => {
@@ -567,6 +627,13 @@ export const shipSound = (kind: ShipSound, touchdown = 0.54) => {
       body(t0, 0.7, 46, 70, 0.26);
       air(t0, 1.3, 180, 2200, 0.8, 0.13, 1.0);
       break;
+    case 'takeoff':
+      // the ship lifting off behind the viewer: a deep swell, the roar passing overhead, a long fade
+      body(t0, 3.2, 38, 55, 0.3);
+      air(t0, 1.6, 90, 420, 0.7, 0.3, 1.1, 'lowpass');
+      air(t0 + 1.0, 3.6, 900, 160, 0.6, 0.2, 0.5);
+      air(t0 + 0.8, 5.5, 260, 70, 0.7, 0.26, 0.9, 'lowpass');
+      break;
     case 'door':
       // latches release, pressure equalises, the slabs run along their tracks
       body(t0, 0.16, 150, 70, 0.3);
@@ -578,5 +645,5 @@ export const shipSound = (kind: ShipSound, touchdown = 0.54) => {
   window.setTimeout(() => {
     out.disconnect();
     send.disconnect();
-  }, 3000);
+  }, 7000);
 };

@@ -9,9 +9,7 @@ import { ArrowIcon, Button, CloseIcon, DISPLAY, EASE, Kbd, SAFE, cx, usePresence
 const sectionId = (id: string) => `reader-${id}`;
 const entryId = (id: string) => `reader-entry-${id}`;
 
-const contactLinks = planets
-  .flatMap((p) => p.beacons)
-  .filter((b): b is Extract<Beacon, { kind: 'link' }> => b.kind === 'link');
+const contactLinks = profile.links;
 
 const SectionBody = ({ planet, onProject }: { planet: Planet; onProject: (beaconId: string) => void }) => {
   const b = planet.beacons;
@@ -296,14 +294,14 @@ const Reader = () => {
               </h1>
               <ul className="mt-7 flex flex-wrap gap-x-6 gap-y-2">
                 {contactLinks.map((l) => (
-                  <li key={l.id}>
+                  <li key={l.label}>
                     <a
-                      href={l.content.url}
-                      {...linkProps(l.content.url)}
+                      href={l.url}
+                      {...linkProps(l.url)}
                       className="inline-flex items-center gap-1.5 text-[14px] text-ink underline decoration-line underline-offset-[5px] transition-colors duration-200 hover:decoration-ink"
                     >
                       {l.label}
-                      <ArrowIcon external={!l.content.url.startsWith('mailto:')} className="h-3 w-3 text-ink-muted" />
+                      <ArrowIcon external={!l.url.startsWith('mailto:')} className="h-3 w-3 text-ink-muted" />
                     </a>
                   </li>
                 ))}

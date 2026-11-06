@@ -73,7 +73,7 @@ export const instrumentMaterial = (kind: 0 | 1) =>
   new THREE.ShaderMaterial({
     fog: false,
     transparent: true,
-    uniforms: { uTime: { value: 0 }, uKind: { value: kind } },
+    uniforms: { uTime: { value: 0 }, uKind: { value: kind }, uLit: { value: 1 } },
     vertexShader: /* glsl */ `
       varying vec2 vUv;
       void main() {
@@ -84,6 +84,8 @@ export const instrumentMaterial = (kind: 0 | 1) =>
     fragmentShader: /* glsl */ `
       uniform float uTime;
       uniform float uKind;
+      // 1 = full graphics; lower while the display carries a control label
+      uniform float uLit;
       varying vec2 vUv;
       void main() {
         vec2 uv = vUv;
@@ -123,7 +125,7 @@ export const instrumentMaterial = (kind: 0 | 1) =>
         float scan = 0.85 + 0.15 * sin(uv.y * 160.0);
         vec2 e = min(uv, 1.0 - uv);
         float vig = smoothstep(0.0, 0.06, min(e.x, e.y * 2.0));
-        vec3 col = vec3(0.01, 0.024, 0.04) + ink * (grid + g) * scan * 0.85;
+        vec3 col = vec3(0.01, 0.024, 0.04) + ink * (grid + g) * scan * 0.85 * uLit;
         gl_FragColor = vec4(col * vig, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
