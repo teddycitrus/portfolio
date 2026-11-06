@@ -6,7 +6,7 @@ import type { Beacon, Planet } from '@/types/content';
 import { useAppStore } from '@/state/useAppStore';
 import { screenParts } from '@/ui/screenParts';
 import { panelFocusIntent } from '@/ui/navigation';
-import { CloseIcon, useNarrow } from '@/ui/primitives';
+import { useNarrow } from '@/ui/primitives';
 import { mulberry, seedOf } from './rng';
 import { hologramMaterial, holoLook } from './hologram';
 
@@ -17,7 +17,7 @@ const PX = 240;
 /** drei Html maps 400 / distanceFactor px to one unit in transform mode */
 const DISTANCE_FACTOR = 400 / PX;
 /** Orbiting panel radius (world units) */
-const ORBIT_SIZE = 0.2;
+const ORBIT_SIZE = 0.24;
 /** Screens are laid out on a plane this far in front of the camera */
 const PLANE_D = 3.2;
 /** Screens deploy inside this camera distance (XZ) and fold back past FOLD */
@@ -492,17 +492,7 @@ const BeaconScreens = ({ beacon, planet, height, index, reducedMotion }: Props) 
                     } as CSSProperties
                   }
                 >
-                  {i === 0 && (
-                    <button
-                      type="button"
-                      onClick={() => useAppStore.getState().setFocusedBeacon(null)}
-                      aria-label="Close"
-                      className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full text-ink-muted transition-colors duration-200 hover:bg-white/[0.06] hover:text-ink"
-                    >
-                      <CloseIcon />
-                    </button>
-                  )}
-                  <div className={i === 0 ? '[&_[data-panel-heading]]:pr-8' : undefined}>{parts[i].node}</div>
+                  {parts[i].node}
                 </div>
               </Html>
             </group>

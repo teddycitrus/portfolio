@@ -490,7 +490,7 @@ export const critterCall = (kind: CritterVoice, distance: number, pan: number) =
 
 /* ---------- ship ---------- */
 
-export type ShipSound = 'dive' | 'land' | 'launch';
+export type ShipSound = 'dive' | 'land' | 'launch' | 'door';
 
 let noiseBuf: AudioBuffer | null = null;
 const whiteNoise = (c: AudioContext) => {
@@ -566,6 +566,13 @@ export const shipSound = (kind: ShipSound, touchdown = 0.54) => {
     case 'launch':
       body(t0, 0.7, 46, 70, 0.26);
       air(t0, 1.3, 180, 2200, 0.8, 0.13, 1.0);
+      break;
+    case 'door':
+      // latches release, pressure equalises, the slabs run along their tracks
+      body(t0, 0.16, 150, 70, 0.3);
+      air(t0 + 0.02, 0.5, 5200, 1600, 0.6, 0.12, 0.015, 'highpass');
+      air(t0 + 0.05, 0.36, 380, 900, 2.2, 0.08, 0.08);
+      body(t0 + 0.34, 0.2, 90, 48, 0.2);
       break;
   }
   window.setTimeout(() => {

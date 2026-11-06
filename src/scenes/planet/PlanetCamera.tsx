@@ -8,7 +8,7 @@ import type { Vec3 } from '@/types/content';
 import type { HeightFn } from './Terrain';
 import { LABEL_ANCHOR } from './Beacon';
 import { arrivalPulse } from './surfaceState';
-import { DESCENT_MS } from '@/state/timing';
+import { ARRIVAL_MS } from '@/state/timing';
 
 export interface SurfaceBeacon {
   id: string;
@@ -21,8 +21,8 @@ export interface SurfaceBeacon {
 const WALK_SPEED = 3.4;
 const RUN_SPEED = 6.8;
 const PITCH_LIMIT = 0.6;
-/** The descent itself is drawn by the ship rig; this only gates input and focus */
-const SETTLE_MS = DESCENT_MS;
+/** The descent and the hatch are drawn by the ship rig; this only gates input and focus */
+const SETTLE_MS = ARRIVAL_MS;
 const SETTLE_RISE = 0;
 const GLIDE_S = 1.1;
 const NEAR_FOCUS = 5.5;

@@ -114,14 +114,15 @@ const frag = /* glsl */ `
     float flick = 1.0 - 0.18 * step(0.985, hash(vec2(floor(t * 18.0), uSeed)));
 
     vec3 rimCol = mix(uAccent, vec3(1.0), uLook2.y);
-    vec3 base = mix(uAccent * 0.3, uCore, uM);
+    // idle panels are dark, nearly solid plates so they read from across the field
+    vec3 base = mix(uCore * 0.6 + uAccent * 0.05, uCore, uM);
     vec3 col = base
       + uAccent * (scan * 0.007 + band * 0.012 + dots * 0.014) * uM
-      + rimCol * rim * mix(0.7, 0.42, uM)
+      + rimCol * rim * mix(1.1, 0.42, uM)
       + rimCol * spark * 0.8;
 
-    float a = body * build * mix(0.5, 0.9, uM) * (0.95 + scan * 0.05);
-    a += rim * 0.25 + spark * 0.75;
+    float a = body * build * mix(0.94, 0.9, uM) * (0.95 + scan * 0.05);
+    a += rim * mix(0.6, 0.25, uM) + spark * 0.75;
     a *= flick * uOpacity;
     if (a < 0.003) discard;
     gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
