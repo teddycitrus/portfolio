@@ -112,7 +112,7 @@ const BeaconMarkers = ({ planet, focused }: { planet: Planet; focused: string | 
                   on ? 'text-[var(--accent)]' : 'text-ink group-hover:text-white',
                 )}
               >
-                <span className="whitespace-nowrap font-mono text-[13px] font-medium uppercase leading-tight tracking-[0.14em] max-sm:text-[11px]">
+                <span className="whitespace-nowrap font-display text-[15px] leading-tight max-sm:text-[13px]">
                   {b.label}
                 </span>
               </span>
@@ -141,7 +141,7 @@ const BeaconMarkers = ({ planet, focused }: { planet: Planet; focused: string | 
               <span ref={bind(b.id, 'arrow')} className="inline-flex text-[var(--accent)]">
                 <ChevronIcon />
               </span>
-              <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink">{b.label}</span>
+              <span className="text-[13px] font-medium text-ink">{b.label}</span>
             </button>
           </div>
         );
@@ -372,7 +372,7 @@ const PlanetHud = () => {
               FLOAT_TEXT,
             )}
           >
-            <span className="truncate font-display text-[20px] leading-none text-ink">{planet.title}</span>
+            <span className="truncate font-display text-[18px] leading-none text-ink">{planet.title}</span>
           </p>
           <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
             <TravelMenu current={planet.id} isTouch={isTouch} />
@@ -397,7 +397,7 @@ const PlanetHud = () => {
           <h1
             data-planet-title
             tabIndex={-1}
-            className={cx('font-display font-normal leading-none text-ink outline-none', DISPLAY.d40)}
+            className={cx('font-display leading-none text-ink outline-none', DISPLAY.d40)}
           >
             {planet.title}
           </h1>

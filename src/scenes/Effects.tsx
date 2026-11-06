@@ -1,6 +1,6 @@
 import { PerformanceMonitor } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
-import { Bloom, EffectComposer, Noise, ToneMapping, Vignette } from '@react-three/postprocessing';
+import { Bloom, BrightnessContrast, EffectComposer, Noise, ToneMapping, Vignette } from '@react-three/postprocessing';
 import { BlendFunction, ToneMappingMode } from 'postprocessing';
 
 /**
@@ -25,7 +25,8 @@ const AdaptiveDpr = () => {
 
 /**
  * HDR post chain for every mode. Scenes render linear HDR; bloom only catches
- * values above ~1 (sun core, lava, hovered rims), then ACES maps to display.
+ * values above ~1 (sun core, lava, hovered rims), then AgX maps to display: it rolls highlights
+ * off without the hue skew ACES gives saturated lava, skies and accents.
  */
 const Effects = () => {
   return (
@@ -40,8 +41,10 @@ const Effects = () => {
           radius={0.72}
           levels={COARSE ? 4 : 5}
         />
-        <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
-        <Vignette offset={0.32} darkness={0.5} />
+        <ToneMapping mode={ToneMappingMode.AGX} />
+        {/* AgX lands a touch flat; a little contrast brings the low-poly faces back apart */}
+        <BrightnessContrast contrast={0.12} />
+        <Vignette offset={0.36} darkness={0.38} />
         {COARSE ? <></> : <Noise blendFunction={BlendFunction.OVERLAY} opacity={0.04} />}
       </EffectComposer>
     </>

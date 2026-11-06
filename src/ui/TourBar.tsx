@@ -271,7 +271,7 @@ const TourBar = () => {
 
         <div aria-live="polite" className="mt-2">
           {end ? (
-            <p className="font-display text-[24px] leading-tight text-ink">That's the tour.</p>
+            <p className="font-display text-[22px] leading-tight text-ink">That's the tour.</p>
           ) : (
             <p className="text-[14px] leading-snug text-ink sm:text-[15px]">
               <span className="sr-only">

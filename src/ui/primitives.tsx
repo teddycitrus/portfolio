@@ -64,16 +64,17 @@ export const FLOAT_TEXT = '[text-shadow:0_1px_2px_rgba(5,7,13,0.9),0_0_14px_rgba
 export const IN_WORLD = FLOAT_TEXT;
 
 /**
- * Display type scale (Instrument Serif): 136 / 80 / 52 / 40 / 32 / 24 / 20.
- * Only these sizes are used for serif text.
+ * Display type scale (Archivo expanded): 64 / 44 / 32 / 26 / 22 / 18.
+ * Only these sizes are used for display text.
  */
 export const DISPLAY = {
-  d80: 'text-[52px] md:text-[80px]',
-  d52: 'text-[40px] md:text-[52px]',
-  d40: 'text-[32px] md:text-[40px]',
-  d32: 'text-[32px]',
-  d24: 'text-[24px]',
-  d20: 'text-[20px]',
+  // the expanded cut sets wider than the old serif, so the scale steps down
+  d80: 'text-[40px] md:text-[64px]',
+  d52: 'text-[32px] md:text-[44px]',
+  d40: 'text-[26px] md:text-[32px]',
+  d32: 'text-[26px]',
+  d24: 'text-[22px]',
+  d20: 'text-[18px]',
 } as const;
 
 type Variant = 'primary' | 'panel' | 'ghost';

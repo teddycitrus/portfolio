@@ -24,7 +24,8 @@
     overflow: hidden;
     background: var(--space);
     color: var(--ink);
-    font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+    font-family: 'Archivo Variable', ui-sans-serif, system-ui, sans-serif;
+    font-stretch: 100%;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -67,6 +68,16 @@
   }
 }
 
+@layer utilities {
+  /* Display cut: Archivo expanded and a little heavier, tight tracking. */
+  .font-display {
+    font-family: 'Archivo Variable', ui-sans-serif, system-ui, sans-serif;
+    font-stretch: 118%;
+    font-weight: 540;
+    letter-spacing: -0.025em;
+  }
+}
+
 @layer components {
   /* Instrument panel surface: dark, slightly translucent, hairline border. */
   .panel {
@@ -77,12 +88,11 @@
     box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.7);
   }
 
-  /* Small uppercase telemetry label. */
+  /* Small secondary label: same family as the text around it, just quieter. */
   .label {
-    font-family: 'IBM Plex Mono', ui-monospace, monospace;
-    font-size: 11px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
+    font-size: 13px;
+    font-weight: 450;
+    line-height: 1.3;
     color: var(--ink-muted);
   }
 
@@ -96,7 +106,7 @@
     border: 1px solid var(--line);
     border-bottom-width: 2px;
     border-radius: 4px;
-    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-family: 'JetBrains Mono Variable', ui-monospace, monospace;
     font-size: 11px;
     color: var(--ink);
     background: rgba(255, 255, 255, 0.04);

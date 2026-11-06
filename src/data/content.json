@@ -84,8 +84,8 @@
       "id": "projects",
       "index": 2,
       "title": "Projects",
-      "color": "#8a5cf0",
-      "accent": "#cbb4ff",
+      "color": "#c4506f",
+      "accent": "#f3a6b8",
       "position": [
         0,
         1.5,
@@ -95,14 +95,14 @@
       "time": "night",
       "style": "gas-giant",
       "palette": [
-        "#5a3aa8",
-        "#d2bcff",
-        "#1e0f3e"
+        "#8f3450",
+        "#efb7c3",
+        "#260a14"
       ],
       "rings": true,
       "surface": {
-        "ground": "#170c2a",
-        "atmosphere": "#3b1b6e"
+        "ground": "#1e0b12",
+        "atmosphere": "#6a2030"
       },
       "architecture": "deco",
       "key": "C# minor",

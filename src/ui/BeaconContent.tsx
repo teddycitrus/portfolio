@@ -12,8 +12,8 @@ import type {
 import { ArrowIcon, Chip, DISPLAY, PlayIcon, buttonClass, cx } from './primitives';
 import { findProjectBeacon } from './navigation';
 
-/** Reader entry headings share one size across every kind; the panel title is 32 too. */
-export const ENTRY_HEADING = cx('font-display font-normal leading-[1.05] tracking-[-0.01em] text-ink', DISPLAY.d32);
+/** Entry headings share one size across every kind, in the reader and on the screens. */
+export const ENTRY_HEADING = cx('font-display leading-[1.1] text-ink', DISPLAY.d32);
 
 /**
  * Shared content renderers for the beacon panel and the reader page so a

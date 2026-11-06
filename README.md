@@ -30,7 +30,7 @@ flowchart LR
     surface["PlanetSurfaceScene<br/><sub>sky, terrain, monuments, wildlife, walk camera</sub>"]
     screens["BeaconScreens<br/><sub>orbiting panels, in-world content screens</sub>"]
     transition["TransitionController<br/><sub>dive and launch camera</sub>"]
-    fx["Effects<br/><sub>bloom, ACES, vignette</sub>"]
+    fx["Effects<br/><sub>bloom, AgX, contrast, vignette</sub>"]
   end
   subgraph DOM["DOM UI"]
     hud["OverworldHud, PlanetHud, TourBar<br/><sub>labels, dock, chips</sub>"]
@@ -99,7 +99,8 @@ Guarantees and limits:
 - Beacon screens are real DOM (drei `Html` in transform mode, portalled into `#screen-layer` between the canvas and the HUD), so links, the video and keyboard focus work. They lay out in up to three columns on a plane 3.2 units in front of the camera, on whichever side of the monument has room, and shrink to fit the view. They fold back past 8.5 units.
 - Wildlife is picked by planet style: gulls on Skills, birds and deer on Contact, hopping aliens and birds on About, glowing drifters on Projects, nothing on Awards. Birds are one instanced mesh with wing flaps in the vertex shader; walkers wander a ring behind the monuments and trot away from the viewer.
 - The ambient drone is synthesised (detuned saws through a slow lowpass and a generated reverb), plays each planet's `key` from content.json, crossfades over 4 s on travel and sits at 0.08 gain in orbit against 0.2 on a planet. It starts on the first click or key press; the Sound toggle is stored in `localStorage` and suspends the audio context when off.
-- Post-processing renders in linear HDR with ACES tone mapping; only values above 1.0 bloom (sun, lava, glints, focused seams). Touch devices drop multisampling and film grain.
+- Type is one self-hosted family, Archivo (expanded cut for display, normal for text), with JetBrains Mono only for key caps and handles. No font CDN.
+- Post-processing renders in linear HDR with AgX tone mapping and a light contrast lift; only values above 1.0 bloom (sun, lava, glints, focused seams). Touch devices drop multisampling and film grain.
 
 ## Getting started
 

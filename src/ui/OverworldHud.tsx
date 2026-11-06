@@ -63,7 +63,7 @@ const PlanetLabels = ({ hovered, isTouch }: { hovered: string | null; isTouch: b
             >
               {/* staggered reveal so the first overworld frame is calm */}
               <span
-                className="block animate-fade-in whitespace-nowrap font-display text-[20px] leading-none min-[1921px]:text-[24px]"
+                className="block animate-fade-in whitespace-nowrap font-display text-[17px] leading-none min-[1921px]:text-[20px]"
                 style={{ animationDelay: `${550 + i * 90}ms` }}
               >
                 {p.title}
@@ -84,7 +84,7 @@ const PlanetLabels = ({ hovered, isTouch }: { hovered: string | null; isTouch: b
               <span ref={bind(p.id, 'arrow')} className="inline-flex text-[var(--accent)]">
                 <ChevronIcon />
               </span>
-              <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-muted">{p.title}</span>
+              <span className="text-[13px] font-medium text-ink-muted">{p.title}</span>
             </button>
           </div>
         );

@@ -67,7 +67,7 @@ const SectionBody = ({ planet, onProject }: { planet: Planet; onProject: (beacon
         <div className="grid gap-x-10 gap-y-8 sm:grid-cols-2">
           {skills.map((s) => (
             <div key={s.id} id={entryId(s.id)} className="space-y-3">
-              <h3 className={cx('font-display font-normal leading-tight text-ink', DISPLAY.d24)}>
+              <h3 className={cx('font-display leading-tight text-ink', DISPLAY.d24)}>
                 {s.content.heading}
               </h3>
               <StackChips items={s.content.items} label={s.content.heading} />
@@ -270,14 +270,11 @@ const Reader = () => {
                       onClick={() => goTo(sectionId(p.id))}
                       aria-current={on ? 'true' : undefined}
                       className={cx(
-                        'flex w-full items-center gap-3 rounded-md py-1.5 text-left text-[14px] transition-colors duration-200',
+                        'flex w-full items-center rounded-md py-1.5 text-left text-[14px] transition-colors duration-200',
                         on ? 'text-ink' : 'text-ink-faint hover:text-ink-muted',
                       )}
                     >
-                      <span className="w-5 font-mono text-[11px] tracking-[0.14em]">
-                        {String(p.index).padStart(2, '0')}
-                      </span>{' '}
-                      <span>{p.title}</span>
+                      {p.title}
                     </button>
                   </li>
                 );
@@ -294,7 +291,7 @@ const Reader = () => {
             )}
           >
             <header className="border-line pb-12 lg:border-b">
-              <h1 className={cx('font-display font-normal leading-[0.95] tracking-[-0.02em] text-ink', DISPLAY.d80)}>
+              <h1 className={cx('font-display leading-[0.95] tracking-[-0.035em] text-ink', DISPLAY.d80)}>
                 {profile.name}
               </h1>
               <ul className="mt-7 flex flex-wrap gap-x-6 gap-y-2">
@@ -357,13 +354,10 @@ const Reader = () => {
                   <h2
                     id={`${sectionId(p.id)}-title`}
                     className={cx(
-                      'flex items-baseline gap-3 font-display font-normal leading-none text-ink',
+                      'font-display leading-none text-ink',
                       DISPLAY.d52,
                     )}
                   >
-                    <span className="self-center font-mono text-[12px] tracking-[0.14em] text-ink-muted">
-                      {String(p.index).padStart(2, '0')}
-                    </span>
                     {p.title}
                   </h2>
                   {!noWebGL && (
@@ -377,7 +371,7 @@ const Reader = () => {
               </section>
             ))}
 
-            <footer className="space-y-2 pt-8 font-mono text-[12px] text-ink-faint">
+            <footer className="space-y-2 pt-8 text-[13px] text-ink-faint">
               {noWebGL && <p>The interactive version needs WebGL.</p>}
               <p>
                 {profile.name} / {new Date().getFullYear()}
