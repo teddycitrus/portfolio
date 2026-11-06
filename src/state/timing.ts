@@ -6,9 +6,9 @@
  * on entry and the veil (planet sky) reaches full cover at ENTER_TOTAL. The
  * mode switches to 'planet', the veil lifts over ENTER_VEIL_LIFT while the
  * ship descends for DESCENT_MS and touches down. The view cuts to the hatch
- * (DOOR_AT, shut over DOOR_SHUT_MS), which slides open from DOOR_OPEN_AT for
- * DOOR_OPEN_MS while the viewer steps out. Planet in view at about 1.35 s,
- * walking at ARRIVAL_MS after the cut (about 1.65 s from the click).
+ * (DOOR_AT, the hatch dissolves in over DOOR_SHUT_MS), the lamp holds amber,
+ * then the slabs slide open from DOOR_OPEN_AT and the viewer walks out through
+ * the doorway over DOOR_OPEN_MS. Walking at ARRIVAL_MS after the cut, about 2.7 s.
  *
  * Exit: camera launches for EXIT_TOTAL with the veil covering from
  * EXIT_VEIL_START, then the mode switches to 'overworld' and the veil lifts.
@@ -18,11 +18,16 @@ export const ENTER_VEIL_START = 560;
 export const ENTER_VEIL_FADE = 200;
 export const ENTER_TOTAL = 760;
 export const ENTER_VEIL_LIFT = 380;
-export const DESCENT_MS = 440;
-export const DOOR_AT = DESCENT_MS + 40;
-export const DOOR_SHUT_MS = 70;
-export const DOOR_OPEN_AT = DOOR_AT + DOOR_SHUT_MS + 40;
-export const DOOR_OPEN_MS = 320;
+export const DESCENT_MS = 900;
+/** A beat on the ground after touchdown before the view moves to the hatch */
+export const DOOR_AT = DESCENT_MS + 300;
+export const DOOR_SHUT_MS = 320;
+/** The lamp holds amber this long before the latches release */
+export const DOOR_OPEN_AT = DOOR_AT + DOOR_SHUT_MS + 280;
+export const DOOR_OPEN_MS = 900;
+/** Share of DOOR_OPEN_MS the slabs take to run; the walk out starts at WALK_FROM */
+export const SLIDE_SHARE = 0.55;
+export const WALK_FROM = 0.3;
 export const ARRIVAL_MS = DOOR_OPEN_AT + DOOR_OPEN_MS;
 /** The cockpit closes back around the viewer this fast on launch */
 export const COCKPIT_CLOSE_MS = 600;

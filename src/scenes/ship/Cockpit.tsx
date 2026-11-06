@@ -3,7 +3,17 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useAppStore, type SceneMode } from '@/state/useAppStore';
 import { dashScreens, flight } from '@/state/runtime';
-import { COCKPIT_CLOSE_MS, DESCENT_MS, DOOR_AT, DOOR_OPEN_AT, DOOR_OPEN_MS, DOOR_SHUT_MS, ENTER_DIVE } from '@/state/timing';
+import {
+  COCKPIT_CLOSE_MS,
+  DESCENT_MS,
+  DOOR_AT,
+  DOOR_OPEN_AT,
+  DOOR_OPEN_MS,
+  DOOR_SHUT_MS,
+  ENTER_DIVE,
+  SLIDE_SHARE,
+  WALK_FROM,
+} from '@/state/timing';
 import { responsiveFov } from '@/scenes/overworld/TelescopeCamera';
 import { shipSound } from '@/audio/drone';
 import { cockpitShape, FRAME_DEPTH, HOLE, offsetPoly, type Pt } from './shape';
@@ -441,6 +451,9 @@ const Cockpit = () => {
     /** hatch: -1 hidden, else 0..1 fade in while it shuts; open is the 0..1 slide */
     let hatchIn = -1;
     let open = 0;
+    /** 0..1 slab travel, then 0..1 steps out through the doorway (they overlap) */
+    let slideK = 0;
+    let walkK = 0;
     if (mode === 'planet' && r.arriveAt >= 0) {
       // the first frame starts the clock at 0; a stalled frame counts as one frame
       if (r.arriveTick) r.arriveAt += Math.min(delta, 0.1) * 1000;
@@ -450,11 +463,13 @@ const Cockpit = () => {
     if (mode === 'planet' && r.arriveAt >= 0 && !reduced) {
       const ms = r.arriveAt;
       if (ms >= DOOR_AT) {
-        hatchIn = clamp01((ms - DOOR_AT) / DOOR_SHUT_MS);
+        hatchIn = easeInOutCubic(clamp01((ms - DOOR_AT) / DOOR_SHUT_MS));
         open = clamp01((ms - DOOR_OPEN_AT) / DOOR_OPEN_MS);
+        slideK = easeInOutCubic(clamp01(open / SLIDE_SHARE));
+        walkK = easeInOutCubic(clamp01((open - WALK_FROM) / (1 - WALK_FROM)));
         if (!r.doorSound && ms >= DOOR_OPEN_AT - 30) {
           r.doorSound = true;
-          shipSound('door');
+          shipSound('door', (DOOR_OPEN_MS * SLIDE_SHARE) / 1000);
         }
         if (ms >= DOOR_OPEN_AT) shake += 0.006 * Math.exp(-16 * ((ms - DOOR_OPEN_AT) / 1000));
         if (ms > DOOR_OPEN_AT + DOOR_OPEN_MS + 120) hatchIn = -1;
@@ -492,7 +507,7 @@ const Cockpit = () => {
       camera.quaternion.multiply(_q.setFromEuler(_e));
     }
     // behind the shut hatch the viewer stands a step back, then walks out as it opens
-    if (hatchIn >= 1) camera.position.addScaledVector(_fwd, -HATCH_STEP * (1 - easeInOutCubic(open)));
+    if (hatchIn >= 1) camera.position.addScaledVector(_fwd, -HATCH_STEP * (1 - walkK));
 
     // the ship's orientation before shake: fixed in orbit, swinging after the camera otherwise
     if (mode === 'overworld' || reduced) r.ship.copy(mode === 'overworld' ? ID : camera.quaternion);
@@ -536,12 +551,12 @@ const Cockpit = () => {
       if (h.visible) {
         h.position.copy(camera.position);
         h.quaternion.copy(camera.quaternion);
-        const through = THREE.MathUtils.smoothstep(open, 0.4, 1);
+        const through = THREE.MathUtils.smoothstep(walkK, 0.4, 1);
         const outH = 1 + 2.2 * through * through;
         h.scale.set(tv * r.aspect * outH, tv * outH, 1);
-        const slide = easeInOutCubic(open) * SLAB_TRAVEL;
+        const slide = slideK * SLAB_TRAVEL;
         // the latches pop a hair inward before the slabs run
-        const pop = Math.sin(Math.PI * clamp01(open / 0.14)) * 0.006;
+        const pop = Math.sin(Math.PI * clamp01(open / SLIDE_SHARE / 0.14)) * 0.006;
         slabL.current?.position.set(-SLAB_W / 2 - slide + pop, SLAB_Y, DOOR_Z);
         slabR.current?.position.set(SLAB_W / 2 + slide - pop, SLAB_Y, DOOR_Z);
         hatch.setOpacity(hatchIn);

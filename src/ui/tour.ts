@@ -9,6 +9,7 @@ import { visitPlanet } from './navigation';
 export interface TourStop {
   planetId: string;
   beaconId: string;
+  title: string;
   caption: string;
 }
 
@@ -16,21 +17,25 @@ export const TOUR_STOPS: TourStop[] = [
   {
     planetId: 'projects',
     beaconId: 'proj-iris',
-    caption: 'Iris: hands-free computer control. Future Impact winner at Hack The Valley X.',
+    title: 'Iris',
+    caption: 'Hands-free computer control. Future Impact winner at Hack The Valley X.',
   },
   {
     planetId: 'projects',
     beaconId: 'proj-shieldclaw',
-    caption: 'ShieldClaw: security for AI agents. Team win at Hack Canada 2026.',
+    title: 'ShieldClaw',
+    caption: 'Security for AI agents. Team win at Hack Canada 2026.',
   },
   {
     planetId: 'projects',
     beaconId: 'proj-eureka',
-    caption: 'Eureka: supply-chain risk on a live 3D globe, briefed by AI voice agents.',
+    title: 'Eureka',
+    caption: 'Supply-chain risk on a live 3D globe, briefed by AI voice agents.',
   },
   {
     planetId: 'about',
     beaconId: 'about-education',
+    title: 'Education',
     caption: 'First-year computer science at U of T, St. George.',
   },
 ];

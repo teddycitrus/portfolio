@@ -2,7 +2,7 @@ import { useEffect, useRef, type CSSProperties } from 'react';
 import { planetById } from '@/data/content';
 import { dragLook, isKeyDown, joystickState } from '@/state/runtime';
 import { useAppStore } from '@/state/useAppStore';
-import { ArrowIcon, BackIcon, Button, EASE, SAFE, cx, useNarrow, usePresence } from './primitives';
+import { ArrowIcon, BackIcon, EASE, SAFE, cx, useNarrow, usePresence } from './primitives';
 import { useContact } from './contact';
 import { TOUR_DWELL_MS, TOUR_STOPS, useTour } from './tour';
 
@@ -196,7 +196,11 @@ const TourBar = () => {
 
   const pad = (n: number) => String(n).padStart(2, '0');
   const iconBtn =
-    'inline-flex h-8 w-8 items-center justify-center rounded-md border border-white/[0.1] text-ink/80 transition-colors duration-200 hover:border-white/25 hover:text-white disabled:pointer-events-none disabled:opacity-30';
+    'inline-flex h-9 w-9 items-center justify-center rounded-lg text-ink/75 transition-colors duration-200 hover:bg-white/[0.07] hover:text-white focus-visible:bg-white/[0.07] focus-visible:text-white outline-none disabled:pointer-events-none disabled:opacity-25';
+  const primary =
+    'inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--accent)] pl-3.5 pr-3 text-[13px] font-semibold text-[#0a0d14] outline-none transition-[filter,transform] duration-200 hover:brightness-110 active:translate-y-px focus-visible:ring-2 focus-visible:ring-white/60';
+  const quiet =
+    'inline-flex h-9 items-center rounded-lg px-3 text-[13px] text-ink/75 outline-none transition-colors duration-200 hover:bg-white/[0.07] hover:text-white focus-visible:bg-white/[0.07]';
 
   return (
     <div
@@ -219,46 +223,95 @@ const TourBar = () => {
         }}
         data-hud-block
         aria-label="Guided tour"
-        className="pointer-events-auto relative w-full max-w-[600px] overflow-hidden rounded-xl border border-white/[0.09] bg-[#0b0f18]/[0.92] shadow-[0_24px_60px_-28px_rgba(0,0,0,0.8)] backdrop-blur-md"
+        className="pointer-events-auto relative w-full max-w-[520px] rounded-2xl border border-white/[0.08] bg-[#0a0d14]/[0.88] p-4 shadow-[0_30px_70px_-30px_rgba(0,0,0,0.9),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl sm:p-5"
       >
-        {/* one segment per stop; the current one fills with the dwell clock */}
-        <div aria-hidden="true" className="flex gap-[3px] px-[3px] pt-[3px]">
-          {TOUR_STOPS.map((_, i) => (
-            <span key={i} className="relative h-[2px] flex-1 overflow-hidden rounded-full bg-white/[0.08]">
-              {(i < index || end) && <span className="absolute inset-0 bg-ink/50" />}
-              {i === index && !end && (
-                <span
-                  ref={reduced ? undefined : line}
-                  key={stamp}
-                  className="absolute inset-0 origin-left bg-[var(--accent)]"
-                  style={{ transform: reduced ? 'none' : 'scaleX(0)' }}
-                />
-              )}
-            </span>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-4 px-4 py-3 sm:px-5">
-          <span aria-hidden="true" className="shrink-0 self-start pt-[3px] font-mono text-[11px] tabular-nums tracking-[0.08em] text-ink-muted">
-            {end ? 'END' : `${pad(index + 1)}/${pad(total)}`}
+        <div className="flex items-start gap-4">
+          <span
+            aria-hidden="true"
+            className="font-display text-[28px] font-semibold leading-none tabular-nums text-[var(--accent)] sm:text-[32px]"
+          >
+            {end ? pad(total) : pad(index + 1)}
           </span>
-          <div aria-live="polite" className="min-w-0 flex-1">
+          <div aria-live="polite" className="min-w-0 flex-1 pt-0.5">
             {end ? (
-              <p className="text-[15px] leading-snug text-ink">That's the tour.</p>
+              <>
+                <h2 className="pt-1 text-[16px] font-semibold leading-tight text-white">That's the tour</h2>
+              </>
             ) : (
-              <p className="text-[14px] leading-snug text-ink sm:text-[15px]">
-                <span className="sr-only">
-                  Stop {index + 1} of {total}.{' '}
-                </span>
-                {stop.caption}
-              </p>
+              <>
+                <h2 className="text-[16px] font-semibold leading-tight text-white">
+                  <span className="sr-only">
+                    Stop {index + 1} of {total}:{' '}
+                  </span>
+                  {stop.title}
+                </h2>
+                <p className="mt-1 text-[14px] leading-snug text-ink-muted">{stop.caption}</p>
+              </>
             )}
           </div>
+          {!end && (
+            <button
+              type="button"
+              onClick={tour.end}
+              className="-mr-1.5 -mt-1 shrink-0 rounded-md px-1.5 py-1 text-[12px] text-ink-faint outline-none transition-colors duration-200 hover:text-ink focus-visible:text-ink"
+            >
+              End tour
+            </button>
+          )}
         </div>
 
-        <div className="flex items-center justify-between gap-2 border-t border-white/[0.07] px-4 py-2.5 sm:px-5">
+        <div className="mt-4 flex items-center gap-3">
+          {/* the flight plan: one leg per stop, the current leg fills while its panel is up */}
+          <div aria-hidden="true" className={cx('flex min-w-0 flex-1 items-center', end && 'hidden')}>
+            {TOUR_STOPS.map((_, i) => {
+              const done = end || i < index;
+              const here = !end && i === index;
+              return (
+                <div key={i} className="flex min-w-0 flex-1 items-center">
+                  <span
+                    className={cx(
+                      'h-2 w-2 shrink-0 rounded-full transition-colors duration-300',
+                      done || here ? 'bg-[var(--accent)]' : 'bg-white/[0.16]',
+                      here && 'shadow-[0_0_0_3px_rgba(255,255,255,0.08)]',
+                    )}
+                  />
+                  <span className="relative mx-1 h-px flex-1 overflow-hidden bg-white/[0.12]">
+                    {done && <span className="absolute inset-0 bg-[var(--accent)] opacity-60" />}
+                    {here && (
+                      <span
+                        ref={reduced ? undefined : line}
+                        key={stamp}
+                        className="absolute inset-0 origin-left bg-[var(--accent)]"
+                        style={{ transform: reduced ? 'none' : 'scaleX(0)' }}
+                      />
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+            <span
+              className={cx(
+                'h-2 w-2 shrink-0 rotate-45 rounded-[1px] transition-colors duration-300',
+                end ? 'bg-[var(--accent)]' : 'border border-white/25',
+              )}
+            />
+          </div>
+
           {end ? (
-            <>
+            <div className="flex flex-1 flex-wrap items-center justify-end gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  tour.end();
+                  useAppStore.getState().openReader();
+                }}
+                className={quiet}
+              >
+                Read as page
+              </button>
+              <button type="button" onClick={tour.end} className={quiet}>
+                Keep exploring
+              </button>
               <button
                 ref={endBtn}
                 type="button"
@@ -266,60 +319,31 @@ const TourBar = () => {
                   tour.end();
                   useContact.getState().show();
                 }}
-                className="inline-flex h-8 items-center gap-2 rounded-md bg-ink px-3 text-[13px] font-medium text-[#0b0f18] transition-opacity duration-200 hover:opacity-90"
+                className={primary}
               >
                 Contact
                 <ArrowIcon />
               </button>
-              <div className="flex items-center gap-1">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    tour.end();
-                    useAppStore.getState().openReader();
-                  }}
-                >
-                  Read as page
-                </Button>
-                <Button size="sm" variant="ghost" onClick={tour.end}>
-                  Keep exploring
-                </Button>
-              </div>
-            </>
+            </div>
           ) : (
-            <>
-              <div className="flex items-center gap-1.5">
-                <button type="button" onClick={tour.prev} disabled={index === 0} aria-label="Previous stop" className={iconBtn}>
-                  <BackIcon />
-                </button>
-                <button
-                  type="button"
-                  onClick={tour.togglePause}
-                  aria-pressed={paused}
-                  aria-label={paused ? 'Resume tour' : 'Pause tour'}
-                  className={iconBtn}
-                >
-                  <PauseIcon playing={!paused} />
-                </button>
-                <button
-                  ref={nextBtn}
-                  type="button"
-                  onClick={tour.next}
-                  aria-label={index === total - 1 ? 'Finish tour' : 'Next stop'}
-                  className={cx(iconBtn, 'border-white/20 text-white')}
-                >
-                  <ArrowIcon />
-                </button>
-              </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <button type="button" onClick={tour.prev} disabled={index === 0} aria-label="Previous stop" className={iconBtn}>
+                <BackIcon />
+              </button>
               <button
                 type="button"
-                onClick={tour.end}
-                className="inline-flex h-8 items-center rounded-md px-2 text-[12px] text-ink-muted transition-colors duration-200 hover:text-ink"
+                onClick={tour.togglePause}
+                aria-pressed={paused}
+                aria-label={paused ? 'Resume tour' : 'Pause tour'}
+                className={iconBtn}
               >
-                End tour
+                <PauseIcon playing={!paused} />
               </button>
-            </>
+              <button ref={nextBtn} type="button" onClick={tour.next} className={cx(primary, 'ml-1')}>
+                {index === total - 1 ? 'Finish' : 'Next'}
+                <ArrowIcon />
+              </button>
+            </div>
           )}
         </div>
         {paused && !end && <p className="sr-only">Tour paused</p>}

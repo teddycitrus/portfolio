@@ -4,9 +4,10 @@ import * as THREE from 'three';
 import { useAppStore } from '@/state/useAppStore';
 
 /*
- * What lies beyond the planets, seen through the deck window: a few soft
- * nebulae, distant spiral galaxies, and now and then a meteor streaking past.
- * Everything is additive, far behind the planets and never takes a click.
+ * What lies beyond the planets, seen through the deck window: distant spiral
+ * galaxies, and now and then a meteor streaking past (the nebulae are painted
+ * into the baked sky, see SpaceBackdrop). Everything is additive, far behind
+ * the planets and never takes a click.
  */
 
 /** Distance of the deep-sky layer: past the planets, inside the starfield shell */
@@ -34,46 +35,6 @@ const VERT = /* glsl */ `
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
-
-/** A wispy emission nebula: warped noise in two colours, cut by dark dust, fading at the edge. */
-const nebulaMaterial = (a: string, b: string, seed: number, strength: number) =>
-  new THREE.ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-    fog: false,
-    uniforms: {
-      uA: { value: new THREE.Color(a) },
-      uB: { value: new THREE.Color(b) },
-      uSeed: { value: seed },
-      uTime: { value: 0 },
-      uK: { value: strength },
-    },
-    vertexShader: VERT,
-    fragmentShader: /* glsl */ `
-      uniform vec3 uA;
-      uniform vec3 uB;
-      uniform float uSeed;
-      uniform float uTime;
-      uniform float uK;
-      varying vec2 vUv;
-      ${NOISE}
-      void main() {
-        vec2 p = vUv;
-        float r = length(p * vec2(1.0, 1.35));
-        vec2 w = p * 1.6 + vec2(fbm(p * 1.4 + uSeed), fbm(p * 1.4 - uSeed + 3.1)) * 1.3 + uTime * 0.004;
-        float gas = fbm(w * 1.8 + uSeed * 2.0);
-        float fil = pow(1.0 - abs(fbm(w * 3.4 + 7.0) - 0.5) * 2.0, 6.0);
-        float dust = smoothstep(0.5, 0.75, fbm(w * 2.6 - 4.0));
-        float fall = pow(1.0 - smoothstep(0.05, 0.95, r), 1.5);
-        float d = (smoothstep(0.35, 0.8, gas) * 0.8 + fil * 0.55) * fall * (1.0 - 0.75 * dust);
-        vec3 col = mix(uA, uB, smoothstep(0.3, 0.75, fbm(w * 1.2 + 2.0))) * d * uK;
-        gl_FragColor = vec4(col, 1.0);
-        #include <tonemapping_fragment>
-        #include <colorspace_fragment>
-      }
-    `,
-  });
 
 /** A spiral galaxy seen at an angle: two log-spiral arms, a warm core, a cool disc. */
 const galaxyMaterial = (seed: number, tilt: number, spin: number, strength: number) =>
@@ -174,10 +135,6 @@ const DeepSky = () => {
 
   const sky = useMemo<Sky[]>(
     () => [
-      // a teal and violet cloud low on the left, a rose and amber one high on the right
-      { pos: place(-0.55, -0.1), size: [120, 85], roll: 0.35, mat: nebulaMaterial('#2a9fb0', '#5a46c4', 1.3, 0.13) },
-      { pos: place(0.5, 0.16), size: [105, 70], roll: -0.5, mat: nebulaMaterial('#c4507a', '#c98a4e', 4.7, 0.1) },
-      { pos: place(0.05, -0.38), size: [140, 60], roll: 0.1, mat: nebulaMaterial('#3a5fd8', '#8a3fa8', 8.1, 0.075) },
       // distant galaxies
       { pos: place(-0.12, 0.24), size: [16, 16], roll: 0, mat: galaxyMaterial(2.0, 0.42, 0.6, 0.55) },
       { pos: place(0.74, -0.2), size: [10, 10], roll: 0, mat: galaxyMaterial(5.0, 0.75, -0.3, 0.45) },

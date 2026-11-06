@@ -12,8 +12,8 @@ interface Props {
   planet: Planet;
 }
 
-const ATMO_SCALE: Record<PlanetStyle, number> = { oceanic: 1.09, rocky: 1.05, 'gas-giant': 1.06, forested: 1.09, molten: 1.07 };
-const ATMO_STRENGTH: Record<PlanetStyle, number> = { oceanic: 1, rocky: 0.55, 'gas-giant': 0.75, forested: 1, molten: 0.6 };
+const ATMO_SCALE: Record<PlanetStyle, number> = { oceanic: 1.1, rocky: 1.07, 'gas-giant': 1.08, forested: 1.1, molten: 1.09 };
+const ATMO_STRENGTH: Record<PlanetStyle, number> = { oceanic: 1, rocky: 0.8, 'gas-giant': 0.95, forested: 1, molten: 0.85 };
 
 const PLANET_VERTEX = /* glsl */ `
   varying vec2 vUv;
@@ -60,11 +60,12 @@ const PLANET_FRAGMENT = /* glsl */ `
     vec3 N = normalize(mat3(modelMatrix) * (D.xyz * 2.0 - 1.0));
     vec3 V = normalize(cameraPosition - vWorldPos);
     float NgL = dot(Ng, uSun);
-    float NdL = max(dot(N, uSun), 0.0);
+    // a little wrap so the terminator rolls off instead of cutting
+    float NdL = max((dot(N, uSun) + 0.12) / 1.12, 0.0);
     float NdV = max(dot(Ng, V), 0.0);
 
     // Crisp terminator, sunlight reddened through the limb of the atmosphere
-    float day = smoothstep(-0.03, 0.06, NgL);
+    float day = smoothstep(-0.12, 0.14, NgL);
     vec3 redden = mix(vec3(1.0, 0.5, 0.3), vec3(1.0), smoothstep(0.0, 0.32, NgL));
     vec3 col = albedo * uSunColor * redden * NdL * day;
     if (uStyle == 2) col *= mix(0.55, 1.0, pow(NdV, 0.35));
@@ -72,6 +73,8 @@ const PLANET_FRAGMENT = /* glsl */ `
     float twilight = exp(-sq(NgL / 0.065));
     col += albedo * vec3(1.0, 0.45, 0.25) * twilight * 0.12 * uAtmo;
     col += albedo * (uAtmoColor * 0.01 + 0.004);
+    // starlight and the glow of the galaxy keep the night side from going flat black
+    col += albedo * vec3(0.022, 0.028, 0.045) * (1.0 - day) * (0.6 + 0.4 * NdV);
 
     if ((uStyle == 0 || uStyle == 3) && specMask > 0.01) {
       vec3 H = normalize(uSun + V);
@@ -93,6 +96,8 @@ const PLANET_FRAGMENT = /* glsl */ `
     float hazeLight = smoothstep(-0.2, 0.55, NgL);
     vec3 hazeCol = mix(uAtmoColor * vec3(1.0, 0.6, 0.45), uAtmoColor, smoothstep(0.0, 0.4, NgL));
     col = mix(col, hazeCol * 0.55 * hazeLight, rim * 0.55 * uAtmo * hazeLight);
+    // a bright lit limb where the atmosphere scatters sunlight toward the eye
+    col += hazeCol * pow(1.0 - NdV, 5.0) * smoothstep(-0.1, 0.5, NgL) * 0.45 * uAtmo;
 
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>

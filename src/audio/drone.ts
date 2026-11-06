@@ -637,9 +637,9 @@ export const shipSound = (kind: ShipSound, touchdown = 0.54) => {
     case 'door':
       // latches release, pressure equalises, the slabs run along their tracks
       body(t0, 0.16, 150, 70, 0.3);
-      air(t0 + 0.02, 0.5, 5200, 1600, 0.6, 0.12, 0.015, 'highpass');
-      air(t0 + 0.05, 0.36, 380, 900, 2.2, 0.08, 0.08);
-      body(t0 + 0.34, 0.2, 90, 48, 0.2);
+      air(t0 + 0.02, 0.6, 5200, 1600, 0.6, 0.12, 0.015, 'highpass');
+      air(t0 + 0.06, Math.max(0.36, touchdown - 0.04), 380, 900, 2.2, 0.08, 0.1);
+      body(t0 + Math.max(0.34, touchdown), 0.22, 90, 48, 0.22);
       break;
   }
   window.setTimeout(() => {

@@ -35,9 +35,9 @@ const Effects = () => {
       <EffectComposer multisampling={COARSE ? 0 : 2}>
         <Bloom
           mipmapBlur
-          luminanceThreshold={1}
-          luminanceSmoothing={0.2}
-          intensity={0.55}
+          luminanceThreshold={0.9}
+          luminanceSmoothing={0.25}
+          intensity={0.7}
           radius={0.72}
           levels={COARSE ? 4 : 5}
         />

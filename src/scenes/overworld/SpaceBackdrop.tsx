@@ -47,30 +47,55 @@ const BAKE_FRAGMENT = /* glsl */ `
     return v;
   }
 
+  // a soft emission nebula centred on direction c: warped clouds, bright knots, cut by dust
+  vec3 nebula(vec3 d, vec3 c, float spread, vec3 hot, vec3 cool, float seed) {
+    float a = dot(d, normalize(c));
+    float region = exp(-sq((1.0 - a) / spread));
+    if (region < 0.002) return vec3(0.0);
+    vec3 p = d * 2.2 + seed;
+    vec3 w = p + vec3(fbm(p * 1.3), fbm(p * 1.3 + 5.2), fbm(p * 1.3 + 9.7)) * 1.6;
+    float gas = smoothstep(0.32, 0.9, fbm(w * 1.4));
+    float body = smoothstep(0.25, 0.75, fbm(w * 0.7 + 2.0));
+    float knots = pow(smoothstep(0.55, 0.95, fbm(w * 4.0 + 1.0)), 2.0);
+    float dust = smoothstep(0.48, 0.72, fbm(w * 2.3 + 11.0));
+    float m = (gas * 0.75 + body * 0.45 + knots * 0.9) * region * (1.0 - 0.8 * dust);
+    vec3 tint = mix(cool, hot, smoothstep(0.35, 0.8, fbm(w * 0.9 + 4.0)));
+    return tint * m + hot * knots * region * 0.6;
+  }
+
   void main() {
     vec3 d = normalize(vDir);
-    vec3 col = vec3(0.0016, 0.0021, 0.0036);
-
+    // deep space is not pure black: a faint blue floor that deepens away from the galaxy
     float lat = dot(d, uAxis);
+    vec3 col = mix(vec3(0.0028, 0.0034, 0.0062), vec3(0.0016, 0.0019, 0.0034), smoothstep(0.0, 0.7, abs(lat)));
+
     vec3 w = d * 3.0 + vec3(fbm(d * 2.0), fbm(d * 2.0 + 7.3), fbm(d * 2.0 + 13.7)) * 1.2;
     float wl = lat + (fbm(d * 3.5 + 3.1) - 0.5) * 0.12;
 
-    // Faint diffuse glow plus a tighter, contrasty star-cloud core (reads as resolved light, not haze)
-    float wide = exp(-wl * wl * 16.0);
-    float narrow = exp(-wl * wl * 80.0);
+    // the galactic band: a broad glow and a contrasty core of star clouds
+    float wide = exp(-wl * wl * 14.0);
+    float narrow = exp(-wl * wl * 70.0);
     float clouds = smoothstep(0.35, 0.85, fbm(w * 2.4));
     float grain = smoothstep(0.35, 0.75, noise(d * 70.0)) * 0.6 + smoothstep(0.4, 0.8, noise(d * 160.0)) * 0.4;
-    float band = wide * 0.18 + narrow * (0.2 + 0.9 * clouds) * (0.55 + 0.45 * grain);
+    float band = wide * 0.22 + narrow * (0.25 + 1.0 * clouds) * (0.55 + 0.45 * grain);
 
-    // Dark dust lanes hugging the plane, broken up by warped noise
+    // dark dust lanes along the plane
     float laneNoise = fbm(w * 3.2 + 5.0);
     float lane = smoothstep(0.45, 0.7, laneNoise) * exp(-sq((wl - 0.015) * 16.0));
     band *= 1.0 - 0.85 * lane;
 
-    // Cool neutral band, only a faint warm lift toward the galactic centre
-    float core = pow(max(dot(d, uCore), 0.0), 24.0);
-    vec3 tint = mix(vec3(0.78, 0.84, 0.96), vec3(0.96, 0.9, 0.82), clamp(core * 1.2, 0.0, 1.0));
-    col += tint * (band * 0.016 + core * narrow * 0.014 * (1.0 - 0.7 * lane));
+    // blue-violet arms, warm toward the core
+    float core = pow(max(dot(d, uCore), 0.0), 18.0);
+    vec3 tint = mix(vec3(0.62, 0.7, 1.0), vec3(1.0, 0.86, 0.7), clamp(core * 1.3, 0.0, 1.0));
+    tint = mix(tint, vec3(0.78, 0.66, 1.0), 0.25 * clouds * (1.0 - core));
+    col += tint * (band * 0.02 + core * narrow * 0.02 * (1.0 - 0.7 * lane));
+
+    // emission nebulae framing the view: magenta and amber low left, teal and blue high right,
+    // a violet veil behind, and a small red one far off
+    col += nebula(d, vec3(-0.62, -0.2, -1.0), 0.16, vec3(1.0, 0.42, 0.62), vec3(0.42, 0.26, 0.9), 1.7) * 0.036;
+    col += nebula(d, vec3(0.7, 0.32, -1.0), 0.13, vec3(0.32, 0.9, 0.95), vec3(0.2, 0.36, 0.95), 6.3) * 0.032;
+    col += nebula(d, vec3(0.05, 0.05, -1.0), 0.32, vec3(0.6, 0.42, 1.0), vec3(0.14, 0.2, 0.55), 9.1) * 0.012;
+    col += nebula(d, vec3(0.95, -0.45, -0.6), 0.08, vec3(1.0, 0.36, 0.3), vec3(0.8, 0.3, 0.5), 3.4) * 0.026;
 
     // Gamma-encode with gain so the dark gradients keep precision in an 8-bit cube face
     gl_FragColor = vec4(pow(max(col, 0.0) * ENCODE_GAIN, vec3(1.0 / 2.2)), 1.0);

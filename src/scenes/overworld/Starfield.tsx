@@ -38,6 +38,13 @@ const FRAGMENT = /* glsl */ `
     if (r2 > 1.0) discard;
     // Gaussian core with a faint airy skirt
     float a = exp(-r2 * 7.0) + 0.06 * (1.0 - r2);
+    // the brightest stars: a tight core and four soft diffraction spikes
+    float big = smoothstep(1.0, 2.0, vBright);
+    if (big > 0.0) {
+      float core = exp(-r2 * 60.0);
+      float spikes = exp(-abs(c.x) * 34.0) * exp(-abs(c.y) * 2.6) + exp(-abs(c.y) * 34.0) * exp(-abs(c.x) * 2.6);
+      a = mix(a, core * 1.4 + spikes * 0.35 + exp(-r2 * 9.0) * 0.12, big);
+    }
     gl_FragColor = vec4(vColor * vBright * a * uOpacity, 1.0);
   }
 `;
@@ -58,7 +65,7 @@ const mulberry32 = (seed: number) => () => {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 };
 
-const Starfield = ({ count = 5000, radius = 220, opacity = 1 }: StarfieldProps) => {
+const Starfield = ({ count = 9000, radius = 220, opacity = 1 }: StarfieldProps) => {
   const ref = useRef<THREE.Points>(null);
 
   const geometry = useMemo(() => {
@@ -82,8 +89,9 @@ const Starfield = ({ count = 5000, radius = 220, opacity = 1 }: StarfieldProps) 
 
       // Power-law brightness: most stars faint, a handful bright
       const b = Math.pow(rand(), 7);
-      bright[i] = 0.18 + b * 2.2 + rand() * 0.12;
-      size[i] = 1.6 + b * 4.2 + rand() * 0.5;
+      bright[i] = 0.12 + b * 2.6 + rand() * 0.1;
+      // bright stars get a bigger sprite so their spikes have room
+      size[i] = 1.3 + b * 3.5 + rand() * 0.4 + (b > 0.35 ? 9 * b : 0);
       phase[i] = rand();
 
       let pick = rand();
