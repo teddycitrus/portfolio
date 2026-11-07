@@ -43,27 +43,52 @@
       }
     </script>
     <style>
+      /*
+       * The loader is the view from the observation deck in hyperspace, drawn
+       * before any script runs. The window sits exactly where the 3D cockpit
+       * puts it (the outline in src/scenes/ship/shape.ts, in screen space), so
+       * when the scene takes over the two views line up and only the light
+       * changes. Window corners in screen percent: x = 50 + 50 * nx, y = 50 - 50 * ny.
+       */
       #boot {
+        --hud: 191, 230, 255;
+        --win: polygon(11% 10%, 89% 10%, 95% 18%, 95% 73%, 80% 85%, 20% 85%, 5% 73%, 5% 18%);
+        --rim: polygon(10.2% 8.8%, 89.8% 8.8%, 96.1% 17.4%, 96.1% 73.6%, 80.6% 86.3%, 19.4% 86.3%, 3.9% 73.6%, 3.9% 17.4%);
         position: fixed;
         inset: 0;
         z-index: 100;
         pointer-events: none;
-        background-color: #05070d;
-        transition: background-color 450ms cubic-bezier(0.4, 0, 0.2, 1), opacity 500ms cubic-bezier(0.4, 0, 0.2, 1);
+        color: rgb(var(--hud));
+        font-family: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
+        transition: opacity 400ms cubic-bezier(0.23, 1, 0.32, 1);
+      }
+      /* the deck: a dark bulkhead, the window frame, hyperspace through the glass */
+      #boot .deck {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse 90% 70% at 50% 0%, #1a2130 0%, #0c1018 60%, #07090e 100%);
+        transition: opacity 450ms cubic-bezier(0.23, 1, 0.32, 1);
+      }
+      #boot .rim,
+      #boot .win {
+        position: absolute;
+        inset: 0;
+      }
+      #boot .rim {
+        clip-path: var(--rim);
+        background: linear-gradient(180deg, #2c3646 0%, #1a212d 55%, #232c3a 100%);
+      }
+      #boot .win {
+        clip-path: var(--win);
+        overflow: hidden;
+        background: radial-gradient(circle at 50% 50%, #dfeaff 0%, #7d9ff0 6%, #3a5cb8 22%, #1d3170 48%, #0d1838 100%);
       }
       /*
        * Hyperspace: one field of streaks drawn once, in three copies zooming out
        * past the viewer a third of a cycle apart. Transform and opacity only, so
        * it runs on the compositor and never holds up the app loading under it.
        */
-      #boot .warp {
-        position: absolute;
-        inset: 0;
-        overflow: hidden;
-        background: radial-gradient(circle at 50% 50%, rgba(150, 190, 255, 0.22) 0%, rgba(70, 110, 230, 0.08) 18%, rgba(5, 7, 13, 0) 60%);
-        transition: opacity 450ms cubic-bezier(0.4, 0, 0.2, 1);
-      }
-      #boot .warp i {
+      #boot .win i {
         position: absolute;
         left: 50%;
         top: 50%;
@@ -73,105 +98,211 @@
         background-size: 100% 100%;
         opacity: 0;
         will-change: transform, opacity;
-        animation: boot-warp 1.8s linear infinite;
+        animation: boot-warp 1.6s linear infinite;
       }
-      #boot .warp i:nth-child(2) { animation-delay: -0.6s; }
-      #boot .warp i:nth-child(3) { animation-delay: -1.2s; }
+      #boot .win i:nth-child(2) { animation-delay: -0.533s; --r: 40deg; }
+      #boot .win i:nth-child(3) { animation-delay: -1.067s; --r: 80deg; }
       @keyframes boot-warp {
         0% { transform: scale(0.35) rotate(var(--r, 0deg)); opacity: 0; }
         30% { opacity: 1; }
         80% { opacity: 0.9; }
         100% { transform: scale(1.4) rotate(var(--r, 0deg)); opacity: 0; }
       }
-      #boot .warp i:nth-child(2) { --r: 40deg; }
-      #boot .warp i:nth-child(3) { --r: 80deg; }
-      @media (prefers-reduced-motion: reduce) {
-        #boot .warp i { animation: none; opacity: 0.8; transform: scale(0.9); }
-        #boot .warp i:nth-child(n + 2) { display: none; }
-      }
-      /* the scene is up: the cabin and the hyperspace outside it show through, the nav display stays */
-      #boot.boot-handoff {
-        background-color: transparent;
-      }
-      #boot.boot-handoff .warp {
+      /* the scene is up and lines up underneath: the painted deck fades off it */
+      #boot.boot-handoff .deck {
         opacity: 0;
       }
       #boot.boot-done {
         opacity: 0;
       }
-      #boot .nav {
+
+      /*
+       * The nav display, projected on the glass: thin glowing light, no
+       * panel. The layer follows the glass when the deck drifts or shudders.
+       */
+      #boot .glass {
+        position: absolute;
+        inset: 0;
+        animation: boot-on 520ms steps(1, end) backwards;
+      }
+      @keyframes boot-on {
+        0% { opacity: 0; }
+        18% { opacity: 0.7; }
+        30% { opacity: 0.15; }
+        44% { opacity: 1; }
+        100% { opacity: 1; }
+      }
+      /* a lock ring on the destination, where the tunnel converges */
+      #boot .lock {
         position: absolute;
         left: 50%;
-        bottom: calc(env(safe-area-inset-bottom, 0px) + clamp(20px, 7vh, 64px));
-        width: min(340px, calc(100vw - 32px));
-        box-sizing: border-box;
-        transform: translateX(-50%);
-        padding: 12px 14px 13px;
-        border: 1px solid rgba(169, 220, 255, 0.28);
-        border-radius: 6px;
+        top: 50%;
+        width: 132px;
+        height: 132px;
+        margin: -66px 0 0 -66px;
+        border-radius: 50%;
+        border: 1px solid rgba(var(--hud), 0.4);
+        transition: transform 500ms cubic-bezier(0.23, 1, 0.32, 1), opacity 160ms ease-out, border-color 300ms ease-out;
+      }
+      #boot .lock::before,
+      #boot .lock::after {
+        content: '';
+        position: absolute;
+        background: rgba(var(--hud), 0.7);
+      }
+      /* ticks on the ring, left and right, top and bottom */
+      #boot .lock::before { left: -10px; right: -10px; top: 50%; height: 1px; margin-top: -0.5px;
+        -webkit-mask: linear-gradient(90deg, #000 0 7px, transparent 7px calc(100% - 7px), #000 calc(100% - 7px));
+        mask: linear-gradient(90deg, #000 0 7px, transparent 7px calc(100% - 7px), #000 calc(100% - 7px)); }
+      #boot .lock::after { top: -10px; bottom: -10px; left: 50%; width: 1px; margin-left: -0.5px;
+        -webkit-mask: linear-gradient(180deg, #000 0 7px, transparent 7px calc(100% - 7px), #000 calc(100% - 7px));
+        mask: linear-gradient(180deg, #000 0 7px, transparent 7px calc(100% - 7px), #000 calc(100% - 7px)); }
+      #boot.boot-spool .lock {
+        transform: scale(0.6);
+        border-color: rgba(var(--hud), 0.85);
+      }
+
+      /* the readout sits low on the glass, above the taper (window centre at 50%, its foot at 85%) */
+      #boot .hud {
+        position: absolute;
+        left: 50%;
+        top: 72%;
+        width: min(300px, calc(100vw - 96px));
+        transform: translate(-50%, -50%);
+        text-align: center;
+        text-shadow: 0 0 8px rgba(110, 190, 255, 0.55);
+        /* the scan lines of the projector */
+        -webkit-mask: repeating-linear-gradient(180deg, #000 0 2px, rgba(0, 0, 0, 0.62) 2px 3px);
+        mask: repeating-linear-gradient(180deg, #000 0 2px, rgba(0, 0, 0, 0.62) 2px 3px);
+      }
+      #boot .read {
+        transition: opacity 180ms ease-out, filter 180ms ease-out;
+      }
+      #boot .dest {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0;
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.32em;
+        text-transform: uppercase;
+        color: rgba(var(--hud), 0.78);
+      }
+      #boot .dest::before,
+      #boot .dest::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: rgba(var(--hud), 0.28);
+      }
+      /* the track: dim ticks, lit up to the progress; every fifth tick is taller */
+      #boot .track {
+        position: relative;
+        height: 9px;
+        margin: 10px 0 8px;
+      }
+      #boot .ticks,
+      #boot .lit {
+        position: absolute;
+        inset: 0;
         background:
-          repeating-linear-gradient(0deg, rgba(169, 220, 255, 0.035) 0 1px, transparent 1px 3px),
-          rgba(6, 12, 22, 0.8);
-        box-shadow: 0 0 24px rgba(90, 170, 255, 0.12), inset 0 0 18px rgba(90, 170, 255, 0.08);
-        font-family: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
-        color: #a9dcff;
-        text-shadow: 0 0 10px rgba(110, 200, 255, 0.5);
-        transition: opacity 600ms cubic-bezier(0.4, 0, 0.2, 1), transform 600ms cubic-bezier(0.4, 0, 0.2, 1),
-          border-color 300ms ease-out;
+          repeating-linear-gradient(90deg, currentColor 0 1px, transparent 1px 30px) 0 0 / 100% 100%,
+          repeating-linear-gradient(90deg, currentColor 0 1px, transparent 1px 6px) 0 100% / 100% 5px no-repeat;
       }
-      #boot.boot-nav-off .nav {
-        opacity: 0;
-        transform: translateX(-50%) translateY(8px);
+      #boot .ticks {
+        color: rgba(var(--hud), 0.22);
       }
-      #boot .nav-head,
-      #boot .nav-row {
+      #boot .lit {
+        color: rgb(var(--hud));
+        clip-path: inset(0 100% 0 0);
+        filter: drop-shadow(0 0 3px rgba(120, 200, 255, 0.9));
+      }
+      #boot .caret {
+        position: absolute;
+        inset: -3px 0;
+        will-change: transform;
+      }
+      #boot .caret::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 1px;
+        background: #fff;
+        box-shadow: 0 0 6px rgba(150, 215, 255, 1);
+      }
+      #boot .row {
         display: flex;
         justify-content: space-between;
         align-items: baseline;
         gap: 12px;
         margin: 0;
-      }
-      #boot .nav-head {
-        font-size: 10px;
-        letter-spacing: 0.24em;
+        font-size: 12px;
+        font-weight: 500;
+        letter-spacing: 0.14em;
         text-transform: uppercase;
-        opacity: 0.6;
       }
-      #boot .nav-row {
-        margin-top: 8px;
-        font-size: 13px;
-        letter-spacing: 0.06em;
-      }
-      #boot .nav-status {
+      #boot .status {
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
       }
-      #boot .nav-pct {
+      #boot .pct {
         font-variant-numeric: tabular-nums;
-        color: #e8f6ff;
+        color: #fff;
       }
-      #boot .nav-bar {
-        position: relative;
-        height: 4px;
-        margin-top: 10px;
-        border-radius: 2px;
-        background: rgba(169, 220, 255, 0.14);
-        overflow: hidden;
-      }
-      #boot .nav-fill {
+      /* arrival: the readout clears and the welcome comes up in its place */
+      #boot .hello {
         position: absolute;
-        inset: 0;
-        transform-origin: 0 50%;
-        transform: scaleX(0);
-        background: linear-gradient(90deg, #4f9dff, #bfe6ff);
-        box-shadow: 0 0 10px rgba(130, 200, 255, 0.8);
+        left: 0;
+        right: 0;
+        top: 50%;
+        margin: 0;
+        transform: translateY(-50%);
+        opacity: 0;
+        filter: blur(4px);
+        transition: opacity 260ms cubic-bezier(0.23, 1, 0.32, 1), filter 260ms cubic-bezier(0.23, 1, 0.32, 1);
       }
-      #boot.boot-arrived .nav {
-        border-color: rgba(191, 230, 255, 0.6);
+      #boot .hello span {
+        display: block;
+        font-size: 10px;
+        letter-spacing: 0.32em;
+        text-transform: uppercase;
+        color: rgba(var(--hud), 0.72);
       }
-      #boot.boot-arrived .nav-status {
-        color: #ffffff;
+      #boot .hello strong {
+        display: block;
+        margin-top: 6px;
+        font-size: 19px;
+        font-weight: 500;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: #eef8ff;
+      }
+      #boot.boot-arrived .read {
+        opacity: 0;
+        filter: blur(4px);
+      }
+      #boot.boot-arrived .lock {
+        opacity: 0;
+      }
+      #boot.boot-arrived .hello {
+        opacity: 1;
+        filter: blur(0);
+        transition-delay: 90ms;
+      }
+      /* the display switches off: quicker than it came on */
+      #boot.boot-nav-off .glass {
+        opacity: 0;
+        transition: opacity 220ms ease-out;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #boot .win i { animation: none; opacity: 0.8; transform: scale(0.9); }
+        #boot .win i:nth-child(n + 2) { display: none; }
+        #boot .glass { animation: none; }
+        #boot .hello { filter: none; }
       }
     </style>
   </head>
@@ -194,21 +325,32 @@
       </main>
     </noscript>
     <div id="boot" role="status" aria-label="Loading">
-      <div class="warp" aria-hidden="true"><i></i><i></i><i></i></div>
-      <div class="nav">
-        <p class="nav-head"><span>Mannully Space Co.</span><span>Nav</span></p>
-        <p class="nav-row"><span class="nav-status">In hyperspace</span><span class="nav-pct">0%</span></p>
-        <div class="nav-bar" aria-hidden="true"><div class="nav-fill"></div></div>
+      <div class="deck" aria-hidden="true">
+        <div class="rim"></div>
+        <div class="win"><i></i><i></i><i></i></div>
+      </div>
+      <div class="glass">
+        <div class="lock" aria-hidden="true"></div>
+        <div class="hud">
+          <div class="read">
+            <p class="dest">Mannully system</p>
+            <div class="track" aria-hidden="true"><div class="ticks"></div><div class="lit"></div><div class="caret"></div></div>
+            <p class="row"><span class="status">In hyperspace</span><span class="pct">0%</span></p>
+          </div>
+          <p class="hello"><span>Welcome to the</span><strong>Mannully system</strong></p>
+        </div>
       </div>
     </div>
     <script>
-      // The loader: hyperspace streaking past and the nav display counting toward the destination.
+      // The loader: hyperspace past the deck window and the nav display counting toward the destination.
       // It runs before the app bundle; once that is up the app drives the display through window.__nav.
       (function () {
         var boot = document.getElementById('boot');
-        var fill = boot.querySelector('.nav-fill');
-        var pct = boot.querySelector('.nav-pct');
-        var status = boot.querySelector('.nav-status');
+        var lit = boot.querySelector('.lit');
+        var caret = boot.querySelector('.caret');
+        var pct = boot.querySelector('.pct');
+        var status = boot.querySelector('.status');
+        var glass = boot.querySelector('.glass');
 
         // draw the streak field once; CSS zooms the copies
         try {
@@ -218,20 +360,20 @@
           var g = cv.getContext('2d');
           var c = N / 2;
           g.lineCap = 'round';
-          for (var i = 0; i < 200; i += 1) {
+          for (var i = 0; i < 220; i += 1) {
             var a = Math.random() * 6.2832;
-            var r0 = c * (0.06 + Math.pow(Math.random(), 0.8) * 0.85);
-            var len = c * (0.04 + 0.22 * (r0 / c));
+            var r0 = c * (0.05 + Math.pow(Math.random(), 0.8) * 0.85);
+            var len = c * (0.05 + 0.26 * (r0 / c));
             var k = 0.35 + 0.65 * (r0 / c);
-            g.strokeStyle = 'rgba(205, 228, 255, ' + (0.85 * k).toFixed(3) + ')';
-            g.lineWidth = 0.6 + 1.6 * k;
+            g.strokeStyle = 'rgba(235, 244, 255, ' + (0.9 * k).toFixed(3) + ')';
+            g.lineWidth = 0.6 + 1.5 * k;
             g.beginPath();
             g.moveTo(c + Math.cos(a) * r0, c + Math.sin(a) * r0);
             g.lineTo(c + Math.cos(a) * (r0 + len), c + Math.sin(a) * (r0 + len));
             g.stroke();
           }
           var url = 'url(' + cv.toDataURL('image/png') + ')';
-          var layers = boot.querySelectorAll('.warp i');
+          var layers = boot.querySelectorAll('.win i');
           for (var j = 0; j < layers.length; j += 1) layers[j].style.backgroundImage = url;
         } catch (e) {
           /* no canvas: the glow alone */
@@ -242,6 +384,7 @@
         var shown = 0;
         var floor = 0;
         var run = null;
+        var said = -1;
         var frame = function (now) {
           if (!boot.isConnected) return;
           var dt = Math.min(0.05, (now - last) / 1000);
@@ -254,8 +397,13 @@
             var target = Math.max(floor, 0.72 * (1 - Math.exp(-(now - t0) / 2200)));
             shown += (target - shown) * Math.min(1, dt * 6);
           }
-          fill.style.transform = 'scaleX(' + shown.toFixed(4) + ')';
-          pct.textContent = Math.round(shown * 100) + '%';
+          lit.style.clipPath = 'inset(0 ' + ((1 - shown) * 100).toFixed(2) + '% 0 0)';
+          caret.style.transform = 'translateX(' + (shown * 100).toFixed(2) + '%)';
+          var p = Math.round(shown * 100);
+          if (p !== said) {
+            said = p;
+            pct.textContent = p + '%';
+          }
           requestAnimationFrame(frame);
         };
         requestAnimationFrame(frame);
@@ -263,8 +411,9 @@
           floor: function (p) { floor = Math.max(floor, p); },
           to: function (p, ms) { run = { from: shown, to: p, at: performance.now(), ms: Math.max(1, ms) }; },
           status: function (text) { status.textContent = text; },
+          drift: function (x, y) { glass.style.transform = 'translate(' + x.toFixed(1) + 'px, ' + y.toFixed(1) + 'px)'; },
           stopDrawing: function () {
-            var w = boot.querySelector('.warp');
+            var w = boot.querySelector('.deck');
             if (w) w.style.display = 'none';
           }
         };

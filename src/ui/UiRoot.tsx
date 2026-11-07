@@ -50,7 +50,7 @@ const UiRoot = () => {
           {/* the HUD waits out the hyperspace arrival, then fades in over the deck */}
           <div
             className="pointer-events-none absolute inset-0"
-            style={{ opacity: intro ? 0 : 1, visibility: intro ? 'hidden' : 'visible', transition: 'opacity 700ms ease-out 150ms' }}
+            style={{ opacity: intro ? 0 : 1, visibility: intro ? 'hidden' : 'visible', transition: 'opacity 450ms cubic-bezier(0.23, 1, 0.32, 1)' }}
           >
             <OverworldHud />
             <PlanetHud />

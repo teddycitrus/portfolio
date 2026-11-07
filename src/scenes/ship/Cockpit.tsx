@@ -443,7 +443,8 @@ const Cockpit = () => {
 
     const aspect = size.width / Math.max(1, size.height);
     r.aspect += (aspect - r.aspect) * damp(5, dt);
-    const tv = Math.tan(THREE.MathUtils.degToRad(responsiveFov(r.aspect)) / 2);
+    // a lens widened for hyperspace widens the view outside, not the deck: the frame keeps its size on screen
+    const tv = Math.tan(THREE.MathUtils.degToRad(responsiveFov(r.aspect) + warpFx.lens) / 2);
 
     const ship = shipRef.current;
     const frame = frameRef.current;
@@ -480,6 +481,13 @@ const Cockpit = () => {
     // in hyperspace they are still instruments; the faces come up with the HUD
     const asControls = mode === 'overworld' && deploy > 0.999 && !store.intro;
     ship.updateMatrixWorld();
+    // the nav display is projected on the glass: it follows the glass as the deck drifts and shudders
+    if (store.intro) {
+      _corner.set(0, 0, -FRAME_DEPTH);
+      frame.localToWorld(_corner).project(camera);
+      warpFx.glassX = (_corner.x * size.width) / 2;
+      warpFx.glassY = (-_corner.y * size.height) / 2;
+    }
     (['tour', 'contact'] as const).forEach((key, i) => {
       const d = dashScreens[key];
       const mesh = displays.current[i];

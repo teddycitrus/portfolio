@@ -127,4 +127,9 @@ export const warpFx = {
   inside: false,
   /** Shake of the deck, same scale as the cockpit's own */
   shake: 0,
+  /** Degrees the lens is widened past rest; the cockpit frame keeps its size on screen regardless */
+  lens: 0,
+  /** Where the middle of the canopy glass is on screen, in px from the centre (the deck drifts and shudders) */
+  glassX: 0,
+  glassY: 0,
 };

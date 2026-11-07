@@ -9,30 +9,38 @@ import { responsiveFov } from './TelescopeCamera';
 
 /*
  * The site opens in hyperspace, seen from the observation deck. The loader's
- * 2D hyperspace hands over to this one once the scene is drawing; the nav
- * display runs on to 100%, the drive spools up, and the ship drops out in a
- * flash into the system, the lens snapping back and the deck shuddering.
- * "Welcome to the Mannully system" holds on the display, then the HUD comes
- * up. The system outside is not drawn until the drop.
+ * painted hyperspace hands over to this one once the scene is drawing; the nav
+ * display on the glass runs on to 100%, the drive spools up, and the ship drops
+ * out in a flash into the system, the lens snapping back and the deck
+ * shuddering. The welcome holds on the glass for about a second, the HUD comes
+ * up under it, and the display switches off. A click, tap or key in hyperspace
+ * drops out straight away. The system outside is not drawn until the drop.
  */
 
 /** Shortest run of the display to 100% once the scene is up */
-const RUN_MS = 1300;
+const RUN_MS = 1200;
 /** A cached visit is up in no time: the whole jump lasts at least this long from navigation */
-const MIN_TOTAL_MS = 2900;
+const MIN_TOTAL_MS = 2600;
+/** Asked to drop out: the display finishes this fast */
+const SKIP_MS = 220;
 /** The drive spooling up, ending in the flash */
 const SPOOL_MS = 560;
 /** The lens settling after the drop */
 const SETTLE_MS = 1100;
-/** The welcome line on the display, from the flash */
-const WELCOME_MS = 2100;
-/** The HUD comes up this long after the flash, as the welcome line clears */
-const HUD_AT = 1800;
+/** The welcome on the glass, from the flash, before the display switches off */
+const WELCOME_MS = 1150;
+/** The HUD comes up once the display has switched off (220 ms in index.html), so the two never stack */
+const HUD_AT = WELCOME_MS + 220;
 
 /** The tunnel: a long tube ahead of the deck */
 const TUBE_R = 34;
 /** Inside the camera far plane (800) */
 const TUBE_LEN = 720;
+/**
+ * The tube starts this far ahead of the eye, already wider than the view, so
+ * no triangle crosses the near plane (clipped halves can leave hairline cracks)
+ */
+const TUBE_NEAR = 10;
 const STREAKS = 420;
 /** Hyperspace streams past at this many units per second */
 const SPEED = 520;
@@ -168,10 +176,10 @@ const Warp = () => {
   });
 
   const parts = useMemo(() => {
-    const tube = new THREE.CylinderGeometry(TUBE_R, TUBE_R * 0.55, TUBE_LEN, 64, 1, true);
+    const tube = new THREE.CylinderGeometry(TUBE_R, TUBE_R * 0.55, TUBE_LEN, 64, 24, true);
     // along -z from the deck: the wide end at the eye, the far end narrowing away
     tube.rotateX(-Math.PI / 2);
-    tube.translate(0, 0, -TUBE_LEN / 2);
+    tube.translate(0, 0, -TUBE_LEN / 2 - TUBE_NEAR);
     const seed = new Float32Array(STREAKS * 2 * 3);
     const end = new Float32Array(STREAKS * 2);
     for (let i = 0; i < STREAKS; i += 1) {
@@ -215,9 +223,24 @@ const Warp = () => {
       s.runEnd = Math.max(RUN_MS, MIN_TOTAL_MS - now);
       navDisplay.to(1, s.runEnd);
     });
+    // anyone in a hurry drops out now (the same press unlocks the sound for the drop)
+    const skip = () => {
+      if (s.start < 0 || s.phase !== 0) return;
+      const ms = performance.now() - s.start;
+      if (s.runEnd - ms <= SKIP_MS) return;
+      s.runEnd = ms + SKIP_MS;
+      navDisplay.to(1, SKIP_MS);
+    };
+    window.addEventListener('pointerdown', skip);
+    window.addEventListener('keydown', skip);
     return () => {
+      window.removeEventListener('pointerdown', skip);
+      window.removeEventListener('keydown', skip);
       s.hum?.(0.3);
       s.hum = null;
+      warpFx.inside = false;
+      warpFx.shake = 0;
+      warpFx.lens = 0;
     };
   }, []);
 
@@ -227,6 +250,7 @@ const Warp = () => {
     if (!g) return;
     if (s.done || !useAppStore.getState().intro) {
       g.visible = false;
+      warpFx.lens = 0;
       return;
     }
     const dt = Math.min(delta, 0.05);
@@ -250,6 +274,7 @@ const Warp = () => {
     if (s.phase === 0 && s.start >= 0 && ms >= s.runEnd) {
       s.phase = 1;
       navDisplay.status('Dropping out');
+      navDisplay.spool();
       shipSound('dropout', SPOOL_MS / 1000);
       s.hum?.(SPOOL_MS / 1000);
       s.hum = null;
@@ -274,9 +299,8 @@ const Warp = () => {
         warpFx.inside = false;
         flight.heat = 0;
         navDisplay.arrived();
-        navDisplay.status('Welcome to the Mannully system');
         if (f) {
-          f.style.transition = 'opacity 700ms cubic-bezier(0.2, 0.7, 0.3, 1)';
+          f.style.transition = 'opacity 520ms cubic-bezier(0.23, 1, 0.32, 1)';
           f.style.opacity = '0';
         }
       }
@@ -297,12 +321,16 @@ const Warp = () => {
         s.welcome = true;
         endBoot();
       }
-      if (k >= 1 && s.welcome) {
+      if (k >= 1 && s.welcome && s.hud) {
         s.done = true;
         warpFx.shake = 0;
+        warpFx.lens = 0;
+        return;
       }
     }
     warpFx.shake = shake;
+    warpFx.lens = fov - base;
+    if (!s.welcome) navDisplay.drift(warpFx.glassX, warpFx.glassY);
 
     if (Math.abs(camera.fov - fov) > 1e-3) {
       camera.fov = fov;

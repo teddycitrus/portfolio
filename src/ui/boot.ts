@@ -1,11 +1,11 @@
 /*
- * The loader lives in index.html so it shows before any script runs: the view
- * from the deck in hyperspace (a 2D canvas) with the ship's nav display
- * counting toward the destination. Once the scene has drawn its first frames
- * the canvas fades out over the real deck, which is in hyperspace too, and
- * the warp (src/scenes/overworld/Warp.tsx) takes over the display and drops
- * out into the system. Without the warp (the reader, a deep link, reduced
- * motion, no WebGL) the display reaches 100% and the whole loader fades.
+ * The loader lives in index.html so it shows before any script runs: the deck
+ * window in hyperspace, painted where the 3D cockpit will put it, with the
+ * ship's nav display projected on the glass. Once the scene has drawn its
+ * first frames the painted deck fades off the real one, which lines up under
+ * it, and the warp (src/scenes/overworld/Warp.tsx) takes over the display and
+ * drops out into the system. Without the warp (the reader, a deep link,
+ * reduced motion, no WebGL) the display reaches 100% and the loader fades.
  */
 
 import { useAppStore } from '@/state/useAppStore';
@@ -14,13 +14,16 @@ interface Nav {
   floor: (p: number) => void;
   to: (p: number, ms: number) => void;
   status: (text: string) => void;
+  drift: (x: number, y: number) => void;
   stopDrawing: () => void;
 }
 
-/** Arrival line on the display without the warp, held before the fade */
-const ARRIVE_MS = 700;
+/** The display's run to 100% without the warp */
+const ARRIVE_MS = 320;
 /** The loader's fade, matching the transition in index.html */
-const FADE_MS = 500;
+const FADE_MS = 400;
+/** The display switching off, matching index.html */
+const OFF_MS = 220;
 /** Never leave it up longer than this, whatever happens */
 const GIVE_UP_MS = 15000;
 
@@ -31,6 +34,9 @@ const nav = (): Nav | null => (window as unknown as { __nav?: Nav }).__nav ?? nu
 export const navDisplay = {
   to: (p: number, ms: number) => nav()?.to(p, ms),
   status: (text: string) => nav()?.status(text),
+  /** Moves the display with the glass, in px from where it was painted */
+  drift: (x: number, y: number) => nav()?.drift(x, y),
+  spool: () => el()?.classList.add('boot-spool'),
   arrived: () => el()?.classList.add('boot-arrived'),
 };
 
@@ -65,7 +71,7 @@ export const endBoot = () => {
   const b = el();
   if (!b) return;
   b.classList.add('boot-nav-off');
-  window.setTimeout(() => b.remove(), 700);
+  window.setTimeout(() => b.remove(), OFF_MS + 80);
 };
 
 /**
@@ -89,15 +95,11 @@ export const hideBoot = (giveUp = false) => {
     return;
   }
   if (store.intro) store.endIntro();
-  nav()?.to(1, 350);
-  window.setTimeout(() => {
-    b.classList.add('boot-arrived');
-    nav()?.status('Arrived');
-  }, 350);
+  nav()?.to(1, ARRIVE_MS);
   window.setTimeout(() => {
     fadeAll();
     reveal();
-  }, 350 + ARRIVE_MS);
+  }, ARRIVE_MS + 60);
 };
 
 window.setTimeout(() => hideBoot(true), GIVE_UP_MS);
