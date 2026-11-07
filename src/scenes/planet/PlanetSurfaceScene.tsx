@@ -13,6 +13,9 @@ import Wildlife from './Wildlife';
 import Mothership from './Mothership';
 import Beacon, { beaconHeight } from './Beacon';
 import PlanetCamera, { type SurfaceBeacon } from './PlanetCamera';
+import { siteFor } from './sites/site';
+import { TempleGrounds } from './sites/Temple';
+import { OutpostGrounds } from './sites/Outpost';
 
 const SHADOW_EXTENT = 34;
 const SUN_DISTANCE = 70;
@@ -21,7 +24,10 @@ const Surface = ({ planet }: { planet: Planet }) => {
   const scene = useThree((s) => s.scene);
   const reducedMotion = useAppStore((s) => s.reducedMotion);
   const isTouch = useAppStore((s) => s.isTouch);
-  const ground = useMemo(() => heightFor(planet.style), [planet.style]);
+  const terrain = useMemo(() => heightFor(planet.style), [planet.style]);
+  // built ground (a temple floor, a landing pad) over the terrain
+  const site = useMemo(() => siteFor(planet, terrain), [planet, terrain]);
+  const ground = site.ground;
   const walkRadius = walkRadiusFor(planet.style);
   const sun = useRef<THREE.DirectionalLight>(null);
   const sky = useMemo(() => buildSky(planet), [planet]);
@@ -35,13 +41,13 @@ const Surface = ({ planet }: { planet: Planet }) => {
     () =>
       planet.beacons.map((b, i) => {
         const [x, , z] = getBeaconPosition(planet, i);
-        return { id: b.id, position: [x, ground(x, z), z] as Vec3, height: beaconHeight(planet, b) };
+        return { id: b.id, position: [x, ground(x, z), z] as Vec3, height: beaconHeight(planet, b), collide: site.collide(i) };
       }),
-    [planet, ground],
+    [planet, ground, site],
   );
   const clearings = useMemo(
-    () => beacons.map((b) => [b.position[0], b.position[2]] as [number, number]),
-    [beacons],
+    () => [...beacons.map((b) => [b.position[0], b.position[2]] as [number, number]), ...site.clearings],
+    [beacons, site],
   );
 
   // exponential fog matching the sky horizon; removed on unmount so the overworld stays clear
@@ -86,6 +92,12 @@ const Surface = ({ planet }: { planet: Planet }) => {
       <Terrain planet={planet} sky={sky} reducedMotion={reducedMotion} />
       <Surroundings planet={planet} sky={sky} reducedMotion={reducedMotion} />
       <Vegetation planet={planet} beacons={clearings} reducedMotion={reducedMotion} />
+      {planet.architecture === 'temple' && (
+        <TempleGrounds planet={planet} ground={terrain} rim={sky.rim} rimColor={sky.rimColor} reducedMotion={reducedMotion} />
+      )}
+      {planet.architecture === 'outpost' && (
+        <OutpostGrounds planet={planet} ground={terrain} rim={sky.rim} rimColor={sky.rimColor} reducedMotion={reducedMotion} />
+      )}
       <Wildlife planet={planet} ground={ground} obstacles={clearings} isTouch={isTouch} reducedMotion={reducedMotion} />
 
       {planet.beacons.map((b, i) => (
@@ -101,7 +113,7 @@ const Surface = ({ planet }: { planet: Planet }) => {
         />
       ))}
 
-      <PlanetCamera planetId={planet.id} beacons={beacons} ground={ground} walkRadius={walkRadius} />
+      <PlanetCamera planetId={planet.id} beacons={beacons} ground={ground} walkRadius={walkRadius} colliders={site.colliders} />
     </>
   );
 };

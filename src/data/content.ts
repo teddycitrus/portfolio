@@ -182,11 +182,22 @@ export const SURFACE_HEAD_HEIGHT = 1.6;
 const BEACON_ARC_RADIUS = 9;
 const BEACON_ARC_SPAN = (94 * Math.PI) / 180;
 
+/** The temple's statues stand in pairs down its aisle, facing in across it */
+export const TEMPLE_AISLE_X = 3.3;
+export const TEMPLE_ROW_Z = [-5.2, -10.4];
+/** A statue faces this far ahead of itself on the aisle's centre line */
+const TEMPLE_FACE_AHEAD = 1.8;
+
 /**
  * Beacons are laid out on an arc around the origin, centred on -Z, so every
- * one is visible from the spawn point. Index 0 is leftmost.
+ * one is visible from the spawn point. Index 0 is leftmost. The temple
+ * instead pairs them down its aisle, left then right, front row first.
  */
 export const getBeaconPosition = (planet: Planet, beaconIndex: number): Vec3 => {
+  if (planet.architecture === 'temple') {
+    const row = TEMPLE_ROW_Z[Math.min(TEMPLE_ROW_Z.length - 1, Math.floor(beaconIndex / 2))];
+    return [beaconIndex % 2 === 0 ? -TEMPLE_AISLE_X : TEMPLE_AISLE_X, 0, row];
+  }
   const n = planet.beacons.length;
   const t = n === 1 ? 0.5 : beaconIndex / (n - 1);
   const angle = -BEACON_ARC_SPAN / 2 + t * BEACON_ARC_SPAN;
@@ -195,10 +206,15 @@ export const getBeaconPosition = (planet: Planet, beaconIndex: number): Vec3 => 
 
 export const BEACON_VIEW_DISTANCE = 4.2;
 
-/** Standing point used when gliding to a beacon: a few units in front of it, on the spawn side. */
-export const getBeaconViewPoint = (beaconPos: Vec3): Vec3 => {
-  const dx = SURFACE_SPAWN[0] - beaconPos[0];
-  const dz = SURFACE_SPAWN[2] - beaconPos[2];
+/** The point a monument faces (x, z): the spawn, or the aisle in front of a temple statue. */
+export const getBeaconFacing = (planet: Planet, beaconPos: Vec3): [number, number] =>
+  planet.architecture === 'temple' ? [0, beaconPos[2] + TEMPLE_FACE_AHEAD] : [SURFACE_SPAWN[0], SURFACE_SPAWN[2]];
+
+/** Standing point used when gliding to a beacon: a few units in front of it, on the side it faces. */
+export const getBeaconViewPoint = (planet: Planet, beaconPos: Vec3): Vec3 => {
+  const [fx, fz] = getBeaconFacing(planet, beaconPos);
+  const dx = fx - beaconPos[0];
+  const dz = fz - beaconPos[2];
   const len = Math.hypot(dx, dz) || 1;
   return [
     beaconPos[0] + (dx / len) * BEACON_VIEW_DISTANCE,

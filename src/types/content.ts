@@ -70,8 +70,13 @@ export type BeaconKind = Beacon['kind'];
 export type PlanetTime = 'noon' | 'dawn' | 'dusk' | 'twilight' | 'night';
 export type PlanetStyle = 'oceanic' | 'rocky' | 'gas-giant' | 'forested' | 'molten';
 
-/** Building style shared by every monument on a planet */
-export type Architecture = 'obelisk' | 'deco' | 'classical' | 'pagoda' | 'gothic';
+/**
+ * Building style shared by every monument on a planet. The pillar styles put
+ * one monument per beacon on an arc; 'temple' is an open-air temple with a
+ * statue per beacon down its aisle, 'outpost' a small base camp with a
+ * building per beacon.
+ */
+export type Architecture = 'obelisk' | 'deco' | 'classical' | 'pagoda' | 'gothic' | 'temple' | 'outpost';
 
 export interface PlanetSurface {
   /** Base ground colour */

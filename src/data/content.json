@@ -56,7 +56,7 @@
         "ground": "#3a1e12",
         "atmosphere": "#7a3420"
       },
-      "architecture": "obelisk",
+      "architecture": "outpost",
       "key": "F major",
       "beacons": [
         {
@@ -283,7 +283,7 @@
         "ground": "#2e1c0c",
         "atmosphere": "#8a5418"
       },
-      "architecture": "classical",
+      "architecture": "temple",
       "key": "E major",
       "beacons": [
         {

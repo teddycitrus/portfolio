@@ -8,6 +8,11 @@ import { arrivalPulse } from './surfaceState';
 import { openBeacon } from '@/ui/navigation';
 import { mulberry, seedOf } from './rng';
 import BeaconScreens from './BeaconScreens';
+import { getBeaconFacing } from '@/data/content';
+import { addRim } from './sites/common';
+import { STATUE_HEIGHT, TempleStatue } from './sites/Temple';
+import { OUTPOST_HEIGHT, OutpostBuilding } from './sites/Outpost';
+import { outpostKind } from './sites/site';
 
 /* ---------- meaning: award tiers, project glyphs, skill counts ---------- */
 
@@ -46,7 +51,10 @@ type Spec =
   | { theme: 'deco'; tiers: Tier[]; depthK: number; spire: number; fins: number; T: number }
   | { theme: 'classical'; P: number; rc: number; flutes: number; ionic: boolean; capTop: number }
   | { theme: 'pagoda'; tiers: Tier[]; over: number; roofH: number; finial: number; top: number }
-  | { theme: 'gothic'; S: number; sh: number; apex: number; pinH: number; rose: boolean };
+  | { theme: 'gothic'; S: number; sh: number; apex: number; pinH: number; rose: boolean }
+  /* the built sites draw their own monuments (sites/) */
+  | { theme: 'temple' }
+  | { theme: 'outpost' };
 
 type PillarSpec = Spec & {
   /** Which of the theme's designs this monument uses; neighbours never share one */
@@ -57,7 +65,7 @@ type PillarSpec = Spec & {
 };
 
 /** Distinct designs per architecture. A planet's monuments take them in order, so each one differs. */
-const FORMS: Record<Architecture, number> = { obelisk: 4, deco: 4, classical: 4, pagoda: 4, gothic: 5 };
+const FORMS: Record<Architecture, number> = { obelisk: 4, deco: 4, classical: 4, pagoda: 4, gothic: 5, temple: 1, outpost: 1 };
 
 const SIN60 = Math.sin(Math.PI / 3);
 const BASE_Y = 0.1;
@@ -69,6 +77,12 @@ const buildSpec = (theme: Architecture, b: BeaconData, index: number): PillarSpe
   const form = index % FORMS[theme];
   const done = (top: number, lift = 0.3, pad = 0.42) => ({ height: top + pad, floatY: top + lift, shade, form });
   switch (theme) {
+    case 'temple':
+      return { theme, height: STATUE_HEIGHT + 0.1, floatY: STATUE_HEIGHT, shade, form };
+    case 'outpost': {
+      const top = OUTPOST_HEIGHT[outpostKind(b.id, index)];
+      return { theme, height: top + 0.15, floatY: top, shade, form };
+    }
     case 'obelisk': {
       const steps = v[0] < 0.5 ? 2 : 1;
       const H = 2.3 + v[1] * 0.7;
@@ -206,23 +220,6 @@ interface BeaconProps {
   reducedMotion?: boolean;
 }
 
-/** Adds a view-angle rim to a standard material so monuments never read as flat silhouettes. */
-const addRim = (m: THREE.MeshStandardMaterial, color: THREE.Color, strength: number) => {
-  m.customProgramCacheKey = () => 'beacon-rim';
-  m.onBeforeCompile = (shader) => {
-    shader.uniforms.uRim = { value: color.clone().multiplyScalar(strength) };
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 uRim;')
-      .replace(
-        '#include <emissivemap_fragment>',
-        `#include <emissivemap_fragment>
-        float rimF = pow(1.0 - saturate(dot(normalize(normal), normalize(vViewPosition))), 2.5);
-        totalEmissiveRadiance += uRim * (0.2 + rimF);`,
-      );
-  };
-  return m;
-};
-
 const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedMotion }: BeaconProps) => {
   const kind = beacon.kind;
   const spec = useMemo(() => buildSpec(planet.architecture, beacon, index), [planet.architecture, beacon, index]);
@@ -243,8 +240,14 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
   const ring = useRef<THREE.Mesh>(null);
   const state = useRef({ focus: 0 });
 
-  // face the spawn side so seams and faces read from the walkway
-  const yaw = useMemo(() => Math.atan2(-position[0], 5 - position[2]), [position]);
+  // face the spawn side (or the temple aisle) so faces read from the walkway
+  const yaw = useMemo(() => {
+    const [fx, fz] = getBeaconFacing(planet, position);
+    return Math.atan2(fx - position[0], fz - position[2]);
+  }, [planet, position]);
+  const built = spec.theme === 'temple' || spec.theme === 'outpost';
+  /** Reach of the focus ring and the hit volume: buildings are wider than monuments */
+  const reach = spec.theme === 'outpost' ? 1.9 : 1;
 
   const mats = useMemo(() => {
     const accent = new THREE.Color(planet.accent);
@@ -523,8 +526,11 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
   /* ---------- the building itself: one theme per planet, a different design per monument ---------- */
   const S2 = Math.SQRT2;
   const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
-  let body: JSX.Element;
+  let body: JSX.Element = <></>;
   switch (spec.theme) {
+    case 'temple':
+    case 'outpost':
+      break;
     case 'obelisk': {
       const { steps, H, bw, tw, capH, tilt, ticks, form } = spec;
       const y0 = steps * 0.12;
@@ -1109,23 +1115,33 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
   return (
     <group position={position}>
       <group rotation={[0, yaw, 0]}>
-        {/* plinth */}
-        <mesh material={mats.plinth} position={[0, 0.04, 0]} receiveShadow castShadow>
-          <cylinderGeometry args={[0.85, 0.95, 0.14, 8]} />
-        </mesh>
-        <group position={[0, BASE_Y, 0]}>
-          {body}
-          <group ref={floater}>
-            <group position={[0, spec.floatY - BASE_Y, 0]}>{crown}</group>
-          </group>
-        </group>
+        {spec.theme === 'temple' ? (
+          <TempleStatue beacon={beacon} planet={planet} focus={state} rim={rim} rimColor={rimColor} reducedMotion={reducedMotion} index={index} />
+        ) : spec.theme === 'outpost' ? (
+          <OutpostBuilding beacon={beacon} planet={planet} index={index} focus={state} rim={rim} rimColor={rimColor} reducedMotion={reducedMotion} />
+        ) : (
+          <>
+            {/* plinth */}
+            <mesh material={mats.plinth} position={[0, 0.04, 0]} receiveShadow castShadow>
+              <cylinderGeometry args={[0.85, 0.95, 0.14, 8]} />
+            </mesh>
+            <group position={[0, BASE_Y, 0]}>
+              {body}
+              <group ref={floater}>
+                <group position={[0, spec.floatY - BASE_Y, 0]}>{crown}</group>
+              </group>
+            </group>
+          </>
+        )}
       </group>
 
       {/* soft light pool and focus ring */}
-      <mesh material={mats.pool} position={[0, 0.06, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={2}>
-        <planeGeometry args={[6, 6]} />
-      </mesh>
-      <mesh ref={ring} material={mats.ringMat} position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={3}>
+      {!built && (
+        <mesh material={mats.pool} position={[0, 0.06, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={2}>
+          <planeGeometry args={[6, 6]} />
+        </mesh>
+      )}
+      <mesh ref={ring} material={mats.ringMat} position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={reach} renderOrder={3}>
         <ringGeometry args={[1.0, 1.035, 96]} />
       </mesh>
 
@@ -1144,7 +1160,7 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
           document.body.style.cursor = '';
         }}
       >
-        <cylinderGeometry args={[1.3, 1.3, height + 1.4, 12]} />
+        <cylinderGeometry args={[1.3 * reach, 1.3 * reach, height + 1.4, 12]} />
       </mesh>
     </group>
   );

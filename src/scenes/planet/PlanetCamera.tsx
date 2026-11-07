@@ -3,7 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useAppStore } from '@/state/useAppStore';
 import { beaconScreen, dragLook, flight, joystickState, keyboardState, mouseLook, type PlanetScreenInfo } from '@/state/runtime';
-import { BEACON_VIEW_DISTANCE, getBeaconViewPoint, SURFACE_HEAD_HEIGHT, SURFACE_SPAWN } from '@/data/content';
+import { BEACON_VIEW_DISTANCE, getBeaconViewPoint, planetById, SURFACE_HEAD_HEIGHT, SURFACE_SPAWN } from '@/data/content';
 import type { Vec3 } from '@/types/content';
 import type { HeightFn } from './Terrain';
 import { LABEL_ANCHOR } from './Beacon';
@@ -16,7 +16,12 @@ export interface SurfaceBeacon {
   position: Vec3;
   /** Monument height */
   height: number;
+  /** How close the walker may come to its centre */
+  collide: number;
 }
+
+/** A round obstacle on the ground that is not a beacon: x, z, radius */
+export type Collider = [number, number, number];
 
 const WALK_SPEED = 3.4;
 const RUN_SPEED = 6.8;
@@ -33,7 +38,8 @@ const GAZE_DWELL = 0.45;
 /** With the cursor locked, a click opens the beacon within this angle of the screen centre */
 const AIM_ANGLE = (10 * Math.PI) / 180;
 const STICKY_RELEASE = 7;
-const BEACON_COLLIDE = 1.15;
+/** How far the walker must move before a nearer beacon can take focus from a chosen one */
+const HOLD_MOVE = 1;
 const EDGE_INSET = 48;
 /** Resting gaze sits slightly above level so monuments fill more of the frame */
 const PITCH_BIAS = 0.1;
@@ -76,13 +82,15 @@ interface PlanetCameraProps {
   /** Ground height for this planet's style */
   ground: HeightFn;
   walkRadius: number;
+  /** Other obstacles: columns, a campfire, a mast */
+  colliders: Collider[];
 }
 
 /**
  * First-person walker for the planet surface. Owns the camera only in
  * mode 'planet'; TransitionController owns it in the transition modes.
  */
-const PlanetCamera = ({ planetId, beacons, ground, walkRadius }: PlanetCameraProps) => {
+const PlanetCamera = ({ planetId, beacons, ground, walkRadius, colliders }: PlanetCameraProps) => {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const size = useThree((s) => s.size);
   const mode = useAppStore((s) => s.mode);
@@ -111,6 +119,9 @@ const PlanetCamera = ({ planetId, beacons, ground, walkRadius }: PlanetCameraPro
     gazeTime: 0,
     gazeUnlock: 0,
     bias: PITCH_BIAS,
+    /** Where the walker stood when a beacon was chosen (or a glide put them); nearer beacons only take over after moving away */
+    holdX: 0,
+    holdZ: 0,
   });
   const sizeRef = useRef(size);
   sizeRef.current = size;
@@ -241,7 +252,7 @@ const PlanetCamera = ({ planetId, beacons, ground, walkRadius }: PlanetCameraPro
       } else {
         // same line as the shared view point, but a little further back so the whole
         // monument and its label fit the frame
-        const vp = getBeaconViewPoint(b.position);
+        const vp = getBeaconViewPoint(planetById(planetId)!, b.position);
         vp[0] = b.position[0] + (vp[0] - b.position[0]) * (GLIDE_DISTANCE / BEACON_VIEW_DISTANCE);
         vp[2] = b.position[2] + (vp[2] - b.position[2]) * (GLIDE_DISTANCE / BEACON_VIEW_DISTANCE);
         s.glideId = b.id;
@@ -309,16 +320,18 @@ const PlanetCamera = ({ planetId, beacons, ground, walkRadius }: PlanetCameraPro
       pos.x += s.vx * dt;
       pos.z += s.vz * dt;
 
-      // keep out of monuments
-      for (const b of beacons) {
-        const dx = pos.x - b.position[0];
-        const dz = pos.z - b.position[2];
+      // keep out of monuments and anything else standing on the ground
+      const pushOut = (ox: number, oz: number, r: number) => {
+        const dx = pos.x - ox;
+        const dz = pos.z - oz;
         const d = Math.hypot(dx, dz);
-        if (d < BEACON_COLLIDE && d > 1e-4) {
-          pos.x = b.position[0] + (dx / d) * BEACON_COLLIDE;
-          pos.z = b.position[2] + (dz / d) * BEACON_COLLIDE;
+        if (d < r && d > 1e-4) {
+          pos.x = ox + (dx / d) * r;
+          pos.z = oz + (dz / d) * r;
         }
-      }
+      };
+      for (const b of beacons) pushOut(b.position[0], b.position[2], b.collide);
+      for (const [ox, oz, r] of colliders) pushOut(ox, oz, r);
       const r = Math.hypot(pos.x, pos.z);
       if (r > walkRadius) {
         const nx = pos.x / r;
@@ -348,6 +361,10 @@ const PlanetCamera = ({ planetId, beacons, ground, walkRadius }: PlanetCameraPro
 
     /* ---- focus detection ---- */
     mouseLook.aimId = null;
+    if (s.glideId) {
+      s.holdX = pos.x;
+      s.holdZ = pos.z;
+    }
     if (settle >= 1 && !s.glideId) {
       const fx = -Math.sin(s.yaw) * Math.cos(viewPitch);
       const fy = Math.sin(viewPitch);
@@ -386,8 +403,11 @@ const PlanetCamera = ({ planetId, beacons, ground, walkRadius }: PlanetCameraPro
 
       // external changes (click, HUD list, Escape) override auto focus
       if (store.focusedBeaconId !== s.lastSet) {
-        if (store.focusedBeaconId) s.sticky = store.focusedBeaconId;
-        else {
+        if (store.focusedBeaconId) {
+          s.sticky = store.focusedBeaconId;
+          s.holdX = pos.x;
+          s.holdZ = pos.z;
+        } else {
           s.dismissed = s.lastSet;
           s.sticky = null;
         }
@@ -404,7 +424,9 @@ const PlanetCamera = ({ planetId, beacons, ground, walkRadius }: PlanetCameraPro
       let next: string | null = prox ?? gaze;
       if (s.sticky) {
         if (stickyD > STICKY_RELEASE) s.sticky = null;
-        else if (prox && prox !== s.sticky && nearD < stickyD - 0.5) s.sticky = null;
+        // a chosen beacon stays chosen until the walker moves: a glide can end nearer a neighbour
+        else if (prox && prox !== s.sticky && nearD < stickyD - 0.5 && Math.hypot(pos.x - s.holdX, pos.z - s.holdZ) > HOLD_MOVE)
+          s.sticky = null;
         else next = s.sticky;
       }
       // a dismissed beacon stays closed until the player looks or walks away from it
