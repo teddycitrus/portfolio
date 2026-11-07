@@ -29,6 +29,11 @@
         "label": "X",
         "url": "https://x.com/teddycitrus",
         "handle": "@teddycitrus"
+      },
+      {
+        "label": "Resume",
+        "url": "https://drive.google.com/file/d/1p3H73LFQpEYpaQyEWCUjl9o4cyFzZGtt/view",
+        "handle": "PDF"
       }
     ]
   },

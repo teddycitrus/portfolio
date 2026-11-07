@@ -28,7 +28,7 @@ interface AppState {
   noWebGL: boolean;
   /** The hyperspace arrival is playing: no HUD, no input, and travel waits for it */
   intro: boolean;
-  /** A planet asked for during the arrival (a link, Back, the tour); travel starts when it ends */
+  /** A planet asked for during the arrival (a link, Back); travel starts when it ends */
   introTravel: string | null;
 
   setNoWebGL: () => void;

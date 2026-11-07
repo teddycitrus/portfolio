@@ -3,8 +3,6 @@ import { useAppStore } from '@/state/useAppStore';
 import { dragLook, keyboardState, mouseLook, pointerState } from '@/state/runtime';
 import { planetByIndex } from '@/data/content';
 import { openBeacon } from '@/ui/navigation';
-import { useTour } from '@/ui/tour';
-import { useContact } from '@/ui/contact';
 
 const DRAG_SENSITIVITY = 0.0042;
 const TOUCH_DRAG_SENSITIVITY = 0.0065;
@@ -16,7 +14,7 @@ const UNLOCK_ESC_MS = 250;
 /** Mouse look owns the cursor only while walking a planet on desktop with nothing modal open. */
 const wantsLock = () => {
   const s = useAppStore.getState();
-  return s.mode === 'planet' && !s.isTouch && !s.readerOpen && !useTour.getState().active;
+  return s.mode === 'planet' && !s.isTouch && !s.readerOpen;
 };
 
 const requestLock = () => {
@@ -105,7 +103,6 @@ export const useInputBridge = (): void => {
     /* ---- keyboard ---- */
     const onKeyDown = (e: KeyboardEvent) => {
       if (isTypingTarget(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
-      if (useContact.getState().open) return;
       keyboardState[e.code] = true;
       const s = store();
       // nothing to act on until the ship has dropped out of hyperspace
@@ -170,7 +167,6 @@ export const useInputBridge = (): void => {
       // the click or key that started the trip usually still counts as a gesture on arrival
       if (syncLock() && s.mode === 'planet' && p.mode !== 'planet') requestLock();
     });
-    const unsubTour = useTour.subscribe(syncLock);
 
     document.addEventListener('pointerlockchange', onLockChange);
     window.addEventListener('pointermove', onPointerMove);
@@ -183,7 +179,6 @@ export const useInputBridge = (): void => {
     motion.addEventListener('change', onMotion);
     return () => {
       unsubApp();
-      unsubTour();
       document.removeEventListener('pointerlockchange', onLockChange);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerdown', onPointerDown);

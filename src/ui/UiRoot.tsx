@@ -6,9 +6,6 @@ import BeaconPanel from './BeaconPanel';
 import MovementJoystick from './MovementJoystick';
 import Reader from './Reader';
 import TransitionVeil from './TransitionVeil';
-import TourBar from './TourBar';
-import ContactSheet from './ContactSheet';
-import { useContact } from './contact';
 
 /**
  * DOM layer above the canvas. The container ignores pointer events so drags
@@ -20,14 +17,13 @@ const UiRoot = () => {
   const root = useRef<HTMLDivElement>(null);
   const hud = useRef<HTMLDivElement>(null);
   const readerOpen = useAppStore((s) => s.readerOpen);
-  const contactOpen = useContact((s) => s.open);
   const intro = useAppStore((s) => s.intro);
 
   // the reader is modal: make every HUD layer behind it inert (a passive effect,
   // so the reader has already captured the element to return focus to)
   useEffect(() => {
-    hud.current?.toggleAttribute('inert', readerOpen || contactOpen);
-  }, [readerOpen, contactOpen]);
+    hud.current?.toggleAttribute('inert', readerOpen);
+  }, [readerOpen]);
 
   // scale HUD chrome a little past 1920px wide so it does not look tiny on 2560+
   useEffect(() => {
@@ -56,12 +52,10 @@ const UiRoot = () => {
             <PlanetHud />
             <MovementJoystick />
             <BeaconPanel />
-            <TourBar />
           </div>
           <TransitionVeil />
         </div>
       )}
-      {!noWebGL && <ContactSheet />}
       {/* the flash of the drop out of hyperspace; driven by the warp itself */}
       <div id="warp-flash" aria-hidden="true" className="pointer-events-none absolute inset-0 z-[60] bg-[#e4efff] opacity-0" />
       <Reader />

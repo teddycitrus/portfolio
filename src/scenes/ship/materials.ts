@@ -69,12 +69,25 @@ export const glassMaterial = () =>
   });
 
 /** Dash displays: 0 is a telemetry trace, 1 is a radar sweep with a readout. */
-export const instrumentMaterial = (kind: 0 | 1) =>
+/**
+ * A dash display. `keys` splits the key face into that many cells side by side
+ * (the console in orbit); `stretch` is how much wider than 2:1 the face is, so
+ * the flight graphics keep their proportions.
+ */
+export const instrumentMaterial = (kind: 0 | 1, keys = 1, stretch = 1) =>
   new THREE.ShaderMaterial({
     fog: false,
     transparent: true,
     // the site opens in orbit, where the displays are key faces
-    uniforms: { uTime: { value: 0 }, uKind: { value: kind }, uFace: { value: 1 }, uHover: { value: 0 } },
+    uniforms: {
+      uTime: { value: 0 },
+      uKind: { value: kind },
+      uFace: { value: 1 },
+      uHover: { value: 0 },
+      uKeys: { value: keys },
+      uHot: { value: -1 },
+      uStretch: { value: stretch },
+    },
     vertexShader: /* glsl */ `
       varying vec2 vUv;
       void main() {
@@ -88,20 +101,25 @@ export const instrumentMaterial = (kind: 0 | 1) =>
       // 1 = a plain console key face for a control label (no graphics under the text)
       uniform float uFace;
       uniform float uHover;
+      uniform float uKeys;
+      // the key cell under the pointer, or -1
+      uniform float uHot;
+      uniform float uStretch;
       varying vec2 vUv;
       void main() {
         vec2 uv = vUv;
+        vec2 su = vec2(uv.x * uStretch, uv.y);
         vec3 ink = vec3(0.42, 0.8, 1.0);
-        vec2 gp = fract(uv * vec2(14.0, 7.0));
+        vec2 gp = fract(su * vec2(14.0, 7.0));
         float grid = (step(gp.x, 0.05) + step(gp.y, 0.08)) * 0.07;
         float g = 0.0;
         if (uKind < 0.5) {
-          float y1 = 0.56 + 0.2 * sin(uv.x * 13.0 + uTime * 2.1) * sin(uv.x * 3.3 - uTime * 0.6);
-          float y2 = 0.36 + 0.08 * sin(uv.x * 29.0 - uTime * 3.6);
+          float y1 = 0.56 + 0.2 * sin(su.x * 13.0 + uTime * 2.1) * sin(su.x * 3.3 - uTime * 0.6);
+          float y2 = 0.36 + 0.08 * sin(su.x * 29.0 - uTime * 3.6);
           g += smoothstep(0.035, 0.0, abs(uv.y - y1)) + 0.5 * smoothstep(0.025, 0.0, abs(uv.y - y2));
-          float bx = floor(uv.x * 12.0);
+          float bx = floor(su.x * 12.0);
           float bh = 0.08 + 0.09 * (0.5 + 0.5 * sin(bx * 1.7 + uTime * 2.4));
-          g += step(uv.y, bh) * step(0.3, fract(uv.x * 12.0)) * 0.45;
+          g += step(uv.y, bh) * step(0.3, fract(su.x * 12.0)) * 0.45;
         } else {
           vec2 q = (uv - vec2(0.27, 0.5)) * vec2(2.0, 1.0) / 0.42;
           float r = length(q);
@@ -129,17 +147,21 @@ export const instrumentMaterial = (kind: 0 | 1) =>
         float vig = smoothstep(0.0, 0.06, min(e.x, e.y * 2.0));
         vec3 col = vec3(0.01, 0.024, 0.04) + ink * (grid + g) * scan * 0.85;
 
-        // key face: dark glass, an inset hairline frame, a status light in the corner, a glow on hover
-        vec2 q = uv - 0.5;
+        // key faces: dark glass, one cell per key with an inset hairline frame, a status light in
+        // its corner, and a glow on the hovered one
+        float cell = floor(uv.x * uKeys);
+        vec2 cu = vec2(fract(uv.x * uKeys), uv.y);
+        float hot = max(uHover, 1.0 - step(0.5, abs(cell - uHot)));
+        vec2 q = cu - 0.5;
         vec2 fe = abs(q) - vec2(0.44, 0.38);
         float box = max(fe.x, fe.y * 0.5);
         float line = smoothstep(0.006, 0.0, abs(box));
-        float led = smoothstep(0.022, 0.0, length((uv - vec2(0.105, 0.78)) * vec2(2.0, 1.0)));
-        float ledOn = 0.55 + 0.45 * sin(uTime * 1.6);
+        float led = smoothstep(0.022, 0.0, length((cu - vec2(0.105, 0.78)) * vec2(2.0, 1.0)));
+        float ledOn = 0.55 + 0.45 * sin(uTime * 1.6 + cell * 1.9);
         float glow = exp(-dot(q * vec2(1.6, 3.0), q * vec2(1.6, 3.0)) * 4.0);
         vec3 faceCol = mix(vec3(0.012, 0.022, 0.04), vec3(0.03, 0.05, 0.08), uv.y)
-          + ink * line * (0.22 + 0.45 * uHover)
-          + ink * glow * (0.03 + 0.1 * uHover)
+          + ink * line * (0.22 + 0.45 * hot)
+          + ink * glow * (0.03 + 0.14 * hot)
           + vec3(0.45, 1.0, 0.7) * led * ledOn * 0.9
           + ink * (0.5 + 0.5 * sin(uv.y * 160.0)) * 0.006;
         col = mix(col, faceCol, uFace);

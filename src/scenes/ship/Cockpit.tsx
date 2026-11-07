@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useAppStore, type SceneMode } from '@/state/useAppStore';
-import { dashScreens, flight, warpFx } from '@/state/runtime';
+import { dashPanel, flight, warpFx } from '@/state/runtime';
+import { profile } from '@/data/content';
 import { ARRIVAL_MS, BEAM_DOWN_MS } from '@/state/timing';
 import { responsiveFov } from '@/scenes/overworld/TelescopeCamera';
 import { shipSound } from '@/audio/drone';
@@ -82,12 +83,15 @@ const _zAxis = new THREE.Vector3(0, 0, 1);
 const _target = new THREE.Quaternion();
 const ID = new THREE.Quaternion();
 const _corner = new THREE.Vector3();
-/** Corners of a dash display face (its plane is 0.12 x 0.06) */
-const DISPLAY_CORNERS = [
-  [-0.06, -0.03],
-  [0.06, -0.03],
-  [0.06, 0.03],
-  [-0.06, 0.03],
+/** The console's face: it spans the dash under the window, one key per contact link */
+const CONSOLE_W = 0.72;
+const CONSOLE_H = 0.06;
+const CONSOLE_KEYS = profile.links.length;
+const CONSOLE_CORNERS = [
+  [-CONSOLE_W / 2, -CONSOLE_H / 2],
+  [CONSOLE_W / 2, -CONSOLE_H / 2],
+  [CONSOLE_W / 2, CONSOLE_H / 2],
+  [-CONSOLE_W / 2, CONSOLE_H / 2],
 ] as const;
 
 /* ---------- geometry ---------- */
@@ -253,9 +257,8 @@ const Cockpit = () => {
   const glow = useRef<THREE.PointLight>(null);
   const rivets = useRef<THREE.InstancedMesh>(null);
   const glass = useMemo(() => glassMaterial(), []);
-  const displays = useRef<(THREE.Mesh | null)[]>([]);
-  const screenL = useMemo(() => instrumentMaterial(0), []);
-  const screenR = useMemo(() => instrumentMaterial(1), []);
+  const consoleRef = useRef<THREE.Mesh>(null);
+  const screen = useMemo(() => instrumentMaterial(0, CONSOLE_KEYS, CONSOLE_W / CONSOLE_H / 2), []);
   const rig = useRef<Rig>({
     mode: useAppStore.getState().mode,
     diveAt: -1,
@@ -278,12 +281,12 @@ const Cockpit = () => {
 
   useEffect(
     () => () => {
-      for (const m of [parts.plate, parts.trim, parts.dark, parts.strip, parts.amber, glass, screenL, screenR]) m.dispose();
+      for (const m of [parts.plate, parts.trim, parts.dark, parts.strip, parts.amber, glass, screen]) m.dispose();
       for (const g of [parts.bulkhead, parts.ring, parts.lightStrip, parts.rivetGeo, parts.dash]) g.dispose();
       parts.tex.dispose();
       parts.trimTex.dispose();
     },
-    [parts, glass, screenL, screenR],
+    [parts, glass, screen],
   );
 
   // timeline marks and engine sounds follow the scene mode
@@ -474,11 +477,10 @@ const Cockpit = () => {
     glass.uniforms.uTime.value = t;
     glass.uniforms.uHeat.value = flight.heat;
     (glass.uniforms.uHeatColor.value as THREE.Color).set(flight.heatColor);
-    screenL.uniforms.uTime.value = t;
-    screenR.uniforms.uTime.value = t;
+    screen.uniforms.uTime.value = t;
 
-    /* the dash displays are controls in orbit: publish their screen rects for the DOM labels */
-    // in hyperspace they are still instruments; the faces come up with the HUD
+    /* the console is the contact keys in orbit: publish its screen rect for the DOM keys */
+    // in hyperspace it is still an instrument; the key faces come up with the HUD
     const asControls = mode === 'overworld' && deploy > 0.999 && !store.intro;
     ship.updateMatrixWorld();
     // the nav display is projected on the glass: it follows the glass as the deck drifts and shudders
@@ -488,22 +490,20 @@ const Cockpit = () => {
       warpFx.glassX = (_corner.x * size.width) / 2;
       warpFx.glassY = (-_corner.y * size.height) / 2;
     }
-    (['tour', 'contact'] as const).forEach((key, i) => {
-      const d = dashScreens[key];
-      const mesh = displays.current[i];
-      const mat = i === 0 ? screenL : screenR;
-      // in orbit the display turns into a plain key face; the graphics come back in flight
-      mat.uniforms.uFace.value += ((asControls ? 1 : 0) - mat.uniforms.uFace.value) * damp(8, dt);
-      mat.uniforms.uHover.value += ((asControls && d.hover ? 1 : 0) - mat.uniforms.uHover.value) * damp(14, dt);
+    {
+      const d = dashPanel;
+      const mesh = consoleRef.current;
+      // in orbit the console turns into a row of key faces; the graphics come back in flight
+      screen.uniforms.uFace.value += ((asControls ? 1 : 0) - screen.uniforms.uFace.value) * damp(8, dt);
+      screen.uniforms.uHot.value = asControls ? d.hot : -1;
       d.visible = asControls && !!mesh;
-      if (!d.visible || !mesh) return;
       let x0 = Infinity;
       let y0 = Infinity;
       let x1 = -Infinity;
       let y1 = -Infinity;
-      for (const [cx, cy] of DISPLAY_CORNERS) {
+      for (const [cx, cy] of d.visible && mesh ? CONSOLE_CORNERS : []) {
         _corner.set(cx, cy, 0);
-        mesh.localToWorld(_corner).project(camera);
+        mesh!.localToWorld(_corner).project(camera);
         const px = ((_corner.x + 1) / 2) * size.width;
         const py = ((1 - _corner.y) / 2) * size.height;
         x0 = Math.min(x0, px);
@@ -515,7 +515,7 @@ const Cockpit = () => {
       d.y = y0;
       d.w = x1 - x0;
       d.h = y1 - y0;
-    });
+    }
     const l = leds.current;
     if (l) {
       for (let i = 0; i < LED_COUNT; i += 1) {
@@ -568,28 +568,15 @@ const Cockpit = () => {
           <boxGeometry args={[0.5, 0.0022, 0.003]} />
         </mesh>
         <instancedMesh ref={leds} args={[LED_GEO, LED_MAT, LED_COUNT]} raycast={noRaycast} renderOrder={31} />
-        {/* two instrument displays standing on the dash, tilted toward the pilot */}
-        {[
-          { x: -0.3, m: screenL },
-          { x: 0.3, m: screenR },
-        ].map(({ x, m }, i) => (
-          <group key={x} position={[x * 0.97, -0.372, -0.49]} rotation={[-0.32, -Math.sign(x) * 0.16, 0]}>
-            <mesh material={parts.trim} raycast={noRaycast} renderOrder={30}>
-              <boxGeometry args={[0.13, 0.07, 0.008]} />
-            </mesh>
-            <mesh
-              ref={(el) => {
-                displays.current[i] = el;
-              }}
-              material={m}
-              position={[0, 0, 0.0045]}
-              raycast={noRaycast}
-              renderOrder={31}
-            >
-              <planeGeometry args={[0.12, 0.06]} />
-            </mesh>
-          </group>
-        ))}
+        {/* the console: one long display standing on the dash across the window, tilted toward the pilot */}
+        <group position={[0, -0.372, -0.49]} rotation={[-0.32, 0, 0]}>
+          <mesh material={parts.trim} raycast={noRaycast} renderOrder={30}>
+            <boxGeometry args={[CONSOLE_W + 0.01, CONSOLE_H + 0.01, 0.008]} />
+          </mesh>
+          <mesh ref={consoleRef} material={screen} position={[0, 0, 0.0045]} raycast={noRaycast} renderOrder={31}>
+            <planeGeometry args={[CONSOLE_W, CONSOLE_H]} />
+          </mesh>
+        </group>
       </group>
     </group>
     </>

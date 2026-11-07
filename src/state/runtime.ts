@@ -101,22 +101,12 @@ export const flight = {
   beam: 0,
 };
 
-/** Screen rect (CSS px) of a dash display in orbit, written by the cockpit each frame. */
-export interface DashScreen {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  visible: boolean;
-  /** Set by the DOM control; brightens the display */
-  hover: boolean;
-}
-
-/** The two dash displays double as controls: left starts the tour, right opens contact. */
-export const dashScreens: Record<'tour' | 'contact', DashScreen> = {
-  tour: { x: 0, y: 0, w: 0, h: 0, visible: false, hover: false },
-  contact: { x: 0, y: 0, w: 0, h: 0, visible: false, hover: false },
-};
+/**
+ * The console across the dash, under the window: in orbit its keys are the
+ * contact links. The cockpit writes its screen rect (CSS px) every frame; the
+ * DOM keys write which one is under the pointer, and its cell lights up.
+ */
+export const dashPanel = { x: 0, y: 0, w: 0, h: 0, visible: false, hot: -1 };
 
 /**
  * The hyperspace arrival the site opens on, written by the warp and read by

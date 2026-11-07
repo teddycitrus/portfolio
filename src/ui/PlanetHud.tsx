@@ -24,7 +24,6 @@ import {
 import { useScreenMarkers, type Box } from './useScreenMarkers';
 import { arrivalPulse } from '@/scenes/planet/surfaceState';
 import { openBeacon } from './navigation';
-import { useTour } from './tour';
 
 const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 
@@ -227,7 +226,6 @@ const PlanetHud = () => {
   const readerOpen = useAppStore((s) => s.readerOpen);
   const exitPlanet = useAppStore((s) => s.exitPlanet);
   const openReader = useAppStore((s) => s.openReader);
-  const touring = useTour((s) => s.active);
   const narrow = useNarrow();
   const short = useShort();
   const locked = usePointerLocked();
@@ -335,15 +333,12 @@ const PlanetHud = () => {
         className={cx('absolute inset-x-0 bottom-0 flex flex-col items-center gap-3', HUD_ZOOM)}
         style={{ paddingBottom: SAFE.bottom }}
       >
-        {!touring && (
-          <div className={cx(!isTouch && 'hidden md:block')}>
-            {isTouch || locked ? <ControlsHint isTouch={isTouch} /> : <LookPrompt />}
-          </div>
-        )}
-        {/* on phones the tour bar takes the chip row's place */}
+        <div className={cx(!isTouch && 'hidden md:block')}>
+          {isTouch || locked ? <ControlsHint isTouch={isTouch} /> : <LookPrompt />}
+        </div>
         <nav
           aria-label={`${planet.title} content`}
-          className={cx('pointer-events-auto w-full', touring && narrow && 'invisible')}
+          className="pointer-events-auto w-full"
           // short landscape screens: keep the chips clear of the side panel
           style={short && !narrow && focused ? { paddingRight: 'calc(360px + 12px)' } : undefined}
         >
