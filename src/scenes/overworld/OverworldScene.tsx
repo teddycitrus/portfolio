@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import DeepSky from './DeepSky';
@@ -8,10 +8,10 @@ import TelescopeCamera from './TelescopeCamera';
 import SpaceBackdrop from './SpaceBackdrop';
 import Sun, { SUN_DIRECTION } from './Sun';
 import Constellations from './Constellations';
-import Intro from './Intro';
+import Warp from './Warp';
 import { planets, getOrbitalPosition } from '@/data/content';
 import { useAppStore } from '@/state/useAppStore';
-import { planetScreen } from '@/state/runtime';
+import { planetScreen, warpFx } from '@/state/runtime';
 import type { Vec3 } from '@/types/content';
 
 const EDGE_MARGIN = 28;
@@ -69,6 +69,19 @@ const ScreenProjector = () => {
   return null;
 };
 
+/** The system outside, not drawn while the ship is still in hyperspace. */
+const System = ({ children }: { children: React.ReactNode }) => {
+  const ref = useRef<THREE.Group>(null);
+  useFrame(() => {
+    if (ref.current) ref.current.visible = !warpFx.inside;
+  });
+  return (
+    <group ref={ref} visible={!warpFx.inside}>
+      {children}
+    </group>
+  );
+};
+
 const OverworldScene = () => {
   const mode = useAppStore((s) => s.mode);
   const show = mode === 'overworld' || mode === 'transitioning-in';
@@ -87,17 +100,19 @@ const OverworldScene = () => {
     <>
       <ambientLight intensity={0.02} />
       <directionalLight position={SUN_LIGHT_POS} intensity={2.2} color="#fff3e2" />
-      <SpaceBackdrop />
-      <Starfield />
-      <DeepSky />
-      <Sun />
-      {planets.map((p) => (
-        <PlanetNode key={p.id} planet={p} />
-      ))}
-      <Constellations />
+      <System>
+        <SpaceBackdrop />
+        <Starfield />
+        <DeepSky />
+        <Sun />
+        {planets.map((p) => (
+          <PlanetNode key={p.id} planet={p} />
+        ))}
+        <Constellations />
+      </System>
       <TelescopeCamera />
       <ScreenProjector />
-      <Intro />
+      <Warp />
     </>
   );
 };

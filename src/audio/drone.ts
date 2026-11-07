@@ -550,7 +550,7 @@ export const critterCall = (kind: CritterVoice, distance: number, pan: number) =
 
 /* ---------- ship ---------- */
 
-export type ShipSound = 'lock' | 'lower' | 'beam';
+export type ShipSound = 'lock' | 'lower' | 'beam' | 'dropout';
 
 let noiseBuf: AudioBuffer | null = null;
 const whiteNoise = (c: AudioContext) => {
@@ -562,9 +562,10 @@ const whiteNoise = (c: AudioContext) => {
 };
 
 /**
- * Tractor beam sounds: the beam taking hold in the lobby, the ride down it
- * onto a planet (feet touching `touchdown` seconds later), and the pull back
- * up. Silent while sound is off.
+ * Ship sounds: the beam taking hold in the lobby, the ride down it onto a
+ * planet (feet touching `touchdown` seconds later), the pull back up, and the
+ * drop out of hyperspace (the flash `touchdown` seconds later). Silent while
+ * sound is off.
  */
 export const shipSound = (kind: ShipSound, touchdown = 0.54) => {
   if (!ctx || !sfx || !verbIn || !enabled || ctx.state !== 'running') return;
@@ -641,6 +642,16 @@ export const shipSound = (kind: ShipSound, touchdown = 0.54) => {
       tone(t0 + 0.08, 0.95, 241, 842, 0.03, 0.6, 'sine');
       air(t0 + 0.1, 0.95, 1200, 6000, 2.5, 0.06, 0.75);
       break;
+    case 'dropout':
+      // the drive spools up in a rising whine, then the drop: a deep boom and the rush of normal space falling away
+      tone(t0, touchdown + 0.08, 160, 1300, 0.05, touchdown * 0.9, 'sawtooth');
+      tone(t0, touchdown + 0.08, 322, 2600, 0.025, touchdown * 0.9, 'sine');
+      air(t0, touchdown + 0.1, 1400, 9000, 2.0, 0.07, touchdown * 0.9);
+      body(t0 + touchdown, 1.4, 110, 30, 0.42);
+      air(t0 + touchdown, 1.6, 4200, 140, 0.7, 0.24, 0.015, 'lowpass');
+      tone(t0 + touchdown, 1.3, 1900, 700, 0.025, 0.02, 'sine');
+      tone(t0 + touchdown + 0.02, 1.2, 2853, 1050, 0.015, 0.02, 'sine');
+      break;
     case 'lower':
       // coming down the beam: the hum falls and softens, then a light settle as the feet touch
       tone(t0, touchdown + 0.4, 380, 95, 0.08, 0.05, 'triangle');
@@ -654,4 +665,86 @@ export const shipSound = (kind: ShipSound, touchdown = 0.54) => {
     out.disconnect();
     send.disconnect();
   }, 7000);
+};
+
+/** True when a sound would actually be heard (a gesture has unlocked audio and sound is on). */
+export const sfxReady = () => !!ctx && !!sfx && enabled && ctx.state === 'running';
+
+/**
+ * The roar of hyperspace, held until the returned function is called with a
+ * fade time in seconds. Null when it cannot be heard right now.
+ */
+export const warpHum = (): ((fade: number) => void) | null => {
+  if (!sfxReady() || !ctx || !sfx) return null;
+  const c = ctx;
+  const t0 = c.currentTime + 0.01;
+  const out = c.createGain();
+  out.gain.setValueAtTime(0.0001, t0);
+  out.gain.exponentialRampToValueAtTime(1, t0 + 0.8);
+  out.connect(sfx);
+  const stops: AudioScheduledSourceNode[] = [];
+
+  // a low rumble through the hull
+  const rumble = c.createBufferSource();
+  rumble.buffer = whiteNoise(c);
+  rumble.loop = true;
+  const lp = c.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 170;
+  const rg = c.createGain();
+  rg.gain.value = 0.32;
+  rumble.connect(lp).connect(rg).connect(out);
+  stops.push(rumble);
+
+  // the rush of the tunnel, swelling slowly
+  const rush = c.createBufferSource();
+  rush.buffer = whiteNoise(c);
+  rush.loop = true;
+  const bp = c.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 900;
+  bp.Q.value = 0.8;
+  const sweep = c.createOscillator();
+  sweep.frequency.value = 0.23;
+  const sweepDepth = c.createGain();
+  sweepDepth.gain.value = 350;
+  sweep.connect(sweepDepth).connect(bp.frequency);
+  const bg = c.createGain();
+  bg.gain.value = 0.05;
+  rush.connect(bp).connect(bg).connect(out);
+  stops.push(rush, sweep);
+
+  // the drive: two detuned saws beating under a lowpass, with a slow throb
+  const drive = c.createBiquadFilter();
+  drive.type = 'lowpass';
+  drive.frequency.value = 380;
+  const dg = c.createGain();
+  dg.gain.value = 0.045;
+  const throb = c.createOscillator();
+  throb.frequency.value = 5.5;
+  const throbDepth = c.createGain();
+  throbDepth.gain.value = 0.015;
+  throb.connect(throbDepth).connect(dg.gain);
+  drive.connect(dg).connect(out);
+  for (const f of [55, 55.6, 110.4]) {
+    const o = c.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.value = f;
+    o.connect(drive);
+    stops.push(o);
+  }
+  stops.push(throb);
+  for (const n of stops) {
+    if (n instanceof AudioBufferSourceNode) n.start(t0, Math.random());
+    else n.start(t0);
+  }
+
+  return (fade: number) => {
+    const now = c.currentTime;
+    out.gain.cancelScheduledValues(now);
+    out.gain.setValueAtTime(Math.max(0.0001, out.gain.value), now);
+    out.gain.exponentialRampToValueAtTime(0.0001, now + Math.max(0.05, fade));
+    for (const n of stops) n.stop(now + fade + 0.1);
+    window.setTimeout(() => out.disconnect(), (fade + 0.3) * 1000);
+  };
 };

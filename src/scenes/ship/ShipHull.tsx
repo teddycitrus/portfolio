@@ -3,10 +3,10 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 /*
- * The ship's hull, shared by the mothership over a planet and the intro in
- * orbit: a long tapered body running along x with the prow at -x, a dorsal
- * spine and bridge, a habitat ring, an engine block, window rows and
- * navigation lights. The caller owns placement and scale (1.5 in both uses).
+ * The ship's hull, seen as the mothership over a planet: a long tapered
+ * body running along x with the prow at -x, a dorsal spine and bridge, a
+ * habitat ring, an engine block, window rows and navigation lights. The
+ * caller owns placement and scale.
  */
 
 const noRaycast = () => null;

@@ -51,8 +51,8 @@ interface AppState {
 }
 
 /**
- * The opening shot plays on a plain visit to the lobby: not when a link goes
- * straight to a planet or the reader, and not with reduced motion.
+ * The hyperspace arrival plays on a plain visit to the lobby: not when a link
+ * goes straight to a planet or the reader, and not with reduced motion.
  */
 const introWanted = () => {
   if (typeof window === 'undefined') return false;

@@ -92,10 +92,9 @@ const SpeedLines = () => {
     if (!l) return;
     const s = st.current;
     const dt = Math.min(delta, 0.05);
-    const { reducedMotion: reduced, intro } = useAppStore.getState();
+    const reduced = useAppStore.getState().reducedMotion;
     const speed = flight.speed;
-    // the intro camera moves fast outside the ship: no streaks there
-    const k = reduced || intro ? 0 : THREE.MathUtils.smoothstep(speed, SHOW_FROM, SHOW_FULL);
+    const k = reduced ? 0 : THREE.MathUtils.smoothstep(speed, SHOW_FROM, SHOW_FULL);
 
     // point the tube along the direction of travel
     if (s.has) {

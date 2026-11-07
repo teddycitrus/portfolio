@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useAppStore, type SceneMode } from '@/state/useAppStore';
-import { dashScreens, flight } from '@/state/runtime';
+import { dashScreens, flight, warpFx } from '@/state/runtime';
 import { ARRIVAL_MS, BEAM_DOWN_MS } from '@/state/timing';
 import { responsiveFov } from '@/scenes/overworld/TelescopeCamera';
 import { shipSound } from '@/audio/drone';
@@ -384,6 +384,9 @@ const Cockpit = () => {
     } else if (mode === 'transitioning-out' && !reduced) {
       // the beam's hum in the bones
       shake = 0.0025 * clamp01((now - r.launchAt) / 600);
+    } else if (mode === 'overworld') {
+      // hyperspace, and the drop out of it
+      shake = warpFx.shake;
     }
 
     _fwd.set(0, 0, -1).applyQuaternion(r.baseQuat);
@@ -434,8 +437,8 @@ const Cockpit = () => {
     r.applied = true;
 
     /* deploy: 1 = the frame around the view, 0 = cleared away past the screen edges */
-    // beamed down or up, or watching the ship from outside in the intro, there is no deck around the viewer
-    const deploy = mode === 'planet' || mode === 'transitioning-out' || store.intro ? 0 : 1;
+    // beamed down or up, there is no deck around the viewer
+    const deploy = mode === 'planet' || mode === 'transitioning-out' ? 0 : 1;
     r.deploy = deploy;
 
     const aspect = size.width / Math.max(1, size.height);
@@ -474,7 +477,8 @@ const Cockpit = () => {
     screenR.uniforms.uTime.value = t;
 
     /* the dash displays are controls in orbit: publish their screen rects for the DOM labels */
-    const asControls = mode === 'overworld' && deploy > 0.999;
+    // in hyperspace they are still instruments; the faces come up with the HUD
+    const asControls = mode === 'overworld' && deploy > 0.999 && !store.intro;
     ship.updateMatrixWorld();
     (['tour', 'contact'] as const).forEach((key, i) => {
       const d = dashScreens[key];

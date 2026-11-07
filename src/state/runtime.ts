@@ -117,3 +117,14 @@ export const dashScreens: Record<'tour' | 'contact', DashScreen> = {
   tour: { x: 0, y: 0, w: 0, h: 0, visible: false, hover: false },
   contact: { x: 0, y: 0, w: 0, h: 0, visible: false, hover: false },
 };
+
+/**
+ * The hyperspace arrival the site opens on, written by the warp and read by
+ * the overworld (hidden in hyperspace) and the cockpit (the rumble).
+ */
+export const warpFx = {
+  /** True while the ship is in hyperspace: the system outside is not drawn */
+  inside: false,
+  /** Shake of the deck, same scale as the cockpit's own */
+  shake: 0,
+};

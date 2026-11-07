@@ -45,152 +45,107 @@
         position: fixed;
         inset: 0;
         z-index: 100;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 22px;
-        background: radial-gradient(ellipse 60% 50% at 50% 45%, #0f1424 0%, #05070d 75%);
-        color: #f1e6c8;
-        transition: opacity 500ms cubic-bezier(0.4, 0, 0.2, 1);
-      }
-      #boot.boot-done {
-        opacity: 0;
         pointer-events: none;
+        background-color: #05070d;
+        transition: background-color 450ms cubic-bezier(0.4, 0, 0.2, 1), opacity 500ms cubic-bezier(0.4, 0, 0.2, 1);
       }
-      #boot .boot-name {
-        margin: 0;
-        font-family: 'Archivo Variable', 'Arial Black', ui-sans-serif, system-ui, sans-serif;
-        font-weight: 800;
-        font-stretch: 125%;
-        font-size: clamp(18px, 4.4vw, 26px);
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-        color: #f1e6c8;
-        text-shadow: 0 2px 0 #10131c, 0 0 18px rgba(227, 178, 60, 0.25);
+      #boot canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        transition: opacity 450ms cubic-bezier(0.4, 0, 0.2, 1);
       }
-      #boot svg {
-        width: clamp(150px, 34vw, 190px);
-        height: auto;
-        overflow: visible;
+      /* the scene is up: the cabin and the hyperspace outside it show through, the nav display stays */
+      #boot.boot-handoff {
+        background-color: transparent;
       }
-      #boot .bob {
-        animation: boot-bob 1.4s ease-in-out infinite;
-      }
-      #boot .shadow {
-        transform-origin: 100px 222px;
-        animation: boot-shadow 1.4s ease-in-out infinite;
-      }
-      #boot .thumb {
-        transform-origin: 130px 120px;
-        animation: boot-thumb 1.4s ease-in-out infinite;
-      }
-      #boot .blink {
-        transform-origin: 90px 72px;
-        animation: boot-blink 3.2s infinite;
-      }
-      #boot .bar {
-        display: flex;
-        gap: 5px;
-        padding: 5px;
-        border: 2px solid #f1e6c8;
-        border-radius: 4px;
-      }
-      #boot .bar i {
-        width: 14px;
-        height: 12px;
-        border-radius: 1px;
-        background: #e3b23c;
-        opacity: 0.14;
-        animation: boot-seg 1.8s steps(1) infinite;
-      }
-      #boot .bar i:nth-child(2) { animation-delay: 0.15s; }
-      #boot .bar i:nth-child(3) { animation-delay: 0.3s; }
-      #boot .bar i:nth-child(4) { animation-delay: 0.45s; }
-      #boot .bar i:nth-child(5) { animation-delay: 0.6s; }
-      #boot .bar i:nth-child(6) { animation-delay: 0.75s; }
-      #boot .bar i:nth-child(7) { animation-delay: 0.9s; }
-      #boot .bar i:nth-child(8) { animation-delay: 1.05s; }
-      @keyframes boot-bob {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-7px); }
-      }
-      @keyframes boot-shadow {
-        0%, 100% { transform: scaleX(1); opacity: 0.5; }
-        50% { transform: scaleX(0.82); opacity: 0.3; }
-      }
-      @keyframes boot-thumb {
-        0%, 100% { transform: rotate(0deg); }
-        50% { transform: rotate(-7deg); }
-      }
-      @keyframes boot-blink {
-        0%, 92%, 100% { transform: scaleY(1); }
-        95% { transform: scaleY(0.1); }
-      }
-      @keyframes boot-seg {
-        0% { opacity: 0.14; }
-        8% { opacity: 1; }
-        70% { opacity: 1; }
-        85% { opacity: 0.14; }
-      }
-      #boot .boot-status {
-        margin: -8px 0 0;
-        font-family: 'JetBrains Mono Variable', ui-monospace, monospace;
-        font-size: 13px;
-        font-weight: 700;
-        letter-spacing: 0.32em;
-        text-transform: uppercase;
-        color: #e3b23c;
+      #boot.boot-handoff canvas {
         opacity: 0;
-        transform: translateY(4px);
-        transition: opacity 250ms ease-out, transform 250ms ease-out;
-      }
-      #boot.boot-ready .boot-status {
-        opacity: 1;
-        transform: none;
-      }
-      #boot.boot-ready .bar {
-        border-color: #e3b23c;
-        box-shadow: 0 0 18px rgba(227, 178, 60, 0.35);
-        transition: border-color 200ms, box-shadow 200ms;
-      }
-      #boot.boot-ready .bar i {
-        animation: none;
-        opacity: 1;
-      }
-      #boot.boot-ready .bob {
-        animation: boot-hop 620ms cubic-bezier(0.3, 0.7, 0.4, 1) 1;
-      }
-      #boot.boot-ready .thumb {
-        animation: boot-pump 620ms ease-out 1;
       }
       #boot.boot-done {
-        transform: scale(1.06);
-        transition: opacity 500ms cubic-bezier(0.4, 0, 0.2, 1), transform 500ms cubic-bezier(0.4, 0, 0.2, 1);
+        opacity: 0;
       }
-      @keyframes boot-hop {
-        0% { transform: translateY(0); }
-        35% { transform: translateY(-20px); }
-        70% { transform: translateY(0); }
-        85% { transform: translateY(-4px); }
-        100% { transform: translateY(0); }
+      #boot .nav {
+        position: absolute;
+        left: 50%;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + clamp(20px, 7vh, 64px));
+        width: min(340px, calc(100vw - 32px));
+        box-sizing: border-box;
+        transform: translateX(-50%);
+        padding: 12px 14px 13px;
+        border: 1px solid rgba(169, 220, 255, 0.28);
+        border-radius: 6px;
+        background:
+          repeating-linear-gradient(0deg, rgba(169, 220, 255, 0.035) 0 1px, transparent 1px 3px),
+          rgba(6, 12, 22, 0.8);
+        box-shadow: 0 0 24px rgba(90, 170, 255, 0.12), inset 0 0 18px rgba(90, 170, 255, 0.08);
+        font-family: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: #a9dcff;
+        text-shadow: 0 0 10px rgba(110, 200, 255, 0.5);
+        transition: opacity 600ms cubic-bezier(0.4, 0, 0.2, 1), transform 600ms cubic-bezier(0.4, 0, 0.2, 1),
+          border-color 300ms ease-out;
       }
-      @keyframes boot-pump {
-        0%, 100% { transform: rotate(0deg); }
-        35% { transform: rotate(-16deg); }
+      #boot.boot-nav-off .nav {
+        opacity: 0;
+        transform: translateX(-50%) translateY(8px);
       }
-      @media (prefers-reduced-motion: reduce) {
-        #boot.boot-ready .bob, #boot.boot-ready .thumb { animation: none; }
-        #boot.boot-done { transform: none; }
-        #boot .bob, #boot .shadow, #boot .thumb, #boot .blink { animation: none; }
-        #boot .bar i { animation-duration: 3.6s; }
+      #boot .nav-head,
+      #boot .nav-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+        margin: 0;
+      }
+      #boot .nav-head {
+        font-size: 10px;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        opacity: 0.6;
+      }
+      #boot .nav-row {
+        margin-top: 8px;
+        font-size: 13px;
+        letter-spacing: 0.06em;
+      }
+      #boot .nav-status {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #boot .nav-pct {
+        font-variant-numeric: tabular-nums;
+        color: #e8f6ff;
+      }
+      #boot .nav-bar {
+        position: relative;
+        height: 4px;
+        margin-top: 10px;
+        border-radius: 2px;
+        background: rgba(169, 220, 255, 0.14);
+        overflow: hidden;
+      }
+      #boot .nav-fill {
+        position: absolute;
+        inset: 0;
+        transform-origin: 0 50%;
+        transform: scaleX(0);
+        background: linear-gradient(90deg, #4f9dff, #bfe6ff);
+        box-shadow: 0 0 10px rgba(130, 200, 255, 0.8);
+      }
+      #boot.boot-arrived .nav {
+        border-color: rgba(191, 230, 255, 0.6);
+      }
+      #boot.boot-arrived .nav-status {
+        color: #ffffff;
       }
     </style>
   </head>
   <body>
     <noscript>
       <style>
-        #root { display: none; }
+        #root, #boot { display: none; }
         html, body { overflow: auto !important; }
       </style>
       <main style="max-width: 640px; margin: 64px auto; padding: 0 24px; font-family: system-ui, sans-serif; color: #e9eef7; line-height: 1.6">
@@ -206,45 +161,101 @@
       </main>
     </noscript>
     <div id="boot" role="status" aria-label="Loading">
-      <p class="boot-name">Mannully Space Co.</p>
-      <svg viewBox="0 0 200 232" aria-hidden="true">
-        <ellipse class="shadow" cx="100" cy="222" rx="44" ry="6" fill="#000" />
-        <g class="bob" stroke="#10131c" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">
-          <rect x="56" y="102" width="88" height="72" rx="14" fill="#b9ad8e" />
-          <rect x="74" y="166" width="22" height="40" rx="9" fill="#f1e6c8" />
-          <rect x="104" y="166" width="22" height="40" rx="9" fill="#f1e6c8" />
-          <rect x="66" y="198" width="34" height="17" rx="8" fill="#e3b23c" />
-          <rect x="100" y="198" width="34" height="17" rx="8" fill="#e3b23c" />
-          <rect x="66" y="106" width="68" height="72" rx="20" fill="#f1e6c8" />
-          <rect x="66" y="158" width="68" height="9" fill="#e3b23c" />
-          <rect x="86" y="122" width="28" height="20" rx="4" fill="#10131c" stroke="none" />
-          <circle cx="94" cy="132" r="3.5" fill="#e3b23c" stroke="none" />
-          <circle cx="106" cy="132" r="3.5" fill="#7fd4ff" stroke="none" />
-          <path d="M70 120 Q42 136 60 156" fill="none" stroke-width="22" />
-          <path d="M70 120 Q42 136 60 156" fill="none" stroke="#f1e6c8" stroke-width="14" />
-          <circle cx="60" cy="157" r="9" fill="#e3b23c" />
-          <circle cx="100" cy="66" r="48" fill="#bfe3f5" />
-          <circle cx="100" cy="74" r="30" fill="#f6c99b" />
-          <path d="M71 66 Q70 38 98 39 Q126 36 129 62 Q118 50 101 53 Q84 50 71 66 Z" fill="#5a3a22" />
-          <ellipse class="blink" cx="90" cy="72" rx="3.2" ry="4.4" fill="#10131c" stroke="none" />
-          <path d="M106 73 Q111 68 116 73" fill="none" stroke-width="3" />
-          <circle cx="82" cy="83" r="4" fill="#f08f7c" stroke="none" opacity="0.55" />
-          <circle cx="119" cy="83" r="4" fill="#f08f7c" stroke="none" opacity="0.55" />
-          <path d="M85 85 Q100 101 116 85 Q100 92 85 85 Z" fill="#fff" stroke-width="3" />
-          <path d="M68 48 Q76 28 98 24" fill="none" stroke="#fff" stroke-width="5" opacity="0.7" />
-          <rect x="68" y="104" width="64" height="11" rx="5.5" fill="#e3b23c" />
-          <g class="thumb">
-            <path d="M130 120 Q158 112 152 84" fill="none" stroke-width="22" />
-            <path d="M130 120 Q158 112 152 84" fill="none" stroke="#f1e6c8" stroke-width="14" />
-            <rect x="141" y="45" width="11" height="24" rx="5.5" fill="#e3b23c" transform="rotate(-14 146 66)" />
-            <rect x="140" y="62" width="26" height="25" rx="8" fill="#e3b23c" />
-            <path d="M157 69 H166 M157 75.5 H166 M157 82 H165" fill="none" stroke-width="2.5" />
-          </g>
-        </g>
-      </svg>
-      <div class="bar" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-      <p class="boot-status">Ready</p>
+      <canvas aria-hidden="true"></canvas>
+      <div class="nav">
+        <p class="nav-head"><span>Mannully Space Co.</span><span>Nav</span></p>
+        <p class="nav-row"><span class="nav-status">In hyperspace</span><span class="nav-pct">0%</span></p>
+        <div class="nav-bar" aria-hidden="true"><div class="nav-fill"></div></div>
+      </div>
     </div>
+    <script>
+      // The loader: hyperspace streaking past and the nav display counting toward the destination.
+      // It runs before the app bundle; once that is up the app drives the display through window.__nav.
+      (function () {
+        var boot = document.getElementById('boot');
+        var cv = boot.querySelector('canvas');
+        var g = cv.getContext('2d');
+        var fill = boot.querySelector('.nav-fill');
+        var pct = boot.querySelector('.nav-pct');
+        var status = boot.querySelector('.nav-status');
+        var still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+        var t0 = performance.now();
+        var last = t0;
+        var shown = 0;
+        var floor = 0;
+        var run = null;
+        var drawing = true;
+        var stars = [];
+        for (var i = 0; i < 260; i += 1) stars.push({ a: Math.random() * 6.2832, r: 0.12 + Math.random() * 1.1, z: Math.random() });
+        var w = 0;
+        var h = 0;
+        var fit = function () {
+          var d = Math.min(window.devicePixelRatio || 1, 2);
+          w = cv.width = Math.round(innerWidth * d);
+          h = cv.height = Math.round(innerHeight * d);
+          if (still) draw(0);
+        };
+        var draw = function (dt) {
+          var cx = w / 2;
+          var cy = h / 2;
+          var f = Math.max(w, h) * 0.11;
+          g.fillStyle = '#05070d';
+          g.fillRect(0, 0, w, h);
+          var glow = g.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.6);
+          glow.addColorStop(0, 'rgba(150, 190, 255, 0.28)');
+          glow.addColorStop(0.25, 'rgba(70, 110, 230, 0.1)');
+          glow.addColorStop(1, 'rgba(5, 7, 13, 0)');
+          g.fillStyle = glow;
+          g.fillRect(0, 0, w, h);
+          g.lineCap = 'round';
+          for (var i = 0; i < stars.length; i += 1) {
+            var s = stars[i];
+            if (!still) s.z -= dt * 0.5;
+            if (s.z <= 0.03) {
+              s.z += 1;
+              s.a = Math.random() * 6.2832;
+            }
+            var r0 = (s.r / s.z) * f;
+            var r1 = (s.r / Math.min(1.2, s.z + (still ? 0.004 : 0.18))) * f;
+            var ca = Math.cos(s.a);
+            var sa = Math.sin(s.a);
+            var k = Math.min(1, (1 - s.z) * 1.5);
+            g.strokeStyle = 'rgba(205, 228, 255, ' + (0.9 * k).toFixed(3) + ')';
+            g.lineWidth = Math.max(1, 2.6 * k * Math.min(2, w / 1200));
+            g.beginPath();
+            g.moveTo(cx + ca * r1, cy + sa * r1);
+            g.lineTo(cx + ca * r0, cy + sa * r0);
+            g.stroke();
+          }
+        };
+        var frame = function (now) {
+          if (!boot.isConnected) return;
+          var dt = Math.min(0.05, (now - last) / 1000);
+          last = now;
+          if (run) {
+            var u = Math.min(1, (now - run.at) / run.ms);
+            shown = run.from + (run.to - run.from) * u * (2 - u);
+          } else {
+            // until the app is driving, creep most of the way and wait there
+            var target = Math.max(floor, 0.72 * (1 - Math.exp(-(now - t0) / 2200)));
+            shown += (target - shown) * Math.min(1, dt * 6);
+          }
+          fill.style.transform = 'scaleX(' + shown.toFixed(4) + ')';
+          pct.textContent = Math.round(shown * 100) + '%';
+          if (drawing && !still) draw(dt);
+          requestAnimationFrame(frame);
+        };
+        fit();
+        addEventListener('resize', fit);
+        requestAnimationFrame(frame);
+        window.__nav = {
+          floor: function (p) { floor = Math.max(floor, p); },
+          to: function (p, ms) { run = { from: shown, to: p, at: performance.now(), ms: Math.max(1, ms) }; },
+          status: function (text) { status.textContent = text; },
+          stopDrawing: function () { drawing = false; }
+        };
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
