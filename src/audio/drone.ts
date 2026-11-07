@@ -550,7 +550,7 @@ export const critterCall = (kind: CritterVoice, distance: number, pan: number) =
 
 /* ---------- ship ---------- */
 
-export type ShipSound = 'dive' | 'land' | 'launch' | 'door' | 'takeoff';
+export type ShipSound = 'dive' | 'land' | 'launch' | 'door' | 'takeoff' | 'beam';
 
 let noiseBuf: AudioBuffer | null = null;
 const whiteNoise = (c: AudioContext) => {
@@ -610,7 +610,30 @@ export const shipSound = (kind: ShipSound, touchdown = 0.54) => {
     o.stop(at + dur + 0.05);
   };
 
+  /** A held tone that glides between two pitches. */
+  const tone = (at: number, dur: number, f0: number, f1: number, peak: number, attack: number, type: OscillatorType) => {
+    const o = c.createOscillator();
+    o.type = type;
+    o.frequency.setValueAtTime(f0, at);
+    o.frequency.exponentialRampToValueAtTime(f1, at + dur);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(peak, at + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    o.connect(g).connect(out);
+    o.start(at);
+    o.stop(at + dur + 0.05);
+  };
+
   switch (kind) {
+    case 'beam':
+      // the beam locks on with a soft thrum, then a rising hum and shimmer as it pulls
+      body(t0, 0.5, 70, 45, 0.22);
+      tone(t0 + 0.1, 2.0, 95, 380, 0.09, 0.7, 'triangle');
+      tone(t0 + 0.15, 1.95, 191, 762, 0.035, 0.8, 'sine');
+      air(t0 + 0.05, 2.0, 900, 5200, 3.0, 0.05, 1.1);
+      air(t0 + 0.6, 1.4, 220, 2600, 0.8, 0.12, 1.0);
+      break;
     case 'dive':
       // thrust kick, a rush that climbs with the speed, entry rumble underneath
       body(t0, 0.55, 64, 38, 0.32);

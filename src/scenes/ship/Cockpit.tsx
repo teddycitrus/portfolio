@@ -4,14 +4,13 @@ import * as THREE from 'three';
 import { useAppStore, type SceneMode } from '@/state/useAppStore';
 import { dashScreens, flight } from '@/state/runtime';
 import {
-  COCKPIT_CLOSE_MS,
   DESCENT_MS,
   DOOR_AT,
   DOOR_OPEN_AT,
   DOOR_OPEN_MS,
-  DOOR_SHUT_MS,
   ENTER_DIVE,
   SLIDE_SHARE,
+  TURN_MS,
   WALK_FROM,
 } from '@/state/timing';
 import { responsiveFov } from '@/scenes/overworld/TelescopeCamera';
@@ -47,6 +46,8 @@ const DESCENT_BANK = 0.09;
 const TOUCH_DIP = 0.24;
 /** How far behind the spawn the viewer stands at the hatch, world units */
 const HATCH_STEP = 1.3;
+/** Half the whip pan from the window round to the hatch, radians */
+const TURN_YAW = 0.6;
 /** Arrival clock value meaning "long since landed" */
 const ARRIVAL_DONE = 1e9;
 
@@ -88,6 +89,9 @@ interface Rig {
 }
 
 const _fwd = new THREE.Vector3();
+const _fwd3 = new THREE.Vector3();
+const _up = new THREE.Vector3(0, 1, 0);
+const _qYaw = new THREE.Quaternion();
 const _right = new THREE.Vector3();
 const _off = new THREE.Vector3();
 const _e = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -318,6 +322,13 @@ const Cockpit = () => {
   const glow = useRef<THREE.PointLight>(null);
   const rivets = useRef<THREE.InstancedMesh>(null);
   const hatchRef = useRef<THREE.Group>(null);
+  const blinkRef = useRef<THREE.Mesh>(null);
+  const blinkMat = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({ color: '#020306', transparent: true, opacity: 0, depthTest: false, depthWrite: false, fog: false }),
+    [],
+  );
+  useEffect(() => () => blinkMat.dispose(), [blinkMat]);
   const slabL = useRef<THREE.Mesh>(null);
   const slabR = useRef<THREE.Mesh>(null);
   const lamp = useRef<THREE.MeshBasicMaterial>(null);
@@ -378,7 +389,7 @@ const Cockpit = () => {
           r.doorSound = false;
         } else if (s.mode === 'transitioning-out') {
           r.launchAt = now;
-          if (!s.reducedMotion) shipSound('launch');
+          if (!s.reducedMotion) shipSound('beam');
         } else if (s.mode === 'overworld') {
           flight.heat = 0;
         }
@@ -454,6 +465,9 @@ const Cockpit = () => {
     /** 0..1 slab travel, then 0..1 steps out through the doorway (they overlap) */
     let slideK = 0;
     let walkK = 0;
+    /** the turn: yaw of the view off the ship's heading, and how dark the blink is */
+    let turnYaw = 0;
+    let blink = 0;
     if (mode === 'planet' && r.arriveAt >= 0) {
       // the first frame starts the clock at 0; a stalled frame counts as one frame
       if (r.arriveTick) r.arriveAt += Math.min(delta, 0.1) * 1000;
@@ -463,7 +477,12 @@ const Cockpit = () => {
     if (mode === 'planet' && r.arriveAt >= 0 && !reduced) {
       const ms = r.arriveAt;
       if (ms >= DOOR_AT) {
-        hatchIn = easeInOutCubic(clamp01((ms - DOOR_AT) / DOOR_SHUT_MS));
+        const u = clamp01((ms - DOOR_AT) / TURN_MS);
+        // first half: swing right, away from the window; second half: come round onto the hatch
+        if (u < 0.5) turnYaw = -TURN_YAW * Math.pow(u * 2, 2.2);
+        else turnYaw = TURN_YAW * (1 - easeOutCubic((u - 0.5) * 2));
+        blink = u < 0.5 ? THREE.MathUtils.smoothstep(u, 0.12, 0.42) : 1 - THREE.MathUtils.smoothstep(u, 0.6, 0.92);
+        hatchIn = u >= 0.5 ? 1 : -1;
         open = clamp01((ms - DOOR_OPEN_AT) / DOOR_OPEN_MS);
         slideK = easeInOutCubic(clamp01(open / SLIDE_SHARE));
         walkK = easeInOutCubic(clamp01((open - WALK_FROM) / (1 - WALK_FROM)));
@@ -488,7 +507,8 @@ const Cockpit = () => {
       // ignition kick, then a rattle that builds with speed and entry heat
       shake = 0.0015 + 0.011 * u * u * u + 0.006 * flight.heat + 0.006 * Math.exp(-u * 14);
     } else if (mode === 'transitioning-out' && !reduced) {
-      shake = 0.003 + 0.006 * clamp01((now - r.launchAt) / 900);
+      // the beam's hum in the bones
+      shake = 0.0025 * clamp01((now - r.launchAt) / 600);
     }
 
     _fwd.set(0, 0, -1).applyQuaternion(r.baseQuat);
@@ -512,6 +532,9 @@ const Cockpit = () => {
     // the ship's orientation before shake: fixed in orbit, swinging after the camera otherwise
     if (mode === 'overworld' || reduced) r.ship.copy(mode === 'overworld' ? ID : camera.quaternion);
     else r.ship.slerp(camera.quaternion, damp(mode === 'transitioning-in' ? 7 : 16, dt));
+    // the turn happens inside the ship: the view swings, the ship stays put
+    _qYaw.setFromAxisAngle(_up, turnYaw);
+    if (turnYaw !== 0) camera.quaternion.multiply(_qYaw);
 
     // shake moves ship and eye together; the head adds a little of its own
     _qShip.identity();
@@ -534,9 +557,10 @@ const Cockpit = () => {
     let deploy = 1;
     if (mode === 'planet') {
       if (reduced) deploy = 0;
-      else if (r.arriveAt >= DOOR_AT + DOOR_SHUT_MS) deploy = 0;
+      else if (r.arriveAt >= DOOR_AT + TURN_MS / 2) deploy = 0;
     } else if (mode === 'transitioning-out') {
-      deploy = reduced ? 0 : easeOutCubic(clamp01((now - r.launchAt) / COCKPIT_CLOSE_MS));
+      // beamed straight up: no cockpit until the lobby
+      deploy = 0;
     }
     r.deploy = deploy;
 
@@ -550,7 +574,8 @@ const Cockpit = () => {
       h.visible = hatchIn >= 0;
       if (h.visible) {
         h.position.copy(camera.position);
-        h.quaternion.copy(camera.quaternion);
+        // the hatch is fixed in the ship: it swings into view as the turn comes round
+        h.quaternion.copy(camera.quaternion).multiply(_qYaw.invert());
         const through = THREE.MathUtils.smoothstep(walkK, 0.4, 1);
         const outH = 1 + 2.2 * through * through;
         h.scale.set(tv * r.aspect * outH, tv * outH, 1);
@@ -561,6 +586,16 @@ const Cockpit = () => {
         slabR.current?.position.set(SLAB_W / 2 + slide - pop, SLAB_Y, DOOR_Z);
         hatch.setOpacity(hatchIn);
         if (lamp.current) lamp.current.color.set(open > 0 ? '#5dffa0' : '#ffae3d').multiplyScalar(1.6);
+      }
+    }
+
+    const bm = blinkRef.current;
+    if (bm) {
+      bm.visible = blink > 0.001;
+      if (bm.visible) {
+        bm.position.copy(camera.position).add(_fwd3.set(0, 0, -0.1).applyQuaternion(camera.quaternion));
+        bm.quaternion.copy(camera.quaternion);
+        blinkMat.opacity = blink;
       }
     }
 
@@ -645,6 +680,9 @@ const Cockpit = () => {
   return (
     <>
     <SpeedLines />
+    <mesh ref={blinkRef} material={blinkMat} visible={false} raycast={noRaycast} renderOrder={999} frustumCulled={false}>
+      <planeGeometry args={[4, 4]} />
+    </mesh>
     <group ref={hatchRef} visible={false}>
       <pointLight position={[0, 0.22, -0.25]} intensity={0.7} distance={1.2} decay={2} color="#c9d8ff" />
       <mesh geometry={hatch.jamb} material={hatch.jambMat} raycast={noRaycast} renderOrder={34} />

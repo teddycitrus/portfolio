@@ -72,7 +72,8 @@ export const offsetPoly = (pts: Pt[], d: number): Pt[] => {
 
 /** A bulkhead far larger than any view, with the window cut out of it. */
 export const cockpitShape = (hole: Pt[]) => {
-  const E = 3.6;
+  // wide enough that the wall still fills the view when the viewer turns inside the ship
+  const E = 12;
   const s = new THREE.Shape([
     new THREE.Vector2(-E, -E),
     new THREE.Vector2(E, -E),

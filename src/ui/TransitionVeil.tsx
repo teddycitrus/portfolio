@@ -17,6 +17,8 @@ import {
 import { EASE } from './primitives';
 
 const SPACE = '#05070d';
+/** The tractor beam's light: the exit whites out into it and the lobby comes up from it */
+const BEAM = '#d4ecff';
 const REDUCED_FADE = 200;
 
 interface VeilState {
@@ -27,6 +29,8 @@ interface VeilState {
   tint: number;
   tintMs: number;
   planetId: string | null;
+  /** Base colour is the beam's light rather than space */
+  flash: boolean;
 }
 
 /**
@@ -38,7 +42,7 @@ const TransitionVeil = () => {
   const mode = useAppStore((s) => s.mode);
   const lockedId = useAppStore((s) => s.lockedPlanetId);
   const reduced = useAppStore((s) => s.reducedMotion);
-  const [v, setV] = useState<VeilState>({ cover: 0, coverMs: 0, tint: 0, tintMs: 0, planetId: null });
+  const [v, setV] = useState<VeilState>({ cover: 0, coverMs: 0, tint: 0, tintMs: 0, planetId: null, flash: false });
   const covered = useRef(false);
   const root = useRef<HTMLDivElement>(null);
   const tintEl = useRef<HTMLDivElement>(null);
@@ -54,16 +58,16 @@ const TransitionVeil = () => {
       if (covered.current) {
         // chained dive straight from a launch: stay covered and shift to the
         // destination sky before arrival (CHAIN_TOTAL), then lift as usual
-        setV({ cover: 1, coverMs: 0, tint: 1, tintMs: Math.max(150, CHAIN_TOTAL - 150), planetId });
+        setV((s) => ({ ...s, cover: 1, coverMs: 0, tint: 1, tintMs: Math.max(150, CHAIN_TOTAL - 150), planetId }));
       } else {
-        setV({ cover: 0, coverMs: 0, tint: 1, tintMs: 0, planetId });
+        setV({ cover: 0, coverMs: 0, tint: 1, tintMs: 0, planetId, flash: false });
         later(reduced ? Math.max(0, REDUCED_TOTAL - REDUCED_FADE - 50) : ENTER_VEIL_START, () => {
           covered.current = true;
           setV((s) => ({ ...s, cover: 1, coverMs: reduced ? fadeIn : ENTER_VEIL_FADE }));
         });
       }
     } else if (mode === 'transitioning-out') {
-      setV((s) => ({ ...s, tint: 0, tintMs: 0, planetId: null }));
+      setV((s) => ({ ...s, tint: 0, tintMs: 0, planetId: null, flash: !reduced }));
       // planet-to-planet launches are shorter and cover earlier
       const chained = useAppStore.getState().pendingPlanetId !== null;
       const start = reduced
@@ -106,7 +110,7 @@ const TransitionVeil = () => {
       style={{
         opacity: v.cover,
         visibility: v.cover === 0 && v.coverMs === 0 ? 'hidden' : 'visible',
-        background: SPACE,
+        background: v.flash ? BEAM : SPACE,
       }}
     >
       <div

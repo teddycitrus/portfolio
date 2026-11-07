@@ -93,6 +93,12 @@ export const flight = {
   heatColor: '#ffb070',
   /** ms on the arrival clock since the first frame on a planet (-1 before it); drives the takeoff */
   arrivalMs: -1,
+  /** World position of the mothership's belly, written by the mothership every frame */
+  mother: { x: 40, y: 236, z: -175 },
+  /** Where the tractor beam meets the ground, set when the exit starts */
+  beamFoot: { x: 0, y: 0, z: 0 },
+  /** 0..1 strength of the tractor beam during the exit */
+  beam: 0,
 };
 
 /** Screen rect (CSS px) of a dash display in orbit, written by the cockpit each frame. */

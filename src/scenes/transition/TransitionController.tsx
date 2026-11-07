@@ -5,7 +5,16 @@ import type { Planet, Vec3 } from '@/types/content';
 import { getOrbitalPosition, planetById } from '@/data/content';
 import { useAppStore } from '@/state/useAppStore';
 import { flight } from '@/state/runtime';
-import { CHAIN_TOTAL, ENTER_DIVE, ENTER_TOTAL, EXIT_CHAIN_TOTAL, EXIT_TOTAL, REDUCED_TOTAL } from '@/state/timing';
+import {
+  BEAM_LIFT_AT,
+  BEAM_LOOK_MS,
+  CHAIN_TOTAL,
+  ENTER_DIVE,
+  ENTER_TOTAL,
+  EXIT_CHAIN_TOTAL,
+  EXIT_TOTAL,
+  REDUCED_TOTAL,
+} from '@/state/timing';
 import { responsiveFov, surfaceFov } from '@/scenes/overworld/TelescopeCamera';
 
 /** The burn widens the lens by this many degrees at full speed. */
@@ -14,11 +23,11 @@ const DIVE_FOV_GAIN = 15;
 const DIVE_POWER = 1.75;
 /** Dive stops this many radii from the centre so baked detail is never magnified into texels. */
 const DIVE_END = 1.85;
-const LAUNCH_FOV = 80;
-const LAUNCH_PITCH = 1.2;
+const LAUNCH_FOV = 78;
+/** Eye height above the beam's foot */
+const EYE = 1.6;
 /** The ship swings onto its target this fast */
 const LOOK_SETTLE = 280;
-const TILT_TIME = 900;
 
 const UP = new THREE.Vector3(0, 1, 0);
 const _orb: Vec3 = [0, 0, 0];
@@ -27,7 +36,6 @@ const _dir = new THREE.Vector3();
 const _end = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _m = new THREE.Matrix4();
-const _euler = new THREE.Euler(0, 0, 0, 'YXZ');
 
 const clamp01 = (x: number) => Math.min(Math.max(x, 0), 1);
 const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -88,6 +96,7 @@ const TransitionController = () => {
 
   useEffect(() => {
     const r = run.current;
+    if (mode !== 'transitioning-out') flight.beam = 0;
     if (mode !== 'transitioning-in' && mode !== 'transitioning-out') {
       r.kind = null;
       r.chain = false;
@@ -119,9 +128,13 @@ const TransitionController = () => {
       setFov(camera, responsiveFov(aspect));
     }
     if (r.kind === 'out') {
-      _euler.setFromQuaternion(camera.quaternion, 'YXZ');
-      _euler.set(LAUNCH_PITCH, _euler.y, 0, 'YXZ');
-      r.endQuat.setFromEuler(_euler);
+      // look straight up the beam at the ship's belly
+      const m = flight.mother;
+      _m.lookAt(camera.position, _target.set(m.x, m.y, m.z), UP);
+      r.endQuat.setFromRotationMatrix(_m);
+      flight.beamFoot.x = camera.position.x;
+      flight.beamFoot.y = camera.position.y - EYE;
+      flight.beamFoot.z = camera.position.z;
     }
     r.pos.copy(camera.position);
     r.quat.copy(camera.quaternion);
@@ -176,10 +189,19 @@ const TransitionController = () => {
       return;
     }
 
-    // Launch: accelerating climb, tilting up toward the sky
-    const ts = elapsed / 1000;
-    camera.position.set(r.pos.x, r.pos.y + 2 * ts + 18 * ts * ts + 14 * ts * ts * ts, r.pos.z - 1.5 * ts);
-    camera.quaternion.copy(r.quat).slerp(r.endQuat, easeInOutCubic(clamp01(elapsed / TILT_TIME)));
+    // Beam: look up at the ship, the beam comes down, the feet leave the ground, then the pull
+    flight.beam = smoothstep(120, BEAM_LOOK_MS, elapsed);
+    const m = flight.mother;
+    _dir.set(m.x - r.pos.x, m.y - r.pos.y, m.z - r.pos.z).normalize();
+    const ts = Math.max(0, elapsed - BEAM_LIFT_AT) / 1000;
+    const float = 0.5 * smoothstep(250, BEAM_LIFT_AT + 300, elapsed);
+    const pull = 0.8 * ts + 7 * ts * ts + 20 * ts * ts * ts;
+    camera.position.copy(r.pos).addScaledVector(_dir, pull);
+    camera.position.y += float;
+    camera.quaternion.copy(r.quat).slerp(r.endQuat, easeInOutCubic(clamp01(elapsed / BEAM_LOOK_MS)));
+    // a slow turn about the beam as it takes hold
+    _q.setFromAxisAngle(_target.set(0, 0, 1), 0.35 * ts * ts);
+    camera.quaternion.multiply(_q);
     const f = clamp01(elapsed / r.total);
     setFov(camera, r.fov + (LAUNCH_FOV - r.fov) * f * f);
     if (elapsed >= r.total) finish();
