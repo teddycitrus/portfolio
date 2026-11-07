@@ -4,7 +4,6 @@ import { buildSky } from '@/data/skyPresets';
 import type { Planet } from '@/types/content';
 import { useAppStore } from '@/state/useAppStore';
 import {
-  CHAIN_TOTAL,
   ENTER_VEIL_FADE,
   ENTER_VEIL_LIFT,
   ENTER_VEIL_START,
@@ -17,7 +16,7 @@ import {
 import { EASE } from './primitives';
 
 const SPACE = '#05070d';
-/** The tractor beam's light: the exit whites out into it and the lobby comes up from it */
+/** The tractor beam's light: both ways, the view whites out into it and the next scene comes up from it */
 const BEAM = '#d4ecff';
 const REDUCED_FADE = 200;
 
@@ -34,8 +33,9 @@ interface VeilState {
 }
 
 /**
- * Full-screen cover for scene swaps. Dives fade into the target planet's
- * atmosphere colour with its name; launches fade to deep space. The camera
+ * Full-screen cover for scene swaps. Beaming down or up washes out into the
+ * tractor beam's light; with reduced motion it crossfades through the
+ * destination sky or deep space. The camera
  * controller reads the same timing constants so the cut lands under cover.
  */
 const TransitionVeil = () => {
@@ -56,11 +56,11 @@ const TransitionVeil = () => {
     if (mode === 'transitioning-in') {
       const planetId = lockedId;
       if (covered.current) {
-        // chained dive straight from a launch: stay covered and shift to the
-        // destination sky before arrival (CHAIN_TOTAL), then lift as usual
-        setV((s) => ({ ...s, cover: 1, coverMs: 0, tint: 1, tintMs: Math.max(150, CHAIN_TOTAL - 150), planetId }));
+        // chained straight from a beam up: stay in the light, then lift as usual
+        setV((s) => ({ ...s, cover: 1, coverMs: 0, planetId }));
       } else {
-        setV({ cover: 0, coverMs: 0, tint: 1, tintMs: 0, planetId, flash: false });
+        // reduced motion crossfades through the destination sky; otherwise the beam's light
+        setV({ cover: 0, coverMs: 0, tint: reduced ? 1 : 0, tintMs: 0, planetId, flash: !reduced });
         later(reduced ? Math.max(0, REDUCED_TOTAL - REDUCED_FADE - 50) : ENTER_VEIL_START, () => {
           covered.current = true;
           setV((s) => ({ ...s, cover: 1, coverMs: reduced ? fadeIn : ENTER_VEIL_FADE }));
@@ -81,7 +81,7 @@ const TransitionVeil = () => {
       });
     } else if (covered.current) {
       covered.current = false;
-      // landing: the atmosphere clears fast while the ship is still descending
+      // arrival: the beam's light clears while the viewer is still coming down
       setV((s) => ({ ...s, cover: 0, coverMs: mode === 'planet' && !reduced ? ENTER_VEIL_LIFT : lift }));
     }
     return () => timers.forEach((t) => window.clearTimeout(t));

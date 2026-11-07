@@ -3,57 +3,37 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useAppStore, type SceneMode } from '@/state/useAppStore';
 import { dashScreens, flight } from '@/state/runtime';
-import {
-  ARRIVAL_MS,
-  BLAST_SHARE,
-  DOOR_OPEN_AT,
-  DOOR_OPEN_MS,
-  ENTER_DIVE,
-  FALL_MS,
-  POD_SEAL_MS,
-  POD_SHUT_MS,
-  WALK_FROM,
-} from '@/state/timing';
+import { ARRIVAL_MS, BEAM_DOWN_MS } from '@/state/timing';
 import { responsiveFov } from '@/scenes/overworld/TelescopeCamera';
 import { shipSound } from '@/audio/drone';
 import { cockpitShape, FRAME_DEPTH, HOLE, offsetPoly, type Pt } from './shape';
 import SpeedLines from './SpeedLines';
 import { glassMaterial, instrumentMaterial } from './materials';
-import { JAMB_Z, doorway } from './hatch';
-import { POD_DOOR_Z, doorGeometry, doorTexture, glassGeometry, podGlassMaterial, rimGeometry } from './pod';
 
 /*
  * The ship around the viewer. In orbit it is an observation deck: a bulkhead
  * with a wide canopy window, a dashboard below it and a couple of instruments.
- * Diving into a planet, a drop pod's doors slam shut around the viewer and the
- * pod fires at the planet (the transition controller moves the camera), its
- * porthole burning on entry. After the cut the rig drops the pod out of the
- * sky into the ground, then the doors blow off and the viewer steps out.
+ * Heading for a planet, the view locks on and the tractor beam's light takes
+ * it (the transition controller and the veil). After the cut the rig lowers
+ * the viewer down the beam from the mothership, looking up at it, onto the
+ * ground; the cockpit is not seen again until the lobby.
  *
  * Geometry lives in "frame units": the bulkhead sits FRAME_DEPTH in front of
  * the eye and the frame group is scaled by the resting lens, so x and y of
  * the bulkhead map straight to screen space (1 = screen edge) at rest.
  */
 
-/* ---------- the drop ---------- */
+/* ---------- down the beam ---------- */
 
-/** The pod falls from this high, from this far behind and to the side of the landing spot */
-const FALL_RISE = 95;
-const FALL_BACK = 22;
-const FALL_SIDE = 6;
-/** Nose down at the top of the drop, and the turn it makes on the way down, radians */
-const FALL_PITCH = 0.72;
-const FALL_SPIN = 0.55;
-/** How far the pod digs in on impact */
-const IMPACT_DIP = 0.34;
-/** How far behind the spawn the viewer stands inside the pod, world units */
-const HATCH_STEP = 1.3;
+/** Roll unwinding about the beam on the way down, radians at the start */
+const BEAM_ROLL = 0.35;
+/** The viewer floats this far above the ground at the foot of the beam, then settles */
+const BEAM_FLOAT = 0.5;
 /** Arrival clock value meaning "long since landed" */
 const ARRIVAL_DONE = 1e9;
 
 const noRaycast = () => null;
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
-const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const damp = (rate: number, dt: number) => 1 - Math.exp(-rate * dt);
 /** Smooth pseudo-random wobble, roughly -1..1 */
@@ -85,18 +65,20 @@ interface Rig {
   ship: THREE.Quaternion;
   deploy: number;
   aspect: number;
-  doorSound: boolean;
-  launched: boolean;
 }
 
 const _fwd = new THREE.Vector3();
 const _right = new THREE.Vector3();
-const _off = new THREE.Vector3();
 const _e = new THREE.Euler(0, 0, 0, 'YXZ');
 const _q = new THREE.Quaternion();
 const _qShip = new THREE.Quaternion();
 const _qHead = new THREE.Quaternion();
-const _qHeadInv = new THREE.Quaternion();
+const _toShip = new THREE.Vector3();
+const _shipPos = new THREE.Vector3();
+const _qLook = new THREE.Quaternion();
+const _m4 = new THREE.Matrix4();
+const _yUp = new THREE.Vector3(0, 1, 0);
+const _zAxis = new THREE.Vector3(0, 0, 1);
 const _target = new THREE.Quaternion();
 const ID = new THREE.Quaternion();
 const _corner = new THREE.Vector3();
@@ -259,64 +241,6 @@ const useCockpitParts = () =>
     return { plate, trim, dark, strip, amber, bulkhead, ring, lightStrip, rivetGeo, rivetPts, dash, dashTilt, tex, trimTex };
   }, []);
 
-const useHatchParts = () =>
-  useMemo(() => {
-    const jambTex = panelTexture();
-    jambTex.repeat.set(2, 2);
-    const jambMat = new THREE.MeshStandardMaterial({ color: '#4a5260', map: jambTex, metalness: 0.55, roughness: 0.5, fog: false });
-    const jamb = new THREE.ExtrudeGeometry(cockpitShape(doorway()), {
-      depth: 0.04,
-      bevelEnabled: true,
-      bevelThickness: 0.01,
-      bevelSize: 0.01,
-      bevelSegments: 3,
-      curveSegments: 6,
-    });
-    jamb.translate(0, 0, JAMB_Z - 0.05);
-    return {
-      jamb,
-      jambMat,
-      dispose: () => {
-        jambMat.dispose();
-        jambTex.dispose();
-        jamb.dispose();
-      },
-    };
-  }, []);
-
-const usePodParts = () =>
-  useMemo(() => {
-    const halves = ([-1, 1] as const).map((side) => {
-      const map = doorTexture(side);
-      return {
-        side,
-        map,
-        door: doorGeometry(side),
-        rim: rimGeometry(side),
-        glass: glassGeometry(side),
-        mat: new THREE.MeshStandardMaterial({ color: '#b4bcc8', map, metalness: 0.5, roughness: 0.48, fog: false }),
-      };
-    });
-    const rimMat = new THREE.MeshStandardMaterial({ color: '#8b94a2', metalness: 0.8, roughness: 0.3, fog: false });
-    const glass = podGlassMaterial();
-    return {
-      halves,
-      rimMat,
-      glass,
-      dispose: () => {
-        for (const h of halves) {
-          h.map.dispose();
-          h.door.dispose();
-          h.rim.dispose();
-          h.glass.dispose();
-          h.mat.dispose();
-        }
-        rimMat.dispose();
-        glass.dispose();
-      },
-    };
-  }, []);
-
 /* ---------- the rig: camera offsets, ship pose, sounds ---------- */
 
 const Cockpit = () => {
@@ -328,14 +252,6 @@ const Cockpit = () => {
   const leds = useRef<THREE.InstancedMesh>(null);
   const glow = useRef<THREE.PointLight>(null);
   const rivets = useRef<THREE.InstancedMesh>(null);
-  const hatchRef = useRef<THREE.Group>(null);
-  const lamp = useRef<THREE.MeshBasicMaterial>(null);
-  const hatch = useHatchParts();
-  const pod = usePodParts();
-  const podRef = useRef<THREE.Group>(null);
-  const podScale = useRef<THREE.Group>(null);
-  const podLight = useRef<THREE.PointLight>(null);
-  const halfRefs = useRef<(THREE.Group | null)[]>([]);
   const glass = useMemo(() => glassMaterial(), []);
   const displays = useRef<(THREE.Mesh | null)[]>([]);
   const screenL = useMemo(() => instrumentMaterial(0), []);
@@ -358,8 +274,6 @@ const Cockpit = () => {
     ship: new THREE.Quaternion(),
     deploy: useAppStore.getState().mode === 'planet' ? 0 : 1,
     aspect: size.width / Math.max(1, size.height),
-    doorSound: false,
-    launched: false,
   });
 
   useEffect(
@@ -368,10 +282,8 @@ const Cockpit = () => {
       for (const g of [parts.bulkhead, parts.ring, parts.lightStrip, parts.rivetGeo, parts.dash]) g.dispose();
       parts.tex.dispose();
       parts.trimTex.dispose();
-      hatch.dispose();
-      pod.dispose();
     },
-    [parts, glass, screenL, screenR, hatch, pod],
+    [parts, glass, screenL, screenR],
   );
 
   // timeline marks and engine sounds follow the scene mode
@@ -385,14 +297,12 @@ const Cockpit = () => {
         r.mode = s.mode;
         if (s.mode === 'transitioning-in') {
           r.diveAt = now;
-          r.launched = r.chained;
-          if (!r.chained && !s.reducedMotion) shipSound('seal', POD_SHUT_MS / 1000);
+          if (!r.chained && !s.reducedMotion) shipSound('lock');
         } else if (s.mode === 'planet') {
           r.arriveAt = -1;
           r.arriveTick = false;
           r.arrivePending = true;
           flight.arrivalMs = -1;
-          r.doorSound = false;
         } else if (s.mode === 'transitioning-out') {
           r.launchAt = now;
           if (!s.reducedMotion) shipSound('beam');
@@ -446,7 +356,7 @@ const Cockpit = () => {
       // the first frame after the surface mounts starts the descent clock
       r.arrivePending = false;
       r.arriveAt = 0;
-      if (!reduced) shipSound('land', FALL_MS / 1000);
+      if (!reduced) shipSound('lower', BEAM_DOWN_MS / 1000);
     }
 
     r.basePos.copy(camera.position);
@@ -461,65 +371,16 @@ const Cockpit = () => {
     r.hasLast = true;
     if (mode !== 'transitioning-in') flight.heat = Math.max(0, flight.heat - dt * 3.2);
 
-    /* the pod: how shut its doors are (-1 gone), the drop, the impact, the doors blown off */
-    let podIn = -1;
-    let jambOn = false;
-    let blast = 0;
-    let walkK = 0;
-    /** 1 at the top of the drop, 0 on the ground */
-    let fall = 0;
     let shake = 0;
-    let dip = 0;
-    let lampColor = '#ff4a3d';
     if (mode === 'planet' && r.arriveAt >= 0) {
       // the first frame starts the clock at 0; a stalled frame counts as one frame
       if (r.arriveTick) r.arriveAt += Math.min(delta, 0.1) * 1000;
       r.arriveTick = true;
       flight.arrivalMs = reduced ? ARRIVAL_DONE : r.arriveAt;
     }
-    if (mode === 'planet' && r.arriveAt >= 0 && !reduced) {
-      const ms = r.arriveAt;
-      podIn = 1;
-      jambOn = ms < ARRIVAL_MS + 120;
-      const u = clamp01(ms / FALL_MS);
-      fall = 1 - u;
-      if (u < 1) shake += 0.004 + 0.012 * u * u;
-      // the porthole still glowing from entry, cooling on the way down
-      flight.heat = Math.max(flight.heat, 0.45 * Math.pow(fall, 2.2));
-      if (ms > FALL_MS) {
-        const ts = (ms - FALL_MS) / 1000;
-        if (ts < 1.5) {
-          dip = -IMPACT_DIP * Math.exp(-8 * ts) * Math.sin(15 * ts);
-          shake += 0.04 * Math.exp(-11 * ts);
-        }
-        lampColor = '#ffae3d';
-      }
-      const open = clamp01((ms - DOOR_OPEN_AT) / DOOR_OPEN_MS);
-      blast = easeOutCubic(clamp01(open / BLAST_SHARE));
-      walkK = easeInOutCubic(clamp01((open - WALK_FROM) / (1 - WALK_FROM)));
-      if (ms >= DOOR_OPEN_AT - 220) lampColor = '#5dffa0';
-      if (!r.doorSound && ms >= DOOR_OPEN_AT - 20) {
-        r.doorSound = true;
-        shipSound('blast');
-      }
-      if (ms >= DOOR_OPEN_AT) shake += 0.014 * Math.exp(-14 * ((ms - DOOR_OPEN_AT) / 1000));
-      if (blast >= 1) podIn = -1;
-    } else if (mode === 'transitioning-in' && !reduced) {
-      const el = now - r.diveAt;
-      // the doors slam shut, accelerating into each other
-      podIn = r.chained ? 1 : Math.pow(clamp01(el / POD_SHUT_MS), 2.4);
-      if (!r.chained) {
-        if (el >= POD_SHUT_MS) shake += 0.012 * Math.exp(-14 * ((el - POD_SHUT_MS) / 1000));
-        if (el >= POD_SEAL_MS) {
-          if (!r.launched) {
-            r.launched = true;
-            shipSound('dive');
-          }
-          const u = clamp01((el - POD_SEAL_MS) / ENTER_DIVE);
-          // the launch kick, then a rattle that builds with speed and entry heat
-          shake += 0.0015 + 0.011 * u * u * u + 0.006 * flight.heat + 0.018 * Math.exp(-u * 12);
-        }
-      }
+    if (mode === 'transitioning-in' && !reduced && !r.chained) {
+      // the beam's hum building as it takes hold
+      shake = 0.0025 * clamp01((now - r.diveAt) / 600);
     } else if (mode === 'transitioning-out' && !reduced) {
       // the beam's hum in the bones
       shake = 0.0025 * clamp01((now - r.launchAt) / 600);
@@ -531,20 +392,25 @@ const Cockpit = () => {
     _fwd.normalize();
     _right.set(-_fwd.z, 0, _fwd.x);
 
-    if (fall > 0 || dip !== 0) {
-      // retros brake the whole way down, but it still hits hard
-      const h = FALL_RISE * fall * (1 - 0.55 * (1 - fall));
-      _off
-        .set(0, h + dip, 0)
-        .addScaledVector(_fwd, -FALL_BACK * fall * fall)
-        .addScaledVector(_right, FALL_SIDE * fall * fall);
-      camera.position.add(_off);
-      const look = 1 - THREE.MathUtils.smoothstep(1 - fall, 0.2, 0.92);
-      _e.set(-FALL_PITCH * look + dip * 0.15, FALL_SPIN * fall * fall, Math.sin(t * 2.3) * 0.03 * fall + dip * 0.04, 'YXZ');
-      camera.quaternion.multiply(_q.setFromEuler(_e));
+    /* down the beam: the exit's pull run backwards, slowing all the way to the feet touching */
+    if (mode === 'planet' && r.arriveAt >= 0 && !reduced && r.arriveAt < ARRIVAL_MS + 50) {
+      const ms = r.arriveAt;
+      const m = flight.mother;
+      _shipPos.set(m.x, m.y, m.z);
+      _toShip.copy(_shipPos).sub(r.basePos).normalize();
+      const sLeft = Math.max(0, BEAM_DOWN_MS - ms) / 1000;
+      const pull = 0.8 * sLeft + 7 * sLeft * sLeft + 20 * sLeft * sLeft * sLeft;
+      camera.position.addScaledVector(_toShip, pull);
+      camera.position.y += BEAM_FLOAT * (1 - THREE.MathUtils.smoothstep(ms, BEAM_DOWN_MS - 350, BEAM_DOWN_MS + 300));
+      // looking up at the ship being left behind, then down to the ground ahead as the feet touch
+      _m4.lookAt(camera.position, _shipPos, _yUp);
+      _qLook.setFromRotationMatrix(_m4).multiply(_q.setFromAxisAngle(_zAxis, BEAM_ROLL * sLeft * sLeft));
+      const k = easeInOutCubic(clamp01((ms - (BEAM_DOWN_MS - 650)) / 950));
+      _qLook.slerp(camera.quaternion, k);
+      camera.quaternion.copy(_qLook);
+      flight.beam = 1 - THREE.MathUtils.smoothstep(ms, BEAM_DOWN_MS + 100, BEAM_DOWN_MS + 700);
+      shake = 0.0025 * (1 - k);
     }
-    // inside the pod the viewer stands a step back, then walks out once the doors are gone
-    if (mode === 'planet' && r.arriveAt >= 0 && !reduced) camera.position.addScaledVector(_fwd, -HATCH_STEP * (1 - walkK));
 
     // the ship's orientation before shake: fixed in orbit, swinging after the camera otherwise
     if (mode === 'overworld' || reduced) r.ship.copy(mode === 'overworld' ? ID : camera.quaternion);
@@ -563,67 +429,18 @@ const Cockpit = () => {
     }
     _target.copy(camera.quaternion).multiply(_qShip);
     camera.quaternion.copy(_target).multiply(_qHead);
-    _qHeadInv.copy(_qHead).invert();
     r.outPos.copy(camera.position);
     r.outQuat.copy(camera.quaternion);
     r.applied = true;
 
     /* deploy: 1 = the frame around the view, 0 = cleared away past the screen edges */
-    let deploy = 1;
-    // on the ground it is the pod around the viewer, and beamed up there is nothing until the lobby;
-    // diving, the cockpit goes once the pod's doors have shut in front of it
-    if (mode === 'planet' || mode === 'transitioning-out') deploy = 0;
-    else if (mode === 'transitioning-in' && podIn >= 1) deploy = 0;
+    // beamed down or up there is no ship around the viewer, only in the lobby
+    const deploy = mode === 'planet' || mode === 'transitioning-out' ? 0 : 1;
     r.deploy = deploy;
 
     const aspect = size.width / Math.max(1, size.height);
     r.aspect += (aspect - r.aspect) * damp(5, dt);
     const tv = Math.tan(THREE.MathUtils.degToRad(responsiveFov(r.aspect)) / 2);
-
-    /* the pod's doors: locked to the eye, sliding shut from the sides, blown off on the ground */
-    const pg = podRef.current;
-    const ps = podScale.current;
-    if (pg && ps) {
-      pg.visible = podIn >= 0;
-      if (pg.visible) {
-        pg.position.copy(camera.position);
-        pg.quaternion.copy(camera.quaternion).multiply(_qHeadInv);
-        // round at any aspect; narrow screens shrink the porthole so it stays inside the doorway
-        const k = Math.min(1, r.aspect / 0.9);
-        ps.scale.set(tv * k, tv * k, 1);
-        // the screen's half-width at the door plane, in pod units
-        const halfW = (r.aspect * -POD_DOOR_Z) / k;
-        const travel = halfW * 1.08 + 0.02;
-        halfRefs.current.forEach((g, i) => {
-          if (!g) return;
-          const side = i === 0 ? -1 : 1;
-          g.position.set(side * (travel * (1 - podIn) + travel * 1.3 * blast), -0.12 * blast * blast, -0.35 * blast);
-          g.rotation.set(0, -side * 0.9 * blast, side * 0.22 * blast);
-        });
-        pod.glass.uniforms.uTime.value = t;
-        pod.glass.uniforms.uHeat.value = flight.heat;
-        (pod.glass.uniforms.uHeatColor.value as THREE.Color).set(flight.heatColor);
-        const pl = podLight.current;
-        if (pl) {
-          pl.intensity = 0.6 + flight.heat * 1.4;
-          pl.color.set('#c9d8ff').lerp(_c.set(flight.heatColor), flight.heat * 0.7);
-        }
-      }
-    }
-
-    /* the doorway around the doors: stays as the viewer walks out, passing the eye */
-    const h = hatchRef.current;
-    if (h) {
-      h.visible = jambOn;
-      if (h.visible) {
-        h.position.copy(camera.position);
-        h.quaternion.copy(camera.quaternion).multiply(_qHeadInv);
-        const through = THREE.MathUtils.smoothstep(walkK, 0.4, 1);
-        const outH = 1 + 2.2 * through * through;
-        h.scale.set(tv * r.aspect * outH, tv * outH, 1);
-        if (lamp.current) lamp.current.color.set(lampColor).multiplyScalar(1.6);
-      }
-    }
 
     const ship = shipRef.current;
     const frame = frameRef.current;
@@ -706,32 +523,6 @@ const Cockpit = () => {
   return (
     <>
     <SpeedLines />
-    <group ref={podRef} visible={false}>
-      <pointLight ref={podLight} position={[0, 0.12, -0.08]} intensity={0.6} distance={1.1} decay={2} color="#c9d8ff" />
-      <group ref={podScale}>
-        {pod.halves.map((hv, i) => (
-          <group
-            key={hv.side}
-            ref={(el) => {
-              halfRefs.current[i] = el;
-            }}
-          >
-            <mesh geometry={hv.door} material={hv.mat} raycast={noRaycast} renderOrder={33} />
-            <mesh geometry={hv.rim} material={pod.rimMat} raycast={noRaycast} renderOrder={33} />
-            <mesh geometry={hv.glass} material={pod.glass} raycast={noRaycast} renderOrder={36} />
-          </group>
-        ))}
-      </group>
-    </group>
-    <group ref={hatchRef} visible={false}>
-      <pointLight position={[0, 0.22, -0.25]} intensity={0.7} distance={1.2} decay={2} color="#c9d8ff" />
-      <mesh geometry={hatch.jamb} material={hatch.jambMat} raycast={noRaycast} renderOrder={34} />
-      {/* status lamp over the doorway: amber while sealed, green once the latches release */}
-      <mesh position={[0, 0.8 * -JAMB_Z + 0.03, JAMB_Z + 0.022]} raycast={noRaycast} renderOrder={35}>
-        <boxGeometry args={[0.05, 0.008, 0.006]} />
-        <meshBasicMaterial ref={lamp} color="#ff4a3d" toneMapped={false} fog={false} />
-      </mesh>
-    </group>
     <group ref={shipRef} renderOrder={30}>
       {/* cabin light: only reaches the frame, the planets are far outside its range */}
       <pointLight position={[0, -0.12, -0.18]} intensity={0.55} distance={1.4} decay={2} color="#a9c2ff" />

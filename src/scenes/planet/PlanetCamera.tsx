@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useAppStore } from '@/state/useAppStore';
-import { beaconScreen, dragLook, joystickState, keyboardState, mouseLook, type PlanetScreenInfo } from '@/state/runtime';
+import { beaconScreen, dragLook, flight, joystickState, keyboardState, mouseLook, type PlanetScreenInfo } from '@/state/runtime';
 import { BEACON_VIEW_DISTANCE, getBeaconViewPoint, SURFACE_HEAD_HEIGHT, SURFACE_SPAWN } from '@/data/content';
 import type { Vec3 } from '@/types/content';
 import type { HeightFn } from './Terrain';
@@ -183,6 +183,10 @@ const PlanetCamera = ({ planetId, beacons, ground, walkRadius }: PlanetCameraPro
     s.gazeUnlock = settleEnd + GAZE_LOCKOUT_MS;
     arrivalPulse.start = settleEnd + PULSE_DELAY_MS;
     camera.position.set(SURFACE_SPAWN[0], s.y, sz);
+    // the beam that lowers the viewer comes down onto the spawn
+    flight.beamFoot.x = SURFACE_SPAWN[0];
+    flight.beamFoot.y = gy - SURFACE_HEAD_HEIGHT;
+    flight.beamFoot.z = sz;
     euler.current.set(s.bias, 0, 0);
     camera.quaternion.setFromEuler(euler.current);
   }, [mode, planetId, camera, beacons, ground, walkRadius]);

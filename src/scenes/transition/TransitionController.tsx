@@ -9,34 +9,25 @@ import {
   BEAM_LIFT_AT,
   BEAM_LOOK_MS,
   CHAIN_TOTAL,
-  ENTER_DIVE,
   ENTER_TOTAL,
   EXIT_CHAIN_TOTAL,
   EXIT_TOTAL,
-  POD_SEAL_MS,
   REDUCED_TOTAL,
 } from '@/state/timing';
 import { responsiveFov, surfaceFov } from '@/scenes/overworld/TelescopeCamera';
 
-/** The burn widens the lens by this many degrees at full speed. */
-const DIVE_FOV_GAIN = 15;
-/** Exponent of the burn: slow off the line, then hard acceleration into the atmosphere */
-const DIVE_POWER = 1.75;
-/** Dive stops this many radii from the centre so baked detail is never magnified into texels. */
-const DIVE_END = 1.85;
+/** The lock-on before the beam takes the viewer narrows the lens this much */
+const LOCK_ZOOM = 6;
 const LAUNCH_FOV = 78;
-/** The pod's launch kick widens the lens this much for a moment */
-const KICK_FOV = 7;
 /** Eye height above the beam's foot */
 const EYE = 1.6;
-/** The view swings onto its target this fast */
+/** The view swings onto the planet this fast */
 const LOOK_SETTLE = 280;
 
 const UP = new THREE.Vector3(0, 1, 0);
 const _orb: Vec3 = [0, 0, 0];
 const _target = new THREE.Vector3();
 const _dir = new THREE.Vector3();
-const _end = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _m = new THREE.Matrix4();
 
@@ -49,7 +40,7 @@ const smoothstep = (a: number, b: number, x: number) => {
 
 interface Run {
   kind: 'in' | 'out' | null;
-  /** Planet-to-planet travel: short launch, then a dive fully under the veil */
+  /** Planet-to-planet travel: the beam up, then the switch fully under the veil */
   chain: boolean;
   total: number;
   prevKind: 'in' | 'out' | null;
@@ -72,7 +63,7 @@ const setFov = (cam: THREE.PerspectiveCamera, fov: number) => {
 };
 
 /**
- * Owns the camera while diving into or launching off a planet, and fires the
+ * Owns the camera while beaming down to or up from a planet, and fires the
  * matching arrival exactly once per transition.
  */
 const TransitionController = () => {
@@ -172,25 +163,16 @@ const TransitionController = () => {
     }
 
     if (r.kind === 'in') {
+      // lock onto the planet while the beam's light comes up over the view
       const p = r.planet;
       if (!p) return finish();
       getOrbitalPosition(p, clock.elapsedTime, _orb);
       _target.set(_orb[0], _orb[1], _orb[2]);
-      // the pod sits sealed until it fires, then falls hard at the planet
-      const u = clamp01((elapsed - POD_SEAL_MS) / ENTER_DIVE);
-      const e = Math.pow(u, DIVE_POWER);
-      _dir.copy(_target).sub(r.pos).normalize();
-      _end.copy(_target).addScaledVector(_dir, -p.radius * DIVE_END);
-      camera.position.lerpVectors(r.pos, _end, e);
       _m.lookAt(camera.position, _target, UP);
       _q.setFromRotationMatrix(_m);
       camera.quaternion.copy(r.quat).slerp(_q, easeInOutCubic(clamp01(elapsed / LOOK_SETTLE)));
-      // the launch punches the lens wide for an instant, then the speed widens it for good
-      const kick = elapsed > POD_SEAL_MS ? Math.sin(Math.PI * clamp01((elapsed - POD_SEAL_MS) / 260)) : 0;
-      setFov(camera, r.fov + DIVE_FOV_GAIN * u * u + KICK_FOV * kick);
-      // the canopy glows as the planet's air hits it
-      flight.heat = smoothstep(0.45, 0.88, u);
-      flight.heatColor = p.accent;
+      const z = easeInOutCubic(clamp01(elapsed / r.total));
+      setFov(camera, r.fov - LOCK_ZOOM * z);
       if (elapsed >= r.total) finish();
       return;
     }
