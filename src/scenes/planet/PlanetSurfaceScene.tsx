@@ -11,6 +11,7 @@ import Surroundings from './Surroundings';
 import Vegetation from './Vegetation';
 import Wildlife from './Wildlife';
 import Mothership from './Mothership';
+import PodDust from './PodDust';
 import Beacon, { beaconHeight } from './Beacon';
 import PlanetCamera, { type SurfaceBeacon } from './PlanetCamera';
 
@@ -82,7 +83,8 @@ const Surface = ({ planet }: { planet: Planet }) => {
       <directionalLight position={fillPos} color={fillColor} intensity={fillIntensity} />
 
       <SkyDome sky={sky} reducedMotion={reducedMotion} />
-      <Mothership sky={sky} ground={ground} reducedMotion={reducedMotion} />
+      <Mothership sky={sky} reducedMotion={reducedMotion} />
+      <PodDust sky={sky} ground={ground} reducedMotion={reducedMotion} />
       <Terrain planet={planet} sky={sky} reducedMotion={reducedMotion} />
       <Surroundings planet={planet} sky={sky} reducedMotion={reducedMotion} />
       <Vegetation planet={planet} beacons={clearings} reducedMotion={reducedMotion} />

@@ -13,6 +13,7 @@ import {
   ENTER_TOTAL,
   EXIT_CHAIN_TOTAL,
   EXIT_TOTAL,
+  POD_SEAL_MS,
   REDUCED_TOTAL,
 } from '@/state/timing';
 import { responsiveFov, surfaceFov } from '@/scenes/overworld/TelescopeCamera';
@@ -24,9 +25,11 @@ const DIVE_POWER = 1.75;
 /** Dive stops this many radii from the centre so baked detail is never magnified into texels. */
 const DIVE_END = 1.85;
 const LAUNCH_FOV = 78;
+/** The pod's launch kick widens the lens this much for a moment */
+const KICK_FOV = 7;
 /** Eye height above the beam's foot */
 const EYE = 1.6;
-/** The ship swings onto its target this fast */
+/** The view swings onto its target this fast */
 const LOOK_SETTLE = 280;
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -173,7 +176,8 @@ const TransitionController = () => {
       if (!p) return finish();
       getOrbitalPosition(p, clock.elapsedTime, _orb);
       _target.set(_orb[0], _orb[1], _orb[2]);
-      const u = clamp01(elapsed / ENTER_DIVE);
+      // the pod sits sealed until it fires, then falls hard at the planet
+      const u = clamp01((elapsed - POD_SEAL_MS) / ENTER_DIVE);
       const e = Math.pow(u, DIVE_POWER);
       _dir.copy(_target).sub(r.pos).normalize();
       _end.copy(_target).addScaledVector(_dir, -p.radius * DIVE_END);
@@ -181,7 +185,9 @@ const TransitionController = () => {
       _m.lookAt(camera.position, _target, UP);
       _q.setFromRotationMatrix(_m);
       camera.quaternion.copy(r.quat).slerp(_q, easeInOutCubic(clamp01(elapsed / LOOK_SETTLE)));
-      setFov(camera, r.fov + DIVE_FOV_GAIN * u * u);
+      // the launch punches the lens wide for an instant, then the speed widens it for good
+      const kick = elapsed > POD_SEAL_MS ? Math.sin(Math.PI * clamp01((elapsed - POD_SEAL_MS) / 260)) : 0;
+      setFov(camera, r.fov + DIVE_FOV_GAIN * u * u + KICK_FOV * kick);
       // the canopy glows as the planet's air hits it
       flight.heat = smoothstep(0.45, 0.88, u);
       flight.heatColor = p.accent;

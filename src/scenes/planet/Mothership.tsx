@@ -3,30 +3,23 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { ResolvedSky } from '@/data/skyPresets';
 import { flight } from '@/state/runtime';
-import { ARRIVAL_MS } from '@/state/timing';
-import { shipSound } from '@/audio/drone';
 
 /*
- * The ship that dropped the viewer off. It sits on the ground just behind the
- * spawn while the viewer steps out, then lifts off, passes low overhead into
- * view, climbs away and holds station high above: out of view at the resting
- * pitch, in view once you look up past about 40 degrees. Fog would erase it
- * at that range, so the hull is tinted toward the sky by distance instead.
+ * The ship that dropped the viewer's pod. It is already up there on arrival,
+ * cruising a slow wide loop high over the landing spot, prow first: out of
+ * view at the resting pitch, in view once you look up past about 40 degrees.
+ * Fog would erase it at that range, so the hull is tinted toward the sky by
+ * distance instead.
  */
 
-/** Takeoff starts this long after the hatch has opened, and lasts TAKEOFF_MS */
-const TAKEOFF_DELAY_MS = 350;
-const TAKEOFF_MS = 7000;
-/** Flight path: parked behind the spawn, low over the viewer, out ahead, up to station */
-const P1 = new THREE.Vector3(0, 52, -20);
-const P2 = new THREE.Vector3(10, 45, -190);
-/** Station: about 53 degrees above the horizon from the spawn */
-const STATION = new THREE.Vector3(40, 245, -175);
-/** Broadside to the landing spot, so looking up shows its full profile */
-const STATION_YAW = -0.22;
-/** Hull runs along x; it waits broadside behind the viewer, low enough that its ring clears the ground */
-const PARK_Z = 30;
-const PARK_LIFT = 21;
+/** Centre and radii of the loop, about 50 to 65 degrees above the horizon from the spawn */
+const LOOP = new THREE.Vector3(10, 240, -165);
+const LOOP_RX = 95;
+const LOOP_RZ = 55;
+/** Radians per second around the loop: a walking-pace crawl at this height */
+const LOOP_RATE = 0.026;
+/** Where on the loop it is when the viewer lands, so it starts broadside and ahead */
+const LOOP_PHASE = Math.PI / 2;
 /** Share of the sky colour mixed into the hull at station range, standing in for aerial haze */
 const HAZE = 0.42;
 
@@ -34,7 +27,6 @@ const smooth = (a: number, b: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
 };
-const easeInOut = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 const _p = new THREE.Vector3();
 const _foot = new THREE.Vector3();
 const _top = new THREE.Vector3();
@@ -108,15 +100,13 @@ const noRaycast = () => null;
 
 interface Props {
   sky: ResolvedSky;
-  /** Ground height at (x, z) */
-  ground: (x: number, z: number) => number;
   reducedMotion?: boolean;
 }
 
-const Mothership = ({ sky, ground, reducedMotion }: Props) => {
+const Mothership = ({ sky, reducedMotion }: Props) => {
   const root = useRef<THREE.Group>(null);
-  const roared = useRef(false);
-  const park = useMemo(() => new THREE.Vector3(0, ground(0, PARK_Z) + PARK_LIFT, PARK_Z), [ground]);
+  /** Seconds along the loop since landing */
+  const cruise = useRef(0);
   const strobe = useRef<THREE.MeshBasicMaterial>(null);
   const beacon = useRef<THREE.MeshBasicMaterial>(null);
 
@@ -191,31 +181,13 @@ const Mothership = ({ sky, ground, reducedMotion }: Props) => {
     [beamMat, padMat],
   );
 
-  useFrame(({ clock, camera }) => {
+  useFrame(({ clock, camera }, delta) => {
     const g = root.current;
     if (!g) return;
     const t = clock.elapsedTime;
-    const ms = flight.arrivalMs;
-    // before the first planet frame the arrival clock is -1: sit on the pad
-    const k = reducedMotion ? 1 : ms < 0 ? 0 : Math.min(1, Math.max(0, (ms - ARRIVAL_MS - TAKEOFF_DELAY_MS) / TAKEOFF_MS));
-    if (k > 0 && k < 1 && !roared.current) {
-      roared.current = true;
-      shipSound('takeoff');
-    }
-    if (k <= 0) roared.current = false;
-
-    // one cubic curve from the pad to station; the easing gives a slow lift and a long glide in
-    const u = easeInOut(k);
-    const a = 1 - u;
-    _p.copy(park)
-      .multiplyScalar(a * a * a)
-      .addScaledVector(P1, 3 * a * a * u)
-      .addScaledVector(P2, 3 * a * u * u)
-      .addScaledVector(STATION, u * u * u);
-    // holding station: a slow heave and drift, fading in as it arrives
-    const hold = reducedMotion ? 0 : smooth(0.85, 1, k);
-    _p.x += Math.sin(t * 0.05) * 3 * hold;
-    _p.y += Math.sin(t * 0.13) * 1.4 * hold;
+    if (!reducedMotion) cruise.current += Math.min(delta, 0.1);
+    const a = LOOP_PHASE + cruise.current * LOOP_RATE;
+    _p.set(LOOP.x + Math.cos(a) * LOOP_RX, LOOP.y + Math.sin(t * 0.13) * 1.4, LOOP.z - Math.sin(a) * LOOP_RZ);
     g.position.copy(_p);
     flight.mother.x = _p.x;
     flight.mother.y = _p.y - 9;
@@ -245,21 +217,19 @@ const Mothership = ({ sky, ground, reducedMotion }: Props) => {
         padMat.uniforms.uTime.value = t;
       }
     }
-    // prow onto the flight path, nose up through the climb, then onto the station heading
-    const yaw = (-Math.PI / 2) * smooth(0.02, 0.3, k) + (STATION_YAW + Math.PI / 2) * smooth(0.6, 1, k);
-    const pitch = 0.22 * Math.sin(Math.PI * smooth(0.05, 0.8, k));
-    const bank = 0.14 * Math.sin(Math.PI * smooth(0.55, 1, k));
-    g.rotation.set(bank + Math.sin(t * 0.09) * 0.012 * hold, yaw + Math.sin(t * 0.04) * 0.03 * hold, -pitch, 'YZX');
+    // prow along the loop (the prow is local -x), banked a little into the turn
+    const vx = -Math.sin(a) * LOOP_RX;
+    const vz = -Math.cos(a) * LOOP_RZ;
+    const yaw = Math.atan2(vz, -vx);
+    g.rotation.set(0.05 + Math.sin(t * 0.09) * 0.012, yaw + Math.sin(t * 0.04) * 0.02, 0, 'YZX');
 
-    // aerial haze by distance; the engines open up for the climb
+    // aerial haze by distance
     const d = camera.position.distanceTo(g.position);
     const hz = HAZE * smooth(40, 320, d);
     parts.hull.color.copy(_base.set('#5d6573')).lerp(parts.haze, hz);
     parts.hull.emissive.copy(parts.haze).multiplyScalar(0.66 * hz);
     parts.dark.color.copy(_base.set('#2b3039')).lerp(parts.haze, hz);
     parts.dark.emissive.copy(parts.haze).multiplyScalar(0.52 * hz);
-    const burn = k > 0 && k < 1 ? 1 + 2.2 * Math.sin(Math.PI * Math.min(1, k * 1.6)) : 1;
-    parts.engine.color.set('#9cc8ff').multiplyScalar(2.2 * burn);
     const s = strobe.current;
     if (s) s.color.setScalar(t % 1.6 < 0.07 ? 4 : 0.05);
     const b = beacon.current;

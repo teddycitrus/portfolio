@@ -550,7 +550,7 @@ export const critterCall = (kind: CritterVoice, distance: number, pan: number) =
 
 /* ---------- ship ---------- */
 
-export type ShipSound = 'dive' | 'land' | 'launch' | 'door' | 'takeoff' | 'beam';
+export type ShipSound = 'seal' | 'dive' | 'land' | 'blast' | 'beam';
 
 let noiseBuf: AudioBuffer | null = null;
 const whiteNoise = (c: AudioContext) => {
@@ -562,9 +562,10 @@ const whiteNoise = (c: AudioContext) => {
 };
 
 /**
- * Engine and air sounds for the flight: the burn and entry rumble of a dive,
- * the retro hiss and touchdown thud of a landing (`touchdown` seconds later),
- * and the climb of a launch. Silent while sound is off.
+ * Engine and air sounds for the flight: the pod's doors slamming shut (`touchdown`
+ * seconds later), the launch and entry rumble of a dive, the drop and impact of
+ * a landing (`touchdown` seconds later), the bolts blowing the doors, and the
+ * tractor beam. Silent while sound is off.
  */
 export const shipSound = (kind: ShipSound, touchdown = 0.54) => {
   if (!ctx || !sfx || !verbIn || !enabled || ctx.state !== 'running') return;
@@ -634,35 +635,35 @@ export const shipSound = (kind: ShipSound, touchdown = 0.54) => {
       air(t0 + 0.05, 2.0, 900, 5200, 3.0, 0.05, 1.1);
       air(t0 + 0.6, 1.4, 220, 2600, 0.8, 0.12, 1.0);
       break;
+    case 'seal':
+      // the doors run in on their tracks and slam, the locks bite, the pod pressurises
+      air(t0, touchdown, 500, 1400, 2.0, 0.07, touchdown * 0.8);
+      body(t0 + touchdown, 0.3, 120, 48, 0.42);
+      air(t0 + touchdown, 0.12, 2400, 900, 1.2, 0.2, 0.004);
+      body(t0 + touchdown + 0.07, 0.12, 210, 140, 0.16);
+      air(t0 + touchdown + 0.1, 0.3, 6000, 3000, 0.7, 0.05, 0.02, 'highpass');
+      break;
     case 'dive':
-      // thrust kick, a rush that climbs with the speed, entry rumble underneath
-      body(t0, 0.55, 64, 38, 0.32);
+      // the launch kick, a rush that climbs with the speed, entry rumble underneath
+      body(t0, 0.7, 58, 30, 0.45);
+      air(t0, 0.25, 1800, 400, 0.6, 0.22, 0.005);
       air(t0, 0.9, 240, 2800, 0.9, 0.16, 0.72);
       air(t0 + 0.2, 0.75, 70, 260, 0.7, 0.32, 0.52, 'lowpass');
       break;
     case 'land':
-      // retro burn hiss bleeding off, then the legs taking the weight
-      air(t0, touchdown + 0.15, 1500, 280, 0.7, 0.13, 0.03);
-      body(t0 + touchdown, 0.42, 82, 33, 0.42);
-      air(t0 + touchdown, 0.3, 700, 140, 0.6, 0.18, 0.01, 'lowpass');
+      // wind tearing past the hull and the retros roaring, then the pod slams into the ground
+      air(t0, touchdown + 0.05, 600, 1800, 0.6, 0.16, 0.2);
+      air(t0, touchdown + 0.05, 90, 220, 0.8, 0.3, 0.3, 'lowpass');
+      body(t0 + touchdown, 0.8, 70, 24, 0.6);
+      air(t0 + touchdown, 0.6, 900, 120, 0.5, 0.32, 0.006, 'lowpass');
+      air(t0 + touchdown + 0.02, 1.4, 3200, 500, 0.6, 0.06, 0.05);
       break;
-    case 'launch':
-      body(t0, 0.7, 46, 70, 0.26);
-      air(t0, 1.3, 180, 2200, 0.8, 0.13, 1.0);
-      break;
-    case 'takeoff':
-      // the ship lifting off behind the viewer: a deep swell, the roar passing overhead, a long fade
-      body(t0, 3.2, 38, 55, 0.3);
-      air(t0, 1.6, 90, 420, 0.7, 0.3, 1.1, 'lowpass');
-      air(t0 + 1.0, 3.6, 900, 160, 0.6, 0.2, 0.5);
-      air(t0 + 0.8, 5.5, 260, 70, 0.7, 0.26, 0.9, 'lowpass');
-      break;
-    case 'door':
-      // latches release, pressure equalises, the slabs run along their tracks
-      body(t0, 0.16, 150, 70, 0.3);
-      air(t0 + 0.02, 0.6, 5200, 1600, 0.6, 0.12, 0.015, 'highpass');
-      air(t0 + 0.06, Math.max(0.36, touchdown - 0.04), 380, 900, 2.2, 0.08, 0.1);
-      body(t0 + Math.max(0.34, touchdown), 0.22, 90, 48, 0.22);
+    case 'blast':
+      // explosive bolts, the doors thrown clear, air rushing in
+      body(t0, 0.25, 160, 50, 0.4);
+      air(t0, 0.18, 4000, 900, 0.5, 0.3, 0.002);
+      air(t0 + 0.03, 0.9, 1400, 260, 0.6, 0.12, 0.05);
+      body(t0 + 0.42, 0.3, 80, 40, 0.16);
       break;
   }
   window.setTimeout(() => {

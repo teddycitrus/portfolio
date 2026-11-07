@@ -2,38 +2,32 @@
  * Shared transition timeline (milliseconds). The camera controller and the
  * DOM veil both read these so the cut always lands under full cover.
  *
- * Enter: the ship burns toward the planet for ENTER_DIVE, the canopy heats up
- * on entry and the veil (planet sky) reaches full cover at ENTER_TOTAL. The
- * mode switches to 'planet', the veil lifts over ENTER_VEIL_LIFT while the
- * ship descends for DESCENT_MS and touches down. The view cuts to the hatch
- * (DOOR_AT, the viewer turns away from the window, a whip pan through a
- * blink of dark over TURN_MS, and comes round onto the shut hatch), the lamp
- * holds amber, then the slabs slide open from DOOR_OPEN_AT and the viewer
- * walks out through the doorway over DOOR_OPEN_MS. Walking at ARRIVAL_MS.
+ * Enter: the drop pod's doors slam shut around the viewer over POD_SHUT_MS,
+ * the pod fires at POD_SEAL_MS and falls toward the planet for ENTER_DIVE,
+ * its porthole burning on entry; the veil (planet sky) is at full cover at
+ * ENTER_TOTAL. The mode switches to 'planet', the veil lifts over
+ * ENTER_VEIL_LIFT while the pod drops out of the sky for FALL_MS and slams
+ * into the ground. A beat, the lamp goes green, the doors blow off at
+ * DOOR_OPEN_AT and the viewer walks out over DOOR_OPEN_MS. Walking at ARRIVAL_MS.
  *
  * Exit: the viewer looks up at the mothership, a tractor beam comes down,
  * lifts them off the ground and pulls them up along it; the veil flashes the
  * beam's light from EXIT_VEIL_START and the lobby is back at EXIT_TOTAL.
- *
- * Exit: camera launches for EXIT_TOTAL with the veil covering from
- * EXIT_VEIL_START, then the mode switches to 'overworld' and the veil lifts.
  */
+export const POD_SHUT_MS = 240;
+export const POD_SEAL_MS = 420;
 export const ENTER_DIVE = 760;
-export const ENTER_VEIL_START = 560;
+export const ENTER_VEIL_START = POD_SEAL_MS + 560;
 export const ENTER_VEIL_FADE = 200;
-export const ENTER_TOTAL = 760;
+export const ENTER_TOTAL = POD_SEAL_MS + ENTER_DIVE;
 export const ENTER_VEIL_LIFT = 380;
-export const DESCENT_MS = 900;
-/** A beat on the ground after touchdown before the view moves to the hatch */
-export const DOOR_AT = DESCENT_MS + 300;
-/** The turn from the window to the hatch; the view swaps at its midpoint, under the dark */
-export const TURN_MS = 760;
-/** The lamp holds amber this long before the latches release */
-export const DOOR_OPEN_AT = DOOR_AT + TURN_MS + 260;
-export const DOOR_OPEN_MS = 900;
-/** Share of DOOR_OPEN_MS the slabs take to run; the walk out starts at WALK_FROM */
-export const SLIDE_SHARE = 0.55;
-export const WALK_FROM = 0.3;
+export const FALL_MS = 1050;
+/** The lamp holds amber after impact, then the bolts fire */
+export const DOOR_OPEN_AT = FALL_MS + 620;
+export const DOOR_OPEN_MS = 820;
+/** Share of DOOR_OPEN_MS the doors take to clear; the walk out starts at WALK_FROM */
+export const BLAST_SHARE = 0.32;
+export const WALK_FROM = 0.18;
 export const ARRIVAL_MS = DOOR_OPEN_AT + DOOR_OPEN_MS;
 
 /** Exit: the look up to the ship, then the beam lifts the viewer from BEAM_LIFT_AT */
