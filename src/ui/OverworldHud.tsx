@@ -18,6 +18,7 @@ import {
 } from './primitives';
 import { useScreenMarkers } from './useScreenMarkers';
 import DashControls from './DashControls';
+import AlienName from './AlienName';
 
 const SAFE_BANDS = { top: 84, bottom: 104 };
 /** Clears the hover reticle (about 1.15x the planet radius) with room to spare. */
@@ -58,12 +59,9 @@ const PlanetLabels = ({ hovered, isTouch }: { hovered: string | null; isTouch: b
               )}
               style={{ visibility: 'hidden' }}
             >
-              {/* staggered reveal so the first overworld frame is calm */}
-              <span
-                className="block animate-fade-in whitespace-nowrap font-display text-[17px] leading-none min-[1921px]:text-[20px]"
-                style={{ animationDelay: `${550 + i * 90}ms` }}
-              >
-                {p.title}
+              {/* staggered reveal so the first overworld frame is calm; the name translates out of runes */}
+              <span className="block animate-fade-in" style={{ animationDelay: `${550 + i * 90}ms` }}>
+                <AlienName text={p.title} active={isHover} delay={550 + i * 90} />
               </span>
             </button>
             <button

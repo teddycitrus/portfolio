@@ -7,6 +7,9 @@ export default {
         // one grotesque family; display is its expanded cut (see .font-display in index.css)
         sans: ['"Archivo Variable"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['"JetBrains Mono Variable"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        // planet names: carved capitals, and the runes they are written in out there
+        inscription: ['Cinzel', '"Noto Sans Runic"', 'serif'],
+        runic: ['"Noto Sans Runic"', 'Cinzel', 'serif'],
       },
       colors: {
         space: {

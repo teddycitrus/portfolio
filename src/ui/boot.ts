@@ -36,7 +36,12 @@ export const navDisplay = {
   status: (text: string) => nav()?.status(text),
   /** Moves the display with the glass, in px from where it was painted */
   drift: (x: number, y: number) => nav()?.drift(x, y),
-  spool: () => el()?.classList.add('boot-spool'),
+  spool: () => {
+    el()?.classList.remove('boot-ready');
+    el()?.classList.add('boot-spool');
+  },
+  /** Waiting at the destination for a click, so the drop can be heard */
+  ready: () => el()?.classList.add('boot-ready'),
   arrived: () => el()?.classList.add('boot-arrived'),
 };
 

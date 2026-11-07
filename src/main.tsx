@@ -4,6 +4,8 @@ import App from './App';
 import { useAppStore } from './state/useAppStore';
 import '@fontsource-variable/archivo/wdth.css';
 import '@fontsource-variable/jetbrains-mono';
+import '@fontsource/cinzel/latin-600.css';
+import '@fontsource/noto-sans-runic/runic-400.css';
 import './styles/index.css';
 import { inject } from '@vercel/analytics';
 import { initDrone } from './audio/drone';

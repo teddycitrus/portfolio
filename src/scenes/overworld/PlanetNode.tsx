@@ -376,9 +376,10 @@ const PlanetNode = ({ planet }: Props) => {
     }
   });
 
+  // not during the hyperspace arrival: the planets are not even drawn, and a click then means "drop out"
   const interactive = () => {
-    const m = useAppStore.getState().mode;
-    return m === 'overworld';
+    const s = useAppStore.getState();
+    return s.mode === 'overworld' && !s.intro;
   };
   const onOver = (e: ThreeEvent<PointerEvent>) => {
     if (!interactive()) return;

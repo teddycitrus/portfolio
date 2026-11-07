@@ -667,6 +667,9 @@ export const shipSound = (kind: ShipSound, touchdown = 0.54) => {
   }, 7000);
 };
 
+/** True when sound is switched on, whether or not a gesture has unlocked it yet. */
+export const soundWanted = () => enabled;
+
 /** True when a sound would actually be heard (a gesture has unlocked audio and sound is on). */
 export const sfxReady = () => !!ctx && !!sfx && enabled && ctx.state === 'running';
 
