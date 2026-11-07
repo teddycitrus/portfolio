@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#05070d" />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
-    <title>John Mannully | Full-stack and AI developer</title>
+    <title>yo its john</title>
     <meta
       name="description"
       content="Portfolio of John Mannully. Explore five planets of projects, awards and skills, or read it as a page."
@@ -14,7 +14,7 @@
     <link rel="canonical" href="https://johnmannully.vercel.app/" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://johnmannully.vercel.app/" />
-    <meta property="og:title" content="John Mannully | Full-stack and AI developer" />
+    <meta property="og:title" content="yo its john" />
     <meta
       property="og:description"
       content="Computer vision, voice agents and live 3D interfaces. Explore the portfolio as a small solar system."
@@ -23,7 +23,7 @@
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="John Mannully | Full-stack and AI developer" />
+    <meta name="twitter:title" content="yo its john" />
     <meta name="twitter:description" content="Computer vision, voice agents and live 3D interfaces. Explore the portfolio as a small solar system." />
     <script type="application/ld+json">
       {
@@ -40,6 +40,104 @@
         ]
       }
     </script>
+    <style>
+      #boot {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+        background: radial-gradient(ellipse 60% 50% at 50% 45%, #0f1424 0%, #05070d 75%);
+        color: #f1e6c8;
+        transition: opacity 500ms cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      #boot.boot-done {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #boot .boot-name {
+        margin: 0;
+        font-family: 'Archivo Variable', 'Arial Black', ui-sans-serif, system-ui, sans-serif;
+        font-weight: 800;
+        font-stretch: 125%;
+        font-size: clamp(18px, 4.4vw, 26px);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: #f1e6c8;
+        text-shadow: 0 2px 0 #10131c, 0 0 18px rgba(227, 178, 60, 0.25);
+      }
+      #boot svg {
+        width: clamp(150px, 34vw, 190px);
+        height: auto;
+        overflow: visible;
+      }
+      #boot .bob {
+        animation: boot-bob 1.4s ease-in-out infinite;
+      }
+      #boot .shadow {
+        transform-origin: 100px 222px;
+        animation: boot-shadow 1.4s ease-in-out infinite;
+      }
+      #boot .thumb {
+        transform-origin: 130px 120px;
+        animation: boot-thumb 1.4s ease-in-out infinite;
+      }
+      #boot .blink {
+        transform-origin: 90px 72px;
+        animation: boot-blink 3.2s infinite;
+      }
+      #boot .bar {
+        display: flex;
+        gap: 5px;
+        padding: 5px;
+        border: 2px solid #f1e6c8;
+        border-radius: 4px;
+      }
+      #boot .bar i {
+        width: 14px;
+        height: 12px;
+        border-radius: 1px;
+        background: #e3b23c;
+        opacity: 0.14;
+        animation: boot-seg 1.8s steps(1) infinite;
+      }
+      #boot .bar i:nth-child(2) { animation-delay: 0.15s; }
+      #boot .bar i:nth-child(3) { animation-delay: 0.3s; }
+      #boot .bar i:nth-child(4) { animation-delay: 0.45s; }
+      #boot .bar i:nth-child(5) { animation-delay: 0.6s; }
+      #boot .bar i:nth-child(6) { animation-delay: 0.75s; }
+      #boot .bar i:nth-child(7) { animation-delay: 0.9s; }
+      #boot .bar i:nth-child(8) { animation-delay: 1.05s; }
+      @keyframes boot-bob {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-7px); }
+      }
+      @keyframes boot-shadow {
+        0%, 100% { transform: scaleX(1); opacity: 0.5; }
+        50% { transform: scaleX(0.82); opacity: 0.3; }
+      }
+      @keyframes boot-thumb {
+        0%, 100% { transform: rotate(0deg); }
+        50% { transform: rotate(-7deg); }
+      }
+      @keyframes boot-blink {
+        0%, 92%, 100% { transform: scaleY(1); }
+        95% { transform: scaleY(0.1); }
+      }
+      @keyframes boot-seg {
+        0% { opacity: 0.14; }
+        8% { opacity: 1; }
+        70% { opacity: 1; }
+        85% { opacity: 0.14; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #boot .bob, #boot .shadow, #boot .thumb, #boot .blink { animation: none; }
+        #boot .bar i { animation-duration: 3.6s; }
+      }
+    </style>
   </head>
   <body>
     <noscript>
@@ -59,6 +157,45 @@
         <p>This site needs JavaScript and WebGL for the interactive version.</p>
       </main>
     </noscript>
+    <div id="boot" role="status" aria-label="Loading">
+      <p class="boot-name">Mannully Space Co.</p>
+      <svg viewBox="0 0 200 232" aria-hidden="true">
+        <ellipse class="shadow" cx="100" cy="222" rx="44" ry="6" fill="#000" />
+        <g class="bob" stroke="#10131c" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">
+          <rect x="56" y="102" width="88" height="72" rx="14" fill="#b9ad8e" />
+          <rect x="74" y="166" width="22" height="40" rx="9" fill="#f1e6c8" />
+          <rect x="104" y="166" width="22" height="40" rx="9" fill="#f1e6c8" />
+          <rect x="66" y="198" width="34" height="17" rx="8" fill="#e3b23c" />
+          <rect x="100" y="198" width="34" height="17" rx="8" fill="#e3b23c" />
+          <rect x="66" y="106" width="68" height="72" rx="20" fill="#f1e6c8" />
+          <rect x="66" y="158" width="68" height="9" fill="#e3b23c" />
+          <rect x="86" y="122" width="28" height="20" rx="4" fill="#10131c" stroke="none" />
+          <circle cx="94" cy="132" r="3.5" fill="#e3b23c" stroke="none" />
+          <circle cx="106" cy="132" r="3.5" fill="#7fd4ff" stroke="none" />
+          <path d="M70 120 Q42 136 60 156" fill="none" stroke-width="22" />
+          <path d="M70 120 Q42 136 60 156" fill="none" stroke="#f1e6c8" stroke-width="14" />
+          <circle cx="60" cy="157" r="9" fill="#e3b23c" />
+          <circle cx="100" cy="66" r="48" fill="#bfe3f5" />
+          <circle cx="100" cy="74" r="30" fill="#f6c99b" />
+          <path d="M71 66 Q70 38 98 39 Q126 36 129 62 Q118 50 101 53 Q84 50 71 66 Z" fill="#5a3a22" />
+          <ellipse class="blink" cx="90" cy="72" rx="3.2" ry="4.4" fill="#10131c" stroke="none" />
+          <path d="M106 73 Q111 68 116 73" fill="none" stroke-width="3" />
+          <circle cx="82" cy="83" r="4" fill="#f08f7c" stroke="none" opacity="0.55" />
+          <circle cx="119" cy="83" r="4" fill="#f08f7c" stroke="none" opacity="0.55" />
+          <path d="M85 85 Q100 101 116 85 Q100 92 85 85 Z" fill="#fff" stroke-width="3" />
+          <path d="M68 48 Q76 28 98 24" fill="none" stroke="#fff" stroke-width="5" opacity="0.7" />
+          <rect x="68" y="104" width="64" height="11" rx="5.5" fill="#e3b23c" />
+          <g class="thumb">
+            <path d="M130 120 Q158 112 152 84" fill="none" stroke-width="22" />
+            <path d="M130 120 Q158 112 152 84" fill="none" stroke="#f1e6c8" stroke-width="14" />
+            <rect x="141" y="45" width="11" height="24" rx="5.5" fill="#e3b23c" transform="rotate(-14 146 66)" />
+            <rect x="140" y="62" width="26" height="25" rx="8" fill="#e3b23c" />
+            <path d="M157 69 H166 M157 75.5 H166 M157 82 H165" fill="none" stroke-width="2.5" />
+          </g>
+        </g>
+      </svg>
+      <div class="bar" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

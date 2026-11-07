@@ -102,6 +102,7 @@ Guarantees and limits:
 - Without WebGL (or if the context is lost or the 3D tree throws), the canvas is never mounted and the reader becomes the whole site.
 - The URL hash mirrors the view (`#/projects/proj-iris`, `#/read/awards`), so any planet, monument or reader section can be linked, and the browser Back button moves between planets.
 - The render loop pauses while the reader is open.
+- A "Mannully Space Co." loader (an inline SVG astronaut with CSS animation) is part of `index.html`, so it shows before any script runs. It fades once the scene has drawn three frames, or straight away for the reader and the no-WebGL page, never sooner than 1.4 s after navigation and never later than 15 s.
 - `prefers-reduced-motion` replaces camera flights with a short crossfade, removes head bob, shake and light streaks, and shows the cockpit only in orbit.
 - The cockpit is drawn in front of everything but never takes a click (its meshes skip raycasting). Its shake and the ride down the beam are offsets the rig adds after the camera controllers and removes before the next frame, so controllers always see their own pose.
 - On a planet the top bar holds only Back to orbit and Read as page. Links on a screen stay clickable, and with the cursor locked, a click with the crosshair on a screen's link or button presses it.

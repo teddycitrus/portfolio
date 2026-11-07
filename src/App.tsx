@@ -1,5 +1,5 @@
-import { Component, Suspense, useEffect, type ReactNode } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Component, Suspense, useEffect, useRef, type ReactNode } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
 import OverworldScene from '@/scenes/overworld/OverworldScene';
 import PlanetSurfaceScene from '@/scenes/planet/PlanetSurfaceScene';
 import TransitionController from '@/scenes/transition/TransitionController';
@@ -9,6 +9,7 @@ import UiRoot from '@/ui/UiRoot';
 import { useInputBridge } from '@/hooks/useInputBridge';
 import { useHashRoute } from '@/hooks/useHashRoute';
 import { useAppStore } from '@/state/useAppStore';
+import { hideBoot } from '@/ui/boot';
 
 const hasWebGL = (() => {
   try {
@@ -17,6 +18,16 @@ const hasWebGL = (() => {
     return false;
   }
 })();
+
+/** Mounts once the scene has loaded; after a few drawn frames the loader can go. */
+const BootReady = () => {
+  const frames = useRef(0);
+  useFrame(() => {
+    frames.current += 1;
+    if (frames.current === 3) hideBoot();
+  });
+  return null;
+};
 
 /** Any render or context failure in the 3D tree drops the site into reader-only mode. */
 class SceneBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
@@ -42,6 +53,11 @@ const App = () => {
     if (!hasWebGL) useAppStore.getState().setNoWebGL();
   }, []);
 
+  // no scene frames to wait for: the reader or the no-WebGL page shows straight away
+  useEffect(() => {
+    if (!hasWebGL || noWebGL || readerOpen) hideBoot();
+  }, [noWebGL, readerOpen]);
+
   return (
     <div className="fixed inset-0 bg-space">
       {hasWebGL && !noWebGL && (
@@ -63,6 +79,7 @@ const App = () => {
               <TransitionController />
               <Cockpit />
               <Effects />
+              <BootReady />
             </Suspense>
           </Canvas>
         </SceneBoundary>
