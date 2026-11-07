@@ -37,6 +37,17 @@ const currentRoute = (): Route => {
   return { read: false, planetId: null, beaconId: null };
 };
 
+const SITE_TITLE = 'yo its john';
+
+/** The tab title for a route: the planet (and panel) or the reader, then the site. */
+const titleFor = (r: Route): string => {
+  if (r.read) return `Read · ${SITE_TITLE}`;
+  const planet = planetById(r.planetId);
+  if (!planet) return SITE_TITLE;
+  const beacon = beaconById(planet, r.beaconId);
+  return [beacon?.label, planet.title, SITE_TITLE].filter(Boolean).join(' · ');
+};
+
 const apply = (r: Route) => {
   const s = useAppStore.getState();
   if (r.read) {
@@ -63,6 +74,7 @@ export const useHashRoute = (): void => {
     let applying = false;
     const initial = parse(window.location.hash);
     if (initial.read || initial.planetId) {
+      document.title = titleFor(initial);
       applying = true;
       apply(initial);
       applying = false;
@@ -74,6 +86,7 @@ export const useHashRoute = (): void => {
       if (applying || mode === 'transitioning-in' || mode === 'transitioning-out') return;
       const route = currentRoute();
       const next = format(route);
+      document.title = titleFor(route);
       if (next === last) return;
       const prev = parse(last);
       last = next;
@@ -86,6 +99,7 @@ export const useHashRoute = (): void => {
 
     const onPop = () => {
       const r = parse(window.location.hash);
+      document.title = titleFor(r);
       last = format(r);
       applying = true;
       apply(r);

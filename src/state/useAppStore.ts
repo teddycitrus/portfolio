@@ -26,8 +26,10 @@ interface AppState {
   reducedMotion: boolean;
   /** WebGL failed or is missing: the reader becomes the whole site */
   noWebGL: boolean;
-  /** The opening shot of the ship is playing: no HUD, no cockpit, no travel */
+  /** The hyperspace arrival is playing: no HUD, no input, and travel waits for it */
   intro: boolean;
+  /** A planet asked for during the arrival (a link, Back, the tour); travel starts when it ends */
+  introTravel: string | null;
 
   setNoWebGL: () => void;
   endIntro: () => void;
@@ -74,9 +76,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   reducedMotion: false,
   noWebGL: false,
   intro: introWanted(),
+  introTravel: null,
 
-  setNoWebGL: () => set({ noWebGL: true, readerOpen: true, readerSection: null, intro: false }),
-  endIntro: () => set({ intro: false }),
+  setNoWebGL: () => set({ noWebGL: true, readerOpen: true, readerSection: null, intro: false, introTravel: null }),
+  endIntro: () => {
+    const queued = get().introTravel;
+    set({ intro: false, introTravel: null });
+    if (queued) get().travelTo(queued);
+  },
   setHoveredPlanet: (id) => set({ hoveredPlanetId: id }),
   setFocusedBeacon: (id) => {
     if (get().focusedBeaconId !== id) set({ focusedBeaconId: id });
@@ -92,7 +99,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   travelTo: (planetId) => {
     const s = get();
-    if (s.intro) return;
+    if (s.intro) {
+      set({ introTravel: planetId });
+      return;
+    }
     if (s.mode === 'overworld') {
       set({ mode: 'transitioning-in', lockedPlanetId: planetId, hoveredPlanetId: null });
     } else if (s.mode === 'planet') {

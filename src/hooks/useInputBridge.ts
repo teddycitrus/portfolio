@@ -108,6 +108,8 @@ export const useInputBridge = (): void => {
       if (useContact.getState().open) return;
       keyboardState[e.code] = true;
       const s = store();
+      // nothing to act on until the ship has dropped out of hyperspace
+      if (s.intro) return;
 
       if (e.key === 'Escape') {
         // the browser spends this Esc on freeing the cursor; pointerlockchange may land before or after it
