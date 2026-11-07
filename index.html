@@ -133,7 +133,55 @@
         70% { opacity: 1; }
         85% { opacity: 0.14; }
       }
+      #boot .boot-status {
+        margin: -8px 0 0;
+        font-family: 'JetBrains Mono Variable', ui-monospace, monospace;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.32em;
+        text-transform: uppercase;
+        color: #e3b23c;
+        opacity: 0;
+        transform: translateY(4px);
+        transition: opacity 250ms ease-out, transform 250ms ease-out;
+      }
+      #boot.boot-ready .boot-status {
+        opacity: 1;
+        transform: none;
+      }
+      #boot.boot-ready .bar {
+        border-color: #e3b23c;
+        box-shadow: 0 0 18px rgba(227, 178, 60, 0.35);
+        transition: border-color 200ms, box-shadow 200ms;
+      }
+      #boot.boot-ready .bar i {
+        animation: none;
+        opacity: 1;
+      }
+      #boot.boot-ready .bob {
+        animation: boot-hop 620ms cubic-bezier(0.3, 0.7, 0.4, 1) 1;
+      }
+      #boot.boot-ready .thumb {
+        animation: boot-pump 620ms ease-out 1;
+      }
+      #boot.boot-done {
+        transform: scale(1.06);
+        transition: opacity 500ms cubic-bezier(0.4, 0, 0.2, 1), transform 500ms cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      @keyframes boot-hop {
+        0% { transform: translateY(0); }
+        35% { transform: translateY(-20px); }
+        70% { transform: translateY(0); }
+        85% { transform: translateY(-4px); }
+        100% { transform: translateY(0); }
+      }
+      @keyframes boot-pump {
+        0%, 100% { transform: rotate(0deg); }
+        35% { transform: rotate(-16deg); }
+      }
       @media (prefers-reduced-motion: reduce) {
+        #boot.boot-ready .bob, #boot.boot-ready .thumb { animation: none; }
+        #boot.boot-done { transform: none; }
         #boot .bob, #boot .shadow, #boot .thumb, #boot .blink { animation: none; }
         #boot .bar i { animation-duration: 3.6s; }
       }
@@ -195,6 +243,7 @@
         </g>
       </svg>
       <div class="bar" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <p class="boot-status">Ready</p>
     </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>

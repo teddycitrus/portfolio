@@ -434,8 +434,8 @@ const Cockpit = () => {
     r.applied = true;
 
     /* deploy: 1 = the frame around the view, 0 = cleared away past the screen edges */
-    // beamed down or up there is no ship around the viewer, only in the lobby
-    const deploy = mode === 'planet' || mode === 'transitioning-out' ? 0 : 1;
+    // beamed down or up, or watching the ship from outside in the intro, there is no deck around the viewer
+    const deploy = mode === 'planet' || mode === 'transitioning-out' || store.intro ? 0 : 1;
     r.deploy = deploy;
 
     const aspect = size.width / Math.max(1, size.height);

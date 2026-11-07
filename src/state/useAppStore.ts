@@ -26,8 +26,11 @@ interface AppState {
   reducedMotion: boolean;
   /** WebGL failed or is missing: the reader becomes the whole site */
   noWebGL: boolean;
+  /** The opening shot of the ship is playing: no HUD, no cockpit, no travel */
+  intro: boolean;
 
   setNoWebGL: () => void;
+  endIntro: () => void;
   setHoveredPlanet: (id: string | null) => void;
   setFocusedBeacon: (id: string | null) => void;
   glideToBeacon: (id: string) => void;
@@ -47,6 +50,16 @@ interface AppState {
   arriveAtOverworld: () => void;
 }
 
+/**
+ * The opening shot plays on a plain visit to the lobby: not when a link goes
+ * straight to a planet or the reader, and not with reduced motion.
+ */
+const introWanted = () => {
+  if (typeof window === 'undefined') return false;
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return false;
+  return window.location.hash.replace(/^#\/?/, '') === '';
+};
+
 export const useAppStore = create<AppState>((set, get) => ({
   mode: 'overworld',
   hoveredPlanetId: null,
@@ -60,8 +73,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   isTouch: false,
   reducedMotion: false,
   noWebGL: false,
+  intro: introWanted(),
 
-  setNoWebGL: () => set({ noWebGL: true, readerOpen: true, readerSection: null }),
+  setNoWebGL: () => set({ noWebGL: true, readerOpen: true, readerSection: null, intro: false }),
+  endIntro: () => set({ intro: false }),
   setHoveredPlanet: (id) => set({ hoveredPlanetId: id }),
   setFocusedBeacon: (id) => {
     if (get().focusedBeaconId !== id) set({ focusedBeaconId: id });
@@ -77,6 +92,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   travelTo: (planetId) => {
     const s = get();
+    if (s.intro) return;
     if (s.mode === 'overworld') {
       set({ mode: 'transitioning-in', lockedPlanetId: planetId, hoveredPlanetId: null });
     } else if (s.mode === 'planet') {

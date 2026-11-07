@@ -8,6 +8,7 @@ import TelescopeCamera from './TelescopeCamera';
 import SpaceBackdrop from './SpaceBackdrop';
 import Sun, { SUN_DIRECTION } from './Sun';
 import Constellations from './Constellations';
+import Intro from './Intro';
 import { planets, getOrbitalPosition } from '@/data/content';
 import { useAppStore } from '@/state/useAppStore';
 import { planetScreen } from '@/state/runtime';
@@ -96,6 +97,7 @@ const OverworldScene = () => {
       <Constellations />
       <TelescopeCamera />
       <ScreenProjector />
+      <Intro />
     </>
   );
 };

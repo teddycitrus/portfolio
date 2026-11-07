@@ -26,7 +26,7 @@ flowchart LR
     runtime[("runtime.ts<br/><sub>per-frame mutable state</sub>")]
   end
   subgraph Canvas["R3F canvas"]
-    overworld["OverworldScene<br/><sub>planets, stars, nebulae, galaxies, meteors, telescope camera</sub>"]
+    overworld["OverworldScene<br/><sub>planets, stars, nebulae, galaxies, meteors, telescope camera, intro shot</sub>"]
     surface["PlanetSurfaceScene<br/><sub>sky, mothership, terrain, monuments, wildlife, walk camera</sub>"]
     screens["BeaconScreens<br/><sub>orbiting panels, in-world content screens</sub>"]
     transition["TransitionController<br/><sub>lock-on camera, tractor beam exit</sub>"]
@@ -102,7 +102,8 @@ Guarantees and limits:
 - Without WebGL (or if the context is lost or the 3D tree throws), the canvas is never mounted and the reader becomes the whole site.
 - The URL hash mirrors the view (`#/projects/proj-iris`, `#/read/awards`), so any planet, monument or reader section can be linked, and the browser Back button moves between planets.
 - The render loop pauses while the reader is open.
-- A "Mannully Space Co." loader (an inline SVG astronaut with CSS animation) is part of `index.html`, so it shows before any script runs. It fades once the scene has drawn three frames, or straight away for the reader and the no-WebGL page, never sooner than 1.4 s after navigation and never later than 15 s.
+- A "Mannully Space Co." loader (an inline SVG astronaut with CSS animation) is part of `index.html`, so it shows before any script runs. Once the scene has drawn three frames (no sooner than 1.2 s after navigation, never later than 15 s) it plays a ready beat for 850 ms (the bar fills, the astronaut hops, "Ready"), then fades over 500 ms. The reader and the no-WebGL page skip straight to the fade.
+- As the loader fades, an intro shot plays on a plain visit to the lobby (not on a link to a planet or the reader, not with reduced motion). The store's `intro` flag hides the HUD and the cockpit and blocks travel while it runs. `Intro` (in the overworld scene, writing the camera after `TelescopeCamera` and before the cockpit rig) places the shared ship hull (`ShipHull`, also used by the mothership) so the deck's eye is at the origin. The ship drops out of warp toward the camera over 1 s: stretched along its length, braking hard, with streaks and a burst at the prow. The camera then whips about 140 degrees round it in 1.5 s until the planets sit beyond the stern, and dives over the spine into the bridge in 750 ms. The dive ends in a dark flash, the camera lands on the origin with the lobby heading, and the HUD fades in. On portrait screens the camera stands further off so the hull stays in frame.
 - `prefers-reduced-motion` replaces camera flights with a short crossfade, removes head bob, shake and light streaks, and shows the cockpit only in orbit.
 - The cockpit is drawn in front of everything but never takes a click (its meshes skip raycasting). Its shake and the ride down the beam are offsets the rig adds after the camera controllers and removes before the next frame, so controllers always see their own pose.
 - On a planet the top bar holds only Back to orbit and Read as page. Links on a screen stay clickable, and with the cursor locked, a click with the crosshair on a screen's link or button presses it.

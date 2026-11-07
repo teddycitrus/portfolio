@@ -21,6 +21,7 @@ const UiRoot = () => {
   const hud = useRef<HTMLDivElement>(null);
   const readerOpen = useAppStore((s) => s.readerOpen);
   const contactOpen = useContact((s) => s.open);
+  const intro = useAppStore((s) => s.intro);
 
   // the reader is modal: make every HUD layer behind it inert (a passive effect,
   // so the reader has already captured the element to return focus to)
@@ -46,15 +47,23 @@ const UiRoot = () => {
     >
       {!noWebGL && (
         <div ref={hud} className="contents">
-          <OverworldHud />
-          <PlanetHud />
-          <MovementJoystick />
-          <BeaconPanel />
+          {/* the HUD waits out the intro shot, then fades in over the deck */}
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{ opacity: intro ? 0 : 1, visibility: intro ? 'hidden' : 'visible', transition: 'opacity 700ms ease-out 150ms' }}
+          >
+            <OverworldHud />
+            <PlanetHud />
+            <MovementJoystick />
+            <BeaconPanel />
+            <TourBar />
+          </div>
           <TransitionVeil />
-          <TourBar />
         </div>
       )}
       {!noWebGL && <ContactSheet />}
+      {/* the dark the intro's dive into the ship ends in; driven by the intro itself */}
+      <div id="intro-flash" aria-hidden="true" className="pointer-events-none absolute inset-0 z-[60] bg-space opacity-0" />
       <Reader />
     </div>
   );
