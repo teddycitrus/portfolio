@@ -1,7 +1,7 @@
 import { Component, Suspense, useEffect, useRef, type ReactNode } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import OverworldScene from '@/scenes/overworld/OverworldScene';
-import PlanetSurfaceScene from '@/scenes/planet/PlanetSurfaceScene';
+import PlanetSurfaceScene from '@/scenes/planet/LazySurface';
 import TransitionController from '@/scenes/transition/TransitionController';
 import Cockpit from '@/scenes/ship/Cockpit';
 import Effects from '@/scenes/Effects';

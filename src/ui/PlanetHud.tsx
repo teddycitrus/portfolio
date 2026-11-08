@@ -18,6 +18,7 @@ import {
   cx,
   DISPLAY,
   useNarrow,
+  usePanelView,
   useShort,
   usePresence,
 } from './primitives';
@@ -54,10 +55,10 @@ const LABEL_STAGGER_MS = 80;
  * targets only, the chips are the accessible route.
  */
 const BeaconMarkers = ({ planet, focused }: { planet: Planet; focused: string | null }) => {
-  const narrow = useNarrow();
-  // the phone sheet already shows the focused beacon
+  const panelView = usePanelView();
+  // the phone sheet (or short-screen side panel) already shows the focused beacon
   const hiddenId = useRef<string | null>(null);
-  hiddenId.current = narrow ? focused : null;
+  hiddenId.current = panelView ? focused : null;
   const priorityId = useRef<string | null>(focused);
   priorityId.current = focused;
   const mountedAt = useRef(performance.now());

@@ -13,6 +13,7 @@ import {
   SAFE,
   cx,
   useNarrow,
+  usePanelView,
   useShort,
   usePresence,
 } from './primitives';
@@ -53,11 +54,13 @@ const BeaconPanel = () => {
   const readerOpen = useAppStore((s) => s.readerOpen);
   const narrow = useNarrow();
   const short = useShort();
+  const panelView = usePanelView();
 
   const planet = planetById(activeId);
   const focused = mode === 'planet' ? beaconById(planet, focusedId) : undefined;
-  // wide screens show the content on in-world screens around the monument; phones keep this sheet
-  const { mounted, visible } = usePresence(!!focused && narrow, 300);
+  // wide screens show the content on in-world screens around the monument; phones keep this
+  // sheet, and short landscape screens a side panel
+  const { mounted, visible } = usePresence(!!focused && panelView, 300);
 
   // crossfade between beacons: fade out, swap, fade in
   const [shown, setShown] = useState<{ planet: Planet; beacon: Beacon } | null>(null);
@@ -114,7 +117,7 @@ const BeaconPanel = () => {
       {focused && shown ? `Showing ${shown.beacon.label}` : ''}
     </p>
   );
-  if (!mounted || !shown || !narrow) return live;
+  if (!mounted || !shown || !panelView) return live;
   const { beacon } = shown;
 
   const enter: CSSProperties = narrow
@@ -141,7 +144,8 @@ const BeaconPanel = () => {
           ...(narrow
             ? {
                 paddingBottom: 'env(safe-area-inset-bottom)',
-                maxHeight: expanded ? '88vh' : 'min(88vh, max(46vh, 300px))',
+                // dvh: the visible height, so the sheet top never hides under the browser's URL bar
+                maxHeight: expanded ? '88dvh' : 'min(88dvh, max(46dvh, 300px))',
               }
             : {
                 right: SAFE.right,

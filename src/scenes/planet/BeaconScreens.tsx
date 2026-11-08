@@ -6,7 +6,7 @@ import type { Beacon, Planet } from '@/types/content';
 import { useAppStore } from '@/state/useAppStore';
 import { screenParts, type ScreenPart } from '@/ui/screenParts';
 import { panelFocusIntent } from '@/ui/navigation';
-import { useNarrow } from '@/ui/primitives';
+import { usePanelView } from '@/ui/primitives';
 import { mulberry, seedOf } from './rng';
 import { hologramMaterial, holoLook } from './hologram';
 
@@ -229,7 +229,7 @@ const wholePart = (b: Beacon): ScreenPart => {
 
 const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion }: Props) => {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
-  const narrow = useNarrow();
+  const panelView = usePanelView();
   const parts = useMemo(() => (group ? group.map(wholePart) : screenParts(beacon)), [beacon, group]);
   const ids = useMemo(() => (group ? group.map((b) => b.id) : [beacon.id]), [beacon, group]);
   const root = useRef<THREE.Group>(null);
@@ -285,6 +285,31 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion }: 
     [panels],
   );
 
+  // content sizes (world units) come from a ResizeObserver, so the frame loop never reads layout
+  const ro = useRef<ResizeObserver | null>(null);
+  useEffect(() => {
+    const measure = (el: HTMLElement) => {
+      const i = contents.current.indexOf(el as HTMLDivElement);
+      if (i < 0 || !panels[i] || !el.offsetWidth) return;
+      panels[i].size.w = el.offsetWidth / PX;
+      panels[i].size.h = el.offsetHeight / PX;
+    };
+    const obs = new ResizeObserver((entries) => entries.forEach((e) => measure(e.target as HTMLElement)));
+    ro.current = obs;
+    contents.current.forEach((el) => el && obs.observe(el));
+    return () => {
+      obs.disconnect();
+      ro.current = null;
+    };
+  }, [panels]);
+  const bindContent = (i: number) => (el: HTMLDivElement | null) => {
+    const prev = contents.current[i];
+    if (prev === el) return;
+    if (prev) ro.current?.unobserve(prev);
+    contents.current[i] = el;
+    if (el) ro.current?.observe(el);
+  };
+
   const st = useRef({
     active: false,
     since: 0,
@@ -310,7 +335,7 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion }: 
     const dist = Math.hypot(cam.x, cam.z);
 
     const focused = !!store.focusedBeaconId && ids.includes(store.focusedBeaconId) && store.mode === 'planet' && !store.readerOpen;
-    const want = focused && !narrow && !store.glideBeaconId && dist < (s.active ? DEPLOY_FOLD : DEPLOY_NEAR);
+    const want = focused && !panelView && !store.glideBeaconId && dist < (s.active ? DEPLOY_FOLD : DEPLOY_NEAR);
     if (want !== s.active) {
       s.active = want;
       s.since = t;
@@ -328,14 +353,6 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion }: 
       s.anchorQuat.copy(camera.quaternion);
       s.anchored = true;
     }
-
-    // measured content sizes (world units)
-    contents.current.forEach((el, i) => {
-      if (el && el.offsetWidth) {
-        panels[i].size.w = el.offsetWidth / PX;
-        panels[i].size.h = el.offsetHeight / PX;
-      }
-    });
 
     let lay: ReturnType<typeof layout> | null = null;
     let regionX = 0;
@@ -458,9 +475,14 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion }: 
       const el = contents.current[i];
       if (el) {
         const o = smooth(0.72, 0.97, p.m);
-        el.style.opacity = o.toFixed(3);
-        el.style.visibility = o > 0.01 ? 'visible' : 'hidden';
-        el.style.pointerEvents = o > 0.6 ? 'auto' : 'none';
+        // same 3-decimal value as before, in the form the style reads back ("1", not "1.000")
+        const op = String(Math.round(o * 1000) / 1000);
+        const vis = o > 0.01 ? 'visible' : 'hidden';
+        const pe = o > 0.6 ? 'auto' : 'none';
+        // written only on change: a settled screen costs no style work
+        if (el.style.opacity !== op) el.style.opacity = op;
+        if (el.style.visibility !== vis) el.style.visibility = vis;
+        if (el.style.pointerEvents !== pe) el.style.pointerEvents = pe;
         // beacon labels keep clear of readable screens
         if (el.hasAttribute('data-hud-block') !== o > 0.3) el.toggleAttribute('data-hud-block', o > 0.3);
       }
@@ -498,9 +520,7 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion }: 
             >
               <Html transform distanceFactor={DISTANCE_FACTOR} portal={layer} zIndexRange={[4, 0]} pointerEvents="auto">
                 <div
-                  ref={(el) => {
-                    contents.current[i] = el;
-                  }}
+                  ref={bindContent(i)}
                   data-beacon-panel
                   data-beacon-screen
                   role="group"

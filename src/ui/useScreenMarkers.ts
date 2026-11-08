@@ -69,6 +69,19 @@ const show = (el: HTMLElement | null, on: boolean) => {
   if (el.style.visibility !== v) el.style.visibility = v;
 };
 
+/**
+ * Last value written per element and property: positions are whole pixels, so most frames
+ * repeat. Only for properties nothing else writes (visibility goes through show()).
+ */
+const written = new WeakMap<HTMLElement, Record<string, string>>();
+const setStyle = (el: HTMLElement, prop: 'transform' | 'opacity', v: string) => {
+  let w = written.get(el);
+  if (!w) written.set(el, (w = {}));
+  if (w[prop] === v) return;
+  w[prop] = v;
+  el.style[prop] = v;
+};
+
 const setFlag = (el: HTMLElement, key: string, on: boolean) => {
   const v = on ? 'true' : 'false';
   if (el.dataset[key] !== v) el.dataset[key] = v;
@@ -266,7 +279,7 @@ export const useScreenMarkers = (source: Record<string, PlanetScreenInfo>, opts:
           }
           setFlag(a, 'compact', compact);
           setFlag(a, 'up', up);
-          a.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`;
+          setStyle(a, 'transform', `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`);
           show(a, true);
         } else {
           show(m.anchor, false);
@@ -282,10 +295,10 @@ export const useScreenMarkers = (source: Record<string, PlanetScreenInfo>, opts:
           for (let n = 0; n < 6 && edges.find(ex, y - es.h / 2, es.w, es.h); n++) y += dir * (es.h + PAD);
           edges.push(id, ex, y - es.h / 2, es.w, es.h);
           // arrow sits on the clamped edge point, the title extends inward
-          e.style.transform = `translate3d(${info.x}px, ${y}px, 0) translate(${side === 'left' ? '0' : '-100%'}, -50%)`;
+          setStyle(e, 'transform', `translate3d(${info.x}px, ${y}px, 0) translate(${side === 'left' ? '0' : '-100%'}, -50%)`);
           if (e.dataset.side !== side) e.dataset.side = side;
           // direction from screen centre to the clamped point (y down)
-          if (m.arrow) m.arrow.style.transform = `rotate(${Math.atan2(info.y - h / 2, info.x - w / 2)}rad)`;
+          if (m.arrow) setStyle(m.arrow, 'transform', `rotate(${Math.atan2(info.y - h / 2, info.x - w / 2)}rad)`);
           show(e, true);
         }
       }
@@ -351,9 +364,9 @@ export const useScreenMarkers = (source: Record<string, PlanetScreenInfo>, opts:
         stems.set(a, stemLen);
         a.style.setProperty('--stem', `${stemLen}px`);
       }
-      a.style.opacity = lk.opacity.toFixed(3);
-      a.style.visibility = lk.opacity <= 0.01 ? 'hidden' : 'visible';
-      a.style.transform = `translate3d(${Math.round(px)}px, ${Math.round(py)}px, 0) scale(${lk.scale.toFixed(3)})`;
+      setStyle(a, 'opacity', lk.opacity.toFixed(3));
+      show(a, lk.opacity > 0.01);
+      setStyle(a, 'transform', `translate3d(${Math.round(px)}px, ${Math.round(py)}px, 0) scale(${lk.scale.toFixed(3)})`);
     };
 
     raf = requestAnimationFrame(tick);

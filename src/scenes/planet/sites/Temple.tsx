@@ -17,6 +17,9 @@ import { addRim, Fire, noRaycast, Strut, useCanvasTexture, type FireLevel } from
 const STONE = '#cdbfa6';
 const GOLD = '#dcb664';
 const BRONZE = '#8a5a2b';
+/** Parsed once: the frame loop only copies and scales them */
+const BRONZE_C = new THREE.Color(BRONZE);
+const FLAME_C = new THREE.Color('#ffd27a');
 
 /** Plinth top, and the statue's scale on it */
 const PLINTH_H = 1.15;
@@ -450,8 +453,8 @@ export const TempleStatue = ({
   useFrame(({ clock }) => {
     const f = focus.current.focus;
     fire.current.v = 0.3 + 0.7 * f;
-    glow.color.set('#ffd27a').multiplyScalar(1 + f * 1.6);
-    plaqueMat.emissive.set(BRONZE).multiplyScalar(0.25 + f * 0.6);
+    glow.color.copy(FLAME_C).multiplyScalar(1 + f * 1.6);
+    plaqueMat.emissive.copy(BRONZE_C).multiplyScalar(0.25 + f * 0.6);
     plaqueMat.emissiveMap = plaque;
     if (held.current && !reducedMotion) held.current.rotation.y = Math.sin(clock.elapsedTime * 0.5 + index) * 0.25;
   });

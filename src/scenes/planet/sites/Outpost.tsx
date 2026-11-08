@@ -13,6 +13,10 @@ import { addRim, Fire, noRaycast, Strut, type FireLevel } from './common';
  * the sides.
  */
 
+/** Light colours, parsed once: the frame loop only copies and scales them */
+const PAD_LIGHT = new THREE.Color('#ffb35c');
+const MAST_LIGHT = new THREE.Color('#ff3b2f');
+
 const useKit = (planet: Planet, rimColor: THREE.Color | undefined, rim: number) =>
   useMemo(() => {
     const rc = rimColor ?? new THREE.Color(planet.accent);
@@ -105,8 +109,8 @@ export const OutpostGrounds = ({
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
-    if (padLights.current) padLights.current.color.set('#ffb35c').multiplyScalar(reducedMotion ? 1.2 : 0.7 + 0.6 * (0.5 + 0.5 * Math.sin(t * 2.2)));
-    if (beacon.current) beacon.current.color.set('#ff3b2f').multiplyScalar(t % 1.8 < 0.25 ? 2.5 : 0.15);
+    if (padLights.current) padLights.current.color.copy(PAD_LIGHT).multiplyScalar(reducedMotion ? 1.2 : 0.7 + 0.6 * (0.5 + 0.5 * Math.sin(t * 2.2)));
+    if (beacon.current) beacon.current.color.copy(MAST_LIGHT).multiplyScalar(t % 1.8 < 0.25 ? 2.5 : 0.15);
   });
 
   const mastY = ground(MAST.x, MAST.z);

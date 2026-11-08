@@ -1,6 +1,8 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  // hover: styles only where a real pointer can hover, so taps never leave them stuck on
+  future: { hoverOnlyWhenSupported: true },
   theme: {
     extend: {
       fontFamily: {

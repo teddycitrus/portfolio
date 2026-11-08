@@ -305,11 +305,11 @@ const Reader = () => {
           className="sticky top-0 z-20 border-b border-[var(--d-line)] bg-black/85 backdrop-blur-md"
           style={{ paddingTop: "env(safe-area-inset-top)" }}
         >
-          <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between gap-4 px-[max(20px,env(safe-area-inset-left))] lg:px-[72px]">
-            <span className="d-strong text-[16px] tracking-[-0.02em]">
+          <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between gap-4 pl-[max(20px,env(safe-area-inset-left))] pr-[max(20px,env(safe-area-inset-right))] lg:px-[72px]">
+            <span className="d-strong min-w-0 truncate text-[16px] tracking-[-0.02em]">
               {profile.name}
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               {resume && (
                 <a
                   href={resume.url}
@@ -327,7 +327,7 @@ const Reader = () => {
                   className="d-btn h-9"
                 >
                   <TbX className="h-3.5 w-3.5" />
-                  Close
+                  <span className="max-[359px]:hidden">Close</span>
                   <span className="hidden md:inline-flex">
                     <span className="d-kbd">Esc</span>
                   </span>
@@ -344,7 +344,7 @@ const Reader = () => {
           >
             <ol
               ref={tabRow}
-              className="scrollbar-thin flex gap-6 overflow-x-auto px-[max(20px,env(safe-area-inset-left))]"
+              className="scrollbar-thin flex gap-6 overflow-x-auto pl-[max(20px,env(safe-area-inset-left))] pr-[max(20px,env(safe-area-inset-right))]"
             >
               {planets.map((p) => {
                 const Icon = ICONS[p.id] ?? TbAlignLeft;
@@ -366,7 +366,7 @@ const Reader = () => {
           </nav>
         </header>
 
-        <div className="mx-auto grid max-w-[1440px] grid-cols-1 px-[max(20px,env(safe-area-inset-left))] lg:grid-cols-[256px_minmax(0,660px)] lg:gap-9 lg:px-[72px] xl:grid-cols-[256px_minmax(0,660px)_minmax(0,264px)] xl:justify-between">
+        <div className="mx-auto grid max-w-[1440px] grid-cols-1 pl-[max(20px,env(safe-area-inset-left))] pr-[max(20px,env(safe-area-inset-right))] lg:grid-cols-[256px_minmax(0,660px)] lg:gap-9 lg:px-[72px] xl:grid-cols-[256px_minmax(0,660px)_minmax(0,264px)] xl:justify-between">
           <nav aria-label="Sections" className="hidden lg:block">
             <ol className="sticky top-16 space-y-1 pt-10">
               {planets.map((p) => {
@@ -420,7 +420,7 @@ const Reader = () => {
                 aria-labelledby={`${sectionId(p.id)}-title`}
                 className="mt-14 scroll-mt-32 border-t border-[var(--d-line)] pt-10"
               >
-                <div className="mb-8 flex items-center justify-between gap-4">
+                <div className="mb-8 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
                   <h2 id={`${sectionId(p.id)}-title`} className="d-h2">
                     {p.title}
                   </h2>

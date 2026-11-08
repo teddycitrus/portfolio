@@ -191,8 +191,7 @@ const Birds = ({
     // a still viewer gets company; walking off sends the visitors home
     const vs = visits.current;
     vs.cool -= dt;
-    const visiting = flocks.filter((f) => f.visit);
-    if (!reducedMotion && visiting.length === 0 && vs.cool <= 0 && v.still > BIRD_VISIT_AFTER) {
+    if (!reducedMotion && !flocks.some((f) => f.visit) && vs.cool <= 0 && v.still > BIRD_VISIT_AFTER) {
       flocks
         .map((f, i) => ({ f, i }))
         .filter(({ i }) => i % 3 !== 2)

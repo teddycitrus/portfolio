@@ -30,11 +30,25 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
     overscroll-behavior: none;
   }
 
   * {
     box-sizing: border-box;
+  }
+
+  /* taps fire at once (no double-tap zoom wait); a long press on a control selects nothing */
+  a,
+  button,
+  [role='button'] {
+    touch-action: manipulation;
+  }
+  button {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
   }
 
   canvas {

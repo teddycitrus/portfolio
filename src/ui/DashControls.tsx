@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ComponentType } from 'react';
+import { useEffect, useRef, type ComponentType, type CSSProperties } from 'react';
 import { SiDevpost, SiGithub, SiGmail, SiX } from 'react-icons/si';
 import { FaLinkedinIn } from 'react-icons/fa6';
 import { PiFileTextBold } from 'react-icons/pi';
@@ -6,7 +6,7 @@ import { profile } from '@/data/content';
 import { dashPanel } from '@/state/runtime';
 import { setSoundEnabled, useSoundEnabled } from '@/audio/drone';
 import { linkProps } from './BeaconContent';
-import { SAFE } from './primitives';
+import { SAFE, cx, useTiny } from './primitives';
 
 const ICONS: Record<string, ComponentType<{ className?: string }>> = {
   Email: SiGmail,
@@ -52,7 +52,7 @@ const drawLogos = async (svgs: SVGSVGElement[]) => {
 const DashControls = () => {
   const keys = useRef<(HTMLAnchorElement | null)[]>([]);
   const icons = useRef<HTMLDivElement>(null);
-  const sound = useSoundEnabled();
+  const tiny = useTiny();
   const links = profile.links;
 
   // the logo strip, drawn once from the same icons
@@ -88,19 +88,33 @@ const DashControls = () => {
       const ty = q[7] + (q[5] - q[7]) * u;
       return [bx + (tx - bx) * v, by + (ty - by) * v];
     };
+    // what the keys were last laid out from: the keys are invisible hit areas, so while the
+    // console moves less than half a pixel nothing is recomputed or written
+    const last = new Float32Array(8);
+    let lastVisible: boolean | null = null;
     const tick = () => {
       raf = requestAnimationFrame(tick);
+      const q = dashPanel.quad;
+      const vis = dashPanel.visible;
+      if (vis === lastVisible) {
+        if (!vis) return;
+        let same = true;
+        for (let k = 0; k < 8; k += 1) if (Math.abs(q[k] - last[k]) > 0.5) same = false;
+        if (same) return;
+      }
+      lastVisible = vis;
+      last.set(q);
       keys.current.forEach((el, i) => {
         if (!el) return;
-        if (!dashPanel.visible) {
+        if (!vis) {
           el.style.visibility = 'hidden';
           return;
         }
         const pts = [at(i / n, 0), at((i + 1) / n, 0), at((i + 1) / n, 1), at(i / n, 1)];
-        const x0 = Math.min(...pts.map((p) => p[0]));
-        const y0 = Math.min(...pts.map((p) => p[1]));
-        const x1 = Math.max(...pts.map((p) => p[0]));
-        const y1 = Math.max(...pts.map((p) => p[1]));
+        const x0 = Math.min(pts[0][0], pts[1][0], pts[2][0], pts[3][0]);
+        const y0 = Math.min(pts[0][1], pts[1][1], pts[2][1], pts[3][1]);
+        const x1 = Math.max(pts[0][0], pts[1][0], pts[2][0], pts[3][0]);
+        const y1 = Math.max(pts[0][1], pts[1][1], pts[2][1], pts[3][1]);
         el.style.visibility = 'visible';
         el.style.transform = `translate3d(${x0.toFixed(1)}px, ${y0.toFixed(1)}px, 0)`;
         el.style.width = `${(x1 - x0).toFixed(1)}px`;
@@ -147,16 +161,27 @@ const DashControls = () => {
           return <Icon key={l.label} />;
         })}
       </div>
-      <button
-        type="button"
-        aria-pressed={sound}
-        onClick={() => setSoundEnabled(!sound)}
-        className="pointer-events-auto absolute h-9 text-[13px] font-medium text-ink/70 transition-colors duration-200 hover:text-white"
-        style={{ left: SAFE.left, bottom: SAFE.bottom }}
-      >
-        {sound ? 'Sound on' : 'Sound off'}
-      </button>
+      {/* tiny phones carry the toggle in the header instead (OverworldHud) */}
+      {!tiny && <SoundToggle className="absolute" style={{ left: SAFE.left, bottom: SAFE.bottom }} />}
     </>
+  );
+};
+
+export const SoundToggle = ({ className, style }: { className?: string; style?: CSSProperties }) => {
+  const sound = useSoundEnabled();
+  return (
+    <button
+      type="button"
+      aria-pressed={sound}
+      onClick={() => setSoundEnabled(!sound)}
+      className={cx(
+        "pointer-events-auto h-9 whitespace-nowrap text-[13px] font-medium text-ink/70 transition-colors duration-200 after:absolute after:-inset-1.5 after:content-[''] hover:text-white",
+        className,
+      )}
+      style={style}
+    >
+      {sound ? 'Sound on' : 'Sound off'}
+    </button>
   );
 };
 

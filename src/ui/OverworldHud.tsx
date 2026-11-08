@@ -15,9 +15,10 @@ import {
   SAFE,
   cx,
   usePresence,
+  useTiny,
 } from './primitives';
 import { useScreenMarkers } from './useScreenMarkers';
-import DashControls from './DashControls';
+import DashControls, { SoundToggle } from './DashControls';
 import AlienName from './AlienName';
 
 const SAFE_BANDS = { top: 84, bottom: 104 };
@@ -107,10 +108,16 @@ const Dock = ({ hovered, isTouch }: { hovered: string | null; isTouch: boolean }
   const setHovered = useAppStore((s) => s.setHoveredPlanet);
   const travelTo = useAppStore((s) => s.travelTo);
   return (
+    // short screens have no room under the console: the dock moves up into the top bar
     <nav
       aria-label="Planets"
-      className={cx('absolute inset-x-0 flex justify-center px-3', HUD_ZOOM)}
-      style={{ bottom: SAFE.bottom }}
+      className={cx(
+        'pointer-events-none absolute inset-x-0 flex justify-center px-3',
+        'bottom-[max(16px,env(safe-area-inset-bottom))] [@media(max-height:500px)]:bottom-auto [@media(max-height:500px)]:top-[max(18px,env(safe-area-inset-top))]',
+        // too narrow to centre between the name and the page button: sit against the button
+        '[@media(max-height:500px)_and_(max-width:639px)]:justify-end [@media(max-height:500px)_and_(max-width:639px)]:pr-[calc(max(20px,env(safe-area-inset-right))+44px)]',
+        HUD_ZOOM,
+      )}
     >
       <ul className={cx('pointer-events-auto flex max-w-full items-stretch gap-1 sm:gap-3', FLOAT_TEXT)}>
         {planets.map((p) => {
@@ -161,6 +168,7 @@ const OverworldHud = () => {
   const isTouch = useAppStore((s) => s.isTouch);
   const readerOpen = useAppStore((s) => s.readerOpen);
   const openReader = useAppStore((s) => s.openReader);
+  const tiny = useTiny();
   const { mounted, visible } = usePresence(mode === 'overworld', 300);
   if (!mounted) return null;
 
@@ -174,13 +182,14 @@ const OverworldHud = () => {
       <PlanetLabels hovered={hovered} isTouch={isTouch} />
 
       <header
-        className={cx('absolute inset-x-0 top-0 flex items-start justify-between gap-4', HUD_ZOOM)}
+        className={cx('absolute inset-x-0 top-0 flex items-start justify-between gap-2', HUD_ZOOM)}
         style={{ paddingTop: SAFE.top, paddingLeft: SAFE.left, paddingRight: SAFE.right }}
       >
         <div className="pointer-events-none select-none">
-          <p className={cx('font-display leading-none text-ink', DISPLAY.d24, FLOAT_TEXT)}>{profile.name}</p>
+          <p className={cx('whitespace-nowrap font-display leading-none text-ink', DISPLAY.d24, FLOAT_TEXT)}>{profile.name}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          {tiny && <SoundToggle className="relative" />}
           <Button
             size="sm"
             onClick={() => openReader()}

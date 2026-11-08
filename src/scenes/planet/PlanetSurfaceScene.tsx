@@ -123,20 +123,11 @@ const Surface = ({ planet }: { planet: Planet }) => {
  * launch is visible; PlanetCamera only drives the camera in 'planet'.
  */
 const PlanetSurfaceScene = () => {
-  const gl = useThree((s) => s.gl);
   const mode = useAppStore((s) => s.mode);
   const activeId = useAppStore((s) => s.activePlanetId);
   const planet = useMemo(() => planetById(activeId), [activeId]);
 
-  // enable soft shadows once, before any surface material compiles
-  useLayoutEffect(() => {
-    if (!gl.shadowMap.enabled || gl.shadowMap.type !== THREE.PCFSoftShadowMap) {
-      gl.shadowMap.enabled = true;
-      gl.shadowMap.type = THREE.PCFSoftShadowMap;
-      gl.shadowMap.needsUpdate = true;
-    }
-  }, [gl]);
-
+  // the shadow map is switched on by LazySurface, before this chunk loads
   const show = (mode === 'planet' || mode === 'transitioning-out') && !!planet;
   if (!show || !planet) return null;
   return <Surface key={planet.id} planet={planet} />;

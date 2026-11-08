@@ -57,6 +57,15 @@ const useMedia = (query: string) => {
 export const useNarrow = () => useMedia('(max-width: 699px), (orientation: portrait) and (max-width: 1024px)');
 /** Landscape phones and other very short viewports. */
 export const useShort = () => useMedia('(max-height: 500px)');
+/**
+ * Beacon content goes in the DOM sheet or side panel rather than on in-world
+ * screens: phones, tablet portrait, and short screens, where the screens
+ * would be scaled down past reading size.
+ */
+export const usePanelView = () =>
+  useMedia('(max-width: 699px), (orientation: portrait) and (max-width: 1024px), (max-height: 500px)');
+/** Phones too narrow for the dock and the sound toggle to share the bottom row. */
+export const useTiny = () => useMedia('(max-width: 399px)');
 
 /** Shadow that keeps bare text legible over bright skies and planets. */
 export const FLOAT_TEXT = '[text-shadow:0_1px_2px_rgba(5,7,13,0.9),0_0_14px_rgba(5,7,13,0.75)]';
@@ -90,7 +99,8 @@ const VARIANTS: Record<Variant, string> = {
 export const buttonClass = (variant: Variant = 'panel', size: 'sm' | 'md' = 'md') =>
   cx(
     'pointer-events-auto inline-flex select-none items-center gap-2.5 whitespace-nowrap font-medium transition-[color,text-decoration-color,opacity] duration-200 ease-out',
-    size === 'md' ? 'h-11 text-[14px]' : 'h-9 px-2 text-[13px]',
+    // sm controls are 36px tall; an invisible margin brings the touch target past 44px
+    size === 'md' ? 'h-11 text-[14px]' : "relative h-9 px-2 text-[13px] after:absolute after:-inset-1.5 after:content-['']",
     VARIANTS[variant],
   );
 

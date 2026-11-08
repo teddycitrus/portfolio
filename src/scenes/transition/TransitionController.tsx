@@ -15,6 +15,7 @@ import {
   REDUCED_TOTAL,
 } from '@/state/timing';
 import { responsiveFov, surfaceFov } from '@/scenes/overworld/TelescopeCamera';
+import { loadSurface, surfaceScene } from '@/scenes/planet/loadSurface';
 
 /** The lock-on before the beam takes the viewer narrows the lens this much */
 const LOCK_ZOOM = 6;
@@ -142,6 +143,11 @@ const TransitionController = () => {
     const store = useAppStore.getState();
 
     const finish = () => {
+      // the surface chunk is normally in long before this; if not, hold the covered last frame for it
+      if (r.kind === 'in' && !surfaceScene()) {
+        void loadSurface().catch(() => {});
+        return;
+      }
       r.done = true;
       if (r.kind === 'in') {
         store.arriveAtPlanet();

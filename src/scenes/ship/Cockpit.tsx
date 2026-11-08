@@ -334,7 +334,7 @@ const Cockpit = () => {
     m.instanceMatrix.needsUpdate = true;
     if (leds.current) {
       placeLeds(leds.current);
-      for (let i = 0; i < LED_COUNT; i += 1) leds.current.setColorAt(i, _c.set('#7fd4ff'));
+      for (let i = 0; i < LED_COUNT; i += 1) leds.current.setColorAt(i, LED_BLUE);
       LED_MAT.needsUpdate = true;
     }
   }, [parts]);
@@ -477,11 +477,11 @@ const Cockpit = () => {
     if (g) {
       const burn = THREE.MathUtils.smoothstep(flight.speed, 20, 120);
       g.intensity = 0.18 + burn * 0.25 + flight.heat * 1.6;
-      g.color.set('#ffd2a8').lerp(_c.set(flight.heatColor), flight.heat * 0.6);
+      g.color.copy(GLOW_C).lerp(heatColor(), flight.heat * 0.6);
     }
     glass.uniforms.uTime.value = t;
     glass.uniforms.uHeat.value = flight.heat;
-    (glass.uniforms.uHeatColor.value as THREE.Color).set(flight.heatColor);
+    (glass.uniforms.uHeatColor.value as THREE.Color).copy(heatColor());
     screen.uniforms.uTime.value = t;
 
     /* the console is the contact keys in orbit: publish its screen rect for the DOM keys */
@@ -519,7 +519,7 @@ const Cockpit = () => {
     if (l) {
       for (let i = 0; i < LED_COUNT; i += 1) {
         const on = Math.sin(t * (1.3 + (i % 5) * 0.7) + i * 2.4) > 0.2 || i % 6 === 0;
-        _c.set(i % 7 === 3 ? '#ffb46a' : '#7fd4ff').multiplyScalar(on ? 1.4 : 0.12);
+        _c.copy(i % 7 === 3 ? LED_AMBER : LED_BLUE).multiplyScalar(on ? 1.4 : 0.12);
         l.setColorAt(i, _c);
       }
       if (l.instanceColor) l.instanceColor.needsUpdate = true;
@@ -588,6 +588,20 @@ const LED_COUNT = 18;
 const LED_GEO = new THREE.BoxGeometry(0.009, 0.0035, 0.004);
 const LED_MAT = new THREE.MeshBasicMaterial({ color: '#ffffff', fog: false, transparent: true, toneMapped: false });
 const _c = new THREE.Color();
+/** Colours the frame loop uses, parsed once (Color.set on a hex string parses and converts every call) */
+const LED_BLUE = new THREE.Color('#7fd4ff');
+const LED_AMBER = new THREE.Color('#ffb46a');
+const GLOW_C = new THREE.Color('#ffd2a8');
+const _heat = new THREE.Color('#ffb070');
+let heatHex = '#ffb070';
+/** flight.heatColor as a Color, re-parsed only when the hex changes */
+const heatColor = () => {
+  if (flight.heatColor !== heatHex) {
+    heatHex = flight.heatColor;
+    _heat.set(heatHex);
+  }
+  return _heat;
+};
 
 /** Places the status lights in a row on the dash, behind the HUD chips. */
 export const placeLeds = (m: THREE.InstancedMesh) => {
