@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import { useThree } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useAppStore } from '@/state/useAppStore';
 import { getBeaconPosition, planetById } from '@/data/content';
@@ -19,6 +19,28 @@ import { OutpostGrounds } from './sites/Outpost';
 
 const SHADOW_EXTENT = 34;
 const SUN_DISTANCE = 70;
+
+/**
+ * The sun and its shadow frame are fixed, and only slow things move (animals, my head, the
+ * floating crowns), so the shadow map is redrawn every other frame: half the cost of the extra
+ * pass the whole scene is drawn in, with no visible difference.
+ */
+const ShadowCadence = () => {
+  const gl = useThree((s) => s.gl);
+  const frame = useRef(0);
+  useLayoutEffect(() => {
+    gl.shadowMap.autoUpdate = false;
+    gl.shadowMap.needsUpdate = true;
+    return () => {
+      gl.shadowMap.autoUpdate = true;
+    };
+  }, [gl]);
+  useFrame(() => {
+    frame.current = (frame.current + 1) % 2;
+    if (frame.current === 0) gl.shadowMap.needsUpdate = true;
+  });
+  return null;
+};
 
 const Surface = ({ planet }: { planet: Planet }) => {
   const scene = useThree((s) => s.scene);
@@ -74,6 +96,7 @@ const Surface = ({ planet }: { planet: Planet }) => {
 
   return (
     <>
+      <ShadowCadence />
       <hemisphereLight args={[sky.hemiSky, sky.hemiGround, sky.hemiIntensity]} />
       <directionalLight
         ref={sun}

@@ -468,6 +468,11 @@ const Cockpit = () => {
     const frame = frameRef.current;
     if (!ship || !frame) return;
     ship.visible = deploy > 0.001;
+    if (!ship.visible) {
+      // on a planet the deck is gone: nothing below is seen, so none of it is worked out or uploaded
+      dashPanel.visible = false;
+      return;
+    }
     ship.position.copy(camera.position);
     ship.quaternion.copy(r.ship).multiply(_qShip);
     if (mode === 'overworld' && !reduced) {

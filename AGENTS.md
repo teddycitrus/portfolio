@@ -1,7 +1,7 @@
 # Agent notes
 
 - Dev server: `npm run dev` (port 5173). On Windows, killing the shell can leave the Vite node process alive and holding the port; find it with `netstat -ano | grep 5173` and `taskkill //PID <pid> //F`, otherwise you keep getting stale CSS.
-- Typecheck: `npx tsc --noEmit -p tsconfig.json`. Build: `npm run build`.
+- Typecheck: `npx tsc --noEmit -p tsconfig.json`. Build: `npm run build` (not bare `vite build`: `tsc -b` regenerates the gitignored `vite.config.js` that Vite actually reads, so config edits only take effect through it).
 - Content lives only in `src/data/content.json`; do not hardcode copy in components.
 - Shared contracts: `src/state/useAppStore.ts` (modes and actions), `src/state/runtime.ts` (per-frame mutable state, never React state), `src/state/timing.ts` (transition timeline shared by the camera controller and the DOM veil).
 - In dev the store is exposed as `window.__app`.
