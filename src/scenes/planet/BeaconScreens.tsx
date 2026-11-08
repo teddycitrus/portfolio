@@ -126,12 +126,14 @@ interface Box {
 
 /**
  * Masonry layout into columns, trying every column count and keeping the one
- * that needs the least shrinking to fit availW x availH. Returns centres
- * relative to the block's top-left, the block size and the fit scale.
+ * that fits availW x availH best: the least shrinking, traded a little
+ * against how much of the area it fills, so a tall stack wraps into another
+ * column when that costs little size, and the whole block reads at a glance. Returns centres relative to the block's top-left,
+ * the block size and the fit scale.
  */
 const layout = (boxes: Box[], availW: number, availH: number) => {
-  let best: { pos: [number, number][]; w: number; h: number; s: number } | null = null;
-  for (let cols = 1; cols <= Math.min(3, boxes.length); cols += 1) {
+  let best: { pos: [number, number][]; w: number; h: number; s: number; score: number } | null = null;
+  for (let cols = 1; cols <= Math.min(4, boxes.length); cols += 1) {
     const colW = new Array(cols).fill(0);
     const colH = new Array(cols).fill(0);
     const colOf: number[] = [];
@@ -152,20 +154,29 @@ const layout = (boxes: Box[], availW: number, availH: number) => {
     const totalW = acc - GAP;
     const totalH = Math.max(...colH) - GAP;
     const s = Math.min(1, availW / totalW, availH / totalH);
-    if (!best || s > best.s + 0.02) {
-      const fill = new Array(cols).fill(0);
+    // how far the block reaches toward the larger of its two limits: lower is more compact
+    const fill = Math.max((totalW * s) / availW, (totalH * s) / availH);
+    // a little smaller is worth it when it makes the block much more compact
+    const score = s - 0.15 * fill;
+    if (!best || score > best.score + 0.01) {
+      const used = new Array(cols).fill(0);
       const pos = boxes.map((b, i) => {
         const c = colOf[i];
-        const p: [number, number] = [xs[c] + b.w / 2, fill[c] + b.h / 2];
-        fill[c] += b.h + GAP;
+        const p: [number, number] = [xs[c] + b.w / 2, used[c] + b.h / 2];
+        used[c] += b.h + GAP;
         return p;
       });
-      best = { pos, w: totalW, h: totalH, s };
+      best = { pos, w: totalW, h: totalH, s, score };
     }
   }
   return best!;
 };
 
+/** The band screens are laid out in, as fractions of the view's half-height above and below its centre */
+const SCREEN_TOP = 0.52;
+const SCREEN_BOTTOM = 0.72;
+/** ...and how far out to the side they may reach, as a fraction of the half-width */
+const SCREEN_SIDE = 0.86;
 /** Deployed screens keep at least this much air under them (world units) */
 const GROUND_CLEAR = 0.18;
 const FLOOR_SAMPLES = 7;
@@ -411,28 +422,28 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
       // clear the monument's footprint (plinth and widest arches) as seen on the layout plane
       const margin = (0.95 * PLANE_D) / depth + 0.08;
       let x0 = px + margin;
-      let x1 = halfW * 0.94;
+      let x1 = halfW * SCREEN_SIDE;
       if (x1 - x0 < halfW * 0.7) {
         leftSide = true;
-        x0 = -halfW * 0.94;
+        x0 = -halfW * SCREEN_SIDE;
         x1 = px - margin;
       }
       const availW = Math.max(0.5, x1 - x0);
-      // the ground across the region, as the lowest plane height a screen may reach
-      const floor = groundFloor(x0, x1, s.anchorQuat, s.anchorPos, base, ground);
-      const sizes = panels.map((p) => p.size);
-      const centred = (h: number) => h / 2 - halfH * 0.04;
-      lay = layout(sizes, availW, halfH * 1.5);
-      if (centred(lay.h * lay.s) - lay.h * lay.s < floor) {
-        // the block would reach the ground: give it only the room above it, so the screens
-        // that would sink wrap into more columns beside the others instead
-        const top = Math.max(centred(lay.h * lay.s), halfH * 0.75);
-        lay = layout(sizes, availW, Math.max(halfH * 0.5, top - floor));
-      }
+      // the screens live in a band: no higher than SCREEN_TOP of the way up the view (higher
+      // ones are hard to read), no lower than the ground or SCREEN_BOTTOM down. A stack too
+      // tall for the band wraps into more columns instead of climbing
+      const floor = Math.max(groundFloor(x0, x1, s.anchorQuat, s.anchorPos, base, ground), -halfH * SCREEN_BOTTOM);
+      const ceiling = Math.max(halfH * SCREEN_TOP, floor + halfH * 0.5);
+      lay = layout(
+        panels.map((p) => p.size),
+        availW,
+        ceiling - floor,
+      );
       regionX = leftSide ? x1 - lay.w * lay.s : x0;
       s.fit = lay.s;
-      // and never below it, whatever the fit
-      topY = Math.max(centred(lay.h * lay.s), floor + lay.h * lay.s);
+      // centred on the eye line where it fits, otherwise kept inside the band (the ground wins)
+      const h = lay.h * lay.s;
+      topY = Math.max(Math.min(h / 2 - halfH * 0.04, ceiling), floor + h);
     }
 
     let anyOut = false;
