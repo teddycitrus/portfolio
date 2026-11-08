@@ -62,11 +62,11 @@ const BEAM_FRAG = /* glsl */ `
   }
   void main() {
     float y = vUv.y * uLen;
-    float rings = pow(0.5 + 0.5 * sin(y * 0.55 - uTime * 9.0), 8.0);
+    float rings = pow(max(0.5 + 0.5 * sin(y * 0.55 - uTime * 9.0), 0.0), 8.0);
     float streaks = pow(noise(vec2(vUv.x * 48.0, y * 0.04 - uTime * 0.9)), 3.0);
     float ends = smoothstep(0.0, 0.015, vUv.y) * (1.0 - smoothstep(0.85, 1.0, vUv.y));
     // brighter where the wall is seen edge-on, so the column reads as a tube
-    float edge = 0.35 + 0.65 * pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.0);
+    float edge = 0.35 + 0.65 * pow(max(1.0 - abs(dot(normalize(vN), normalize(vV))), 0.0), 2.0);
     vec3 col = vec3(0.55, 0.85, 1.0) * (0.05 + rings * 0.45 + streaks * 0.35) * edge;
     gl_FragColor = vec4(col * ends * uA, 1.0);
     #include <colorspace_fragment>
@@ -88,8 +88,11 @@ const PAD_FRAG = /* glsl */ `
     float r = length(vUv);
     float disc = exp(-r * r * 3.0) * 0.35;
     float wave = fract(uTime * 0.8);
-    float ring = exp(-pow((r - wave) * 14.0, 2.0)) * (1.0 - wave) * 0.6;
-    float rim = exp(-pow((r - 0.62) * 22.0, 2.0)) * 0.5;
+    // squared by hand: pow() of a negative base is NaN on Metal
+    float rw = (r - wave) * 14.0;
+    float rr = (r - 0.62) * 22.0;
+    float ring = exp(-rw * rw) * (1.0 - wave) * 0.6;
+    float rim = exp(-rr * rr) * 0.5;
     vec3 col = vec3(0.6, 0.88, 1.0) * (disc + ring + rim) * (1.0 - smoothstep(0.85, 1.0, r));
     gl_FragColor = vec4(col * uA, 1.0);
     #include <colorspace_fragment>

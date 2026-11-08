@@ -47,7 +47,7 @@ const waterFrag = /* glsl */ `
            + wave(p, vec2(-0.2, -0.98), 5.3, 3.1, 0.006);
     vec3 N = normalize(vec3(-g.x, 1.0, -g.y));
     float ndv = max(dot(N, V), 0.0);
-    float fres = 0.02 + 0.98 * pow(1.0 - ndv, 5.0);
+    float fres = 0.02 + 0.98 * pow(clamp(1.0 - ndv, 0.0, 1.0), 5.0);
     vec3 water = mix(uShallow, uDeep, smoothstep(0.0, 3.5, vDepth));
     vec3 R = reflect(-V, N);
     vec3 skyc = mix(uHorizon, uSky, clamp(R.y * 2.5, 0.0, 1.0));
@@ -146,7 +146,7 @@ const cloudFrag = /* glsl */ `
     float puff = fbm(p * 4.0 - vec2(t * 0.02, t * 0.008));
     col = mix(col, uC1, smoothstep(0.55, 0.85, puff) * 0.55);
     // luminous seams between bands
-    col += uGlow * pow(1.0 - abs(band - 0.5) * 2.0, 8.0) * 0.6;
+    col += uGlow * pow(max(1.0 - abs(band - 0.5) * 2.0, 0.0), 8.0) * 0.6;
     // the mesa shades the deck right below it
     col *= mix(0.45, 1.0, smoothstep(uShadowR * 0.6, uShadowR * 2.2, length(vW.xz)));
     float d = length(vW - cameraPosition);

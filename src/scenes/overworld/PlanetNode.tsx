@@ -79,7 +79,7 @@ const PLANET_FRAGMENT = /* glsl */ `
     if ((uStyle == 0 || uStyle == 3) && specMask > 0.01) {
       vec3 H = normalize(uSun + V);
       float nh = max(dot(Ng, H), 0.0);
-      float fres = 0.02 + 0.98 * pow(1.0 - max(dot(H, V), 0.0), 5.0);
+      float fres = 0.02 + 0.98 * pow(clamp(1.0 - dot(H, V), 0.0, 1.0), 5.0);
       float spec = pow(nh, 500.0) * 0.45 + pow(nh, 24.0) * 0.008;
       col += uSunColor * redden * spec * (0.5 + fres) * specMask * day;
     }
@@ -92,12 +92,13 @@ const PLANET_FRAGMENT = /* glsl */ `
     }
 
     // Aerial haze across the disc, strongest toward the lit limb
-    float rim = pow(1.0 - NdV, 2.6);
+    // clamped: a dot of unit vectors can round past 1, and pow() of a negative is NaN on Metal
+    float rim = pow(clamp(1.0 - NdV, 0.0, 1.0), 2.6);
     float hazeLight = smoothstep(-0.2, 0.55, NgL);
     vec3 hazeCol = mix(uAtmoColor * vec3(1.0, 0.6, 0.45), uAtmoColor, smoothstep(0.0, 0.4, NgL));
     col = mix(col, hazeCol * 0.55 * hazeLight, rim * 0.55 * uAtmo * hazeLight);
     // a bright lit limb where the atmosphere scatters sunlight toward the eye
-    col += hazeCol * pow(1.0 - NdV, 5.0) * smoothstep(-0.1, 0.5, NgL) * 0.45 * uAtmo;
+    col += hazeCol * pow(clamp(1.0 - NdV, 0.0, 1.0), 5.0) * smoothstep(-0.1, 0.5, NgL) * 0.45 * uAtmo;
 
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>

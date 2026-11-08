@@ -58,9 +58,9 @@ const galaxyMaterial = (seed: number, tilt: number, spin: number, strength: numb
         vec2 p = mat2(c, -s, s, c) * vUv;
         p.y /= max(0.2, uTilt);
         float r = length(p);
-        float a = atan(p.y, p.x);
+        float a = atan(p.y, p.x + 1e-6);
         float arms = 0.5 + 0.5 * cos(2.0 * (a - log(r + 0.04) * 2.4) + fbm(p * 6.0 + uSeed) * 2.0);
-        arms = pow(arms, 2.5);
+        arms = pow(max(arms, 0.0), 2.5);
         float clumps = smoothstep(0.45, 0.9, fbm(p * 14.0 + uSeed * 3.0));
         float disc = exp(-r * 3.2) * (0.25 + 0.9 * arms * (0.6 + 0.6 * clumps));
         float core = exp(-r * r * 60.0);
@@ -88,7 +88,7 @@ const meteorMaterial = () =>
       void main() {
         // head at x = 1, tail toward x = -1
         float t = (vUv.x + 1.0) * 0.5;
-        float body = pow(t, 3.0) * (1.0 - smoothstep(0.0, 1.0 - t * 0.6, abs(vUv.y)));
+        float body = pow(max(t, 0.0), 3.0) * (1.0 - smoothstep(0.0, 1.0 - t * 0.6, abs(vUv.y)));
         float head = exp(-((vUv.x - 0.92) * (vUv.x - 0.92)) * 300.0 - vUv.y * vUv.y * 6.0);
         vec3 col = mix(vec3(0.55, 0.75, 1.0), vec3(1.0, 0.95, 0.85), t) * body * 1.4 + vec3(1.4) * head;
         gl_FragColor = vec4(col * uA, 1.0);

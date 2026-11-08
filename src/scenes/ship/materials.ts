@@ -42,7 +42,10 @@ export const glassMaterial = () =>
         vec2 n = vN;
         // reflections of the cabin: two soft diagonal bands
         float d = dot(n, normalize(vec2(1.0, 0.62)));
-        float refl = exp(-pow((d - 0.42) / 0.11, 2.0)) * 0.006 + exp(-pow((d - 0.62) / 0.035, 2.0)) * 0.005;
+        // squared by hand: pow() of a negative base is NaN on Metal (Safari, every Mac browser)
+        float r1 = (d - 0.42) / 0.11;
+        float r2 = (d - 0.62) / 0.035;
+        float refl = exp(-r1 * r1) * 0.006 + exp(-r2 * r2) * 0.005;
         refl *= smoothstep(-0.2, 0.6, n.y + 0.3);
         // haze toward the frame
         float edge = max(abs(n.x) / 0.9, (n.y > 0.0 ? n.y / 0.8 : -n.y / 0.7));
@@ -54,7 +57,7 @@ export const glassMaterial = () =>
         // entry plasma: streaks rushing outward, brightest at the rim
         if (uHeat > 0.001) {
           float r = length(n * vec2(1.0, 1.15));
-          float a = atan(n.y, n.x);
+          float a = atan(n.y, n.x + 1e-6);
           float streak = noise(vec2(a * 9.0, r * 2.5 - uTime * 7.0)) * 0.65 + noise(vec2(a * 23.0, r * 5.0 - uTime * 11.0)) * 0.35;
           float rim = smoothstep(0.35 - uHeat * 0.3, 1.1, r);
           float flame = uHeat * rim * (0.35 + streak * 1.1);
@@ -130,7 +133,7 @@ export const instrumentMaterial = (kind: 0 | 1, keys = 1, stretch = 1) =>
           vec2 q = (uv - vec2(0.27, 0.5)) * vec2(2.0, 1.0) / 0.42;
           float r = length(q);
           float rings = smoothstep(0.03, 0.0, abs(r - 1.0)) + 0.5 * smoothstep(0.025, 0.0, abs(r - 0.6)) + 0.4 * smoothstep(0.04, 0.0, abs(q.x) * step(r, 1.0)) * 0.6;
-          float a = atan(q.y, q.x);
+          float a = atan(q.y, q.x + 1e-6);
           float s = fract((a - uTime * 1.5) / 6.2832);
           float sweep = exp(-s * 7.0) * step(r, 1.0) * 0.9;
           float blip = 0.0;
@@ -174,7 +177,8 @@ export const instrumentMaterial = (kind: 0 | 1, keys = 1, stretch = 1) =>
         float edgeX = uFace * 1.3 - 0.15;
         float rev = smoothstep(edgeX + 0.06, edgeX - 0.06, uv.x);
         float revLogo = smoothstep(edgeX - 0.04, edgeX - 0.2, uv.x);
-        float edge = exp(-pow((uv.x - edgeX) * 30.0, 2.0)) * step(0.001, uFace) * step(uFace, 0.999);
+        float ex = (uv.x - edgeX) * 30.0;
+        float edge = exp(-ex * ex) * step(0.001, uFace) * step(uFace, 0.999);
         col = mix(col, faceCol, rev) + ink * edge * 0.9;
         col += vec3(0.62, 0.86, 1.0) * (uLogoOn > 0.5 ? texture2D(uLogos, uv).a : 0.0) * (0.75 + 0.55 * hot) * revLogo;
         gl_FragColor = vec4(col * vig, 1.0);

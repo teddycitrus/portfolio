@@ -147,7 +147,7 @@ const moonFrag = /* glsl */ `
 
     float ndl = dot(n, uSunDir);
     float lit = smoothstep(-0.08, 0.35, ndl);
-    float fres = pow(1.0 - max(dot(n, vView), 0.0), 3.0);
+    float fres = pow(clamp(1.0 - dot(n, vView), 0.0, 1.0), 3.0);
     vec3 col = surf * (0.03 + lit * uBright);
     col += uAtmo * fres * (0.15 + smoothstep(-0.25, 0.4, ndl) * 0.9);
     // sits inside our atmosphere: veil it with the sky

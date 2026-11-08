@@ -285,7 +285,7 @@ const mountainFrag = /* glsl */ `
     float haze = mix(1.0, uHaze, smoothstep(0.0, 1.0, vH));
     vec3 col = mix(uTone, uFog, haze);
     // thin rim light on ridges facing the sun
-    float facing = pow(max(dot(normalize(vDir.xz), normalize(uSun.xz)), 0.0), 6.0);
+    float facing = pow(max(dot(normalize(vDir.xz + 1e-5), normalize(uSun.xz + 1e-5)), 0.0), 6.0);
     col += uRim * facing * smoothstep(0.75, 1.0, vH) * 0.35;
     gl_FragColor = vec4(col, 1.0);
     #include <tonemapping_fragment>

@@ -102,7 +102,7 @@ const flameMaterial = () =>
         float n = noise(vec2(vUv.x * 5.0, y * 4.0 - uTime * 3.2)) * 0.6 + noise(vec2(vUv.x * 11.0, y * 7.0 - uTime * 5.0)) * 0.4;
         float x = vUv.x - 0.5 + (n - 0.5) * 0.28 * y;
         // a teardrop: round at the base, drawn to a point
-        float prof = 0.36 * pow(sin(3.14159 * pow(clamp(y, 0.0, 1.0), 0.55)), 0.9) * (0.75 + 0.5 * n);
+        float prof = 0.36 * pow(max(sin(3.14159 * pow(clamp(y, 0.0, 1.0), 0.55)), 0.0), 0.9) * (0.75 + 0.5 * n);
         float d = abs(x) / max(prof, 1e-3);
         float body = smoothstep(1.0, 0.45, d) * smoothstep(1.0, 0.55, y + (n - 0.5) * 0.35);
         float core = smoothstep(0.7, 0.0, d) * smoothstep(0.75, 0.1, y);
