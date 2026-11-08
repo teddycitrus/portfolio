@@ -47,8 +47,8 @@
       /*
        * The loader, drawn before the app loads: the observation deck around the
        * viewer (painted to match the 3D cockpit, which lines up under it), and
-       * through its window black space, a field of stars, a planet's night side
-       * with only its atmosphere lit, and the name. Any key or tap launches (and, being a
+       * through its window the Milky Way, a planet's night side with its cities
+       * and lit atmosphere, the sun coming up over its rim, and the name. Any key or tap launches (and, being a
        * gesture, lets the sound play): the planet falls away, the stars stretch
        * and hyperspace fills the screen for the whole jump, so nothing that
        * loads later cuts into it. The app spools it up into a white flash and
@@ -78,54 +78,87 @@
       }
       #boot .space,
       #boot .sky,
+      #boot .glints,
+      #boot .planet,
       #boot .hyper,
+      #boot .ship,
+      #boot .glass,
+      #boot .lit,
       #boot .flash {
         position: absolute;
         inset: 0;
       }
-      #boot .deck {
+      #boot canvas.sky,
+      #boot canvas.world,
+      #boot canvas.deck {
         position: absolute;
         inset: 0;
         width: 100%;
         height: 100%;
       }
-      #boot .sky {
-        width: 100%;
-        height: 100%;
+      /* the sky: the Milky Way and coloured stars, a few of them glinting */
+      #boot .sky,
+      #boot .glints {
         transition: opacity 700ms cubic-bezier(0.55, 0, 0.75, 0.2), transform 900ms cubic-bezier(0.55, 0, 0.75, 0.2);
       }
-      /* the night side of a planet along the foot of the screen, lit only at the rim */
-      #boot .limb {
+      #boot .glint {
         position: absolute;
-        left: 50%;
-        top: 64%;
-        width: 240vmax;
-        height: 240vmax;
-        margin-left: -120vmax;
-        border-radius: 50%;
-        background: radial-gradient(circle at 50% 0%, #0a1222 0%, #03060d 6%, #02040a 30%);
-        box-shadow:
-          inset 0 1px 0 0 rgba(214, 232, 255, 0.85),
-          inset 0 10px 22px -12px rgba(120, 175, 255, 0.75),
-          0 -1px 10px 0 rgba(130, 185, 255, 0.55),
-          0 -12px 70px 0 rgba(60, 120, 255, 0.28);
+        width: 40px;
+        height: 40px;
+        margin: -20px 0 0 -20px;
+        animation: boot-glint 4s ease-in-out infinite alternate;
+      }
+      @keyframes boot-glint {
+        from { opacity: 0.35; transform: scale(0.8); }
+        to { opacity: 1; transform: scale(1); }
+      }
+
+      /* the planet's night side: city lights, clouds, the lit atmosphere, the sun rising over the rim */
+      #boot .planet {
         transition: transform 1000ms cubic-bezier(0.55, 0, 0.75, 0.2), opacity 800ms cubic-bezier(0.55, 0, 0.75, 0.2);
         animation: boot-rise 1600ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
       }
-      /* the sun just below the limb at the top of the arc: a hot point on the rim, a thin band along it, a wide glow */
-      #boot .limb::after {
-        content: '';
+      #boot .sun {
         position: absolute;
         left: 50%;
-        top: -30vmin;
-        width: 120vmin;
-        height: 60vmin;
-        margin-left: -60vmin;
-        background:
-          radial-gradient(ellipse 4% 2.4% at 50% 50%, rgba(255, 250, 240, 1), rgba(255, 250, 240, 0) 100%),
-          radial-gradient(ellipse 30% 2.2% at 50% 50%, rgba(255, 226, 190, 0.7), rgba(255, 226, 190, 0) 100%),
-          radial-gradient(ellipse 50% 30% at 50% 50%, rgba(120, 170, 255, 0.2), rgba(120, 170, 255, 0) 100%);
+        top: 64%;
+        width: 28vmin;
+        height: 28vmin;
+        margin: -14vmin 0 0 -14vmin;
+        border-radius: 50%;
+        background: radial-gradient(circle, #fff 0%, #fff 5%, rgba(255, 236, 205, 0.85) 9%, rgba(255, 190, 130, 0.3) 22%, rgba(255, 160, 100, 0) 55%);
+        animation: boot-sunrise 3400ms cubic-bezier(0.22, 1, 0.36, 1) 300ms both;
+      }
+      @keyframes boot-sunrise {
+        from { transform: translateY(5vmin) scale(0.8); }
+        to { transform: translateY(0.4vmin); }
+      }
+      #boot .flare,
+      #boot .ghosts {
+        position: absolute;
         pointer-events: none;
+        mix-blend-mode: screen;
+        animation: boot-flare 3400ms cubic-bezier(0.22, 1, 0.36, 1) 300ms both;
+      }
+      #boot .flare {
+        left: 50%;
+        top: 64%;
+        width: 130vmin;
+        height: 30vmin;
+        margin: -15vmin 0 0 -65vmin;
+        background:
+          radial-gradient(circle 1.4vmin at 50% 50%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 100%),
+          radial-gradient(ellipse 50% 2.6% at 50% 50%, rgba(255, 242, 228, 0.8), rgba(255, 242, 228, 0) 100%),
+          radial-gradient(ellipse 20% 9% at 50% 50%, rgba(255, 205, 160, 0.4), rgba(255, 205, 160, 0) 100%);
+      }
+      #boot .ghosts {
+        inset: 0;
+        background:
+          radial-gradient(circle 2.2vmin at 50% 53%, rgba(150, 200, 255, 0.12), rgba(150, 200, 255, 0) 100%),
+          radial-gradient(circle 7vmin at 50% 22%, rgba(170, 140, 255, 0.06), rgba(170, 140, 255, 0) 100%);
+      }
+      @keyframes boot-flare {
+        from { opacity: 0; transform: translateY(2vmin) scaleX(0.4); }
       }
       @keyframes boot-rise {
         from { transform: translateY(6vmin); opacity: 0; }
@@ -139,7 +172,7 @@
         padding: 0 24px;
         transform: translateY(-50%);
         text-align: center;
-        transition: opacity 260ms ease-out, filter 260ms ease-out;
+        transition: opacity 260ms ease-out, filter 260ms ease-out, transform 400ms cubic-bezier(0.55, 0, 0.75, 0.2);
       }
       #boot .name {
         display: block;
@@ -148,6 +181,7 @@
         font-stretch: 118%;
         letter-spacing: -0.03em;
         line-height: 0.95;
+        text-shadow: 0 0 40px rgba(120, 160, 255, 0.25);
         animation: boot-in 1100ms cubic-bezier(0.23, 1, 0.32, 1) 150ms backwards;
       }
       #boot .prompt {
@@ -181,15 +215,41 @@
       }
 
       /*
-       * Hyperspace: one field of streaks drawn once, in three copies zooming out
-       * past the viewer a third of a cycle apart, over a deep blue tunnel glow.
+       * Hyperspace: a deep blue and violet tunnel with two sets of ribs turning
+       * opposite ways, a far field of coloured streaks (three copies zooming out
+       * a third of a cycle apart), a near field rushing past faster, and a
+       * pulsing core. Every texture is drawn once before the launch.
        */
       #boot .hyper {
         opacity: 0;
-        background: radial-gradient(circle at 50% 50%, #eef4ff 0%, #9db8ff 3%, #3b5cc4 12%, #142463 34%, #060b22 62%, #02040a 100%);
+        background: radial-gradient(circle at 50% 50%, #f4f8ff 0%, #a9c2ff 2.5%, #4a67d8 9%, #1d2c86 22%, #130f4c 40%, #070822 62%, #02040a 100%);
         transition: opacity 500ms cubic-bezier(0.23, 1, 0.32, 1) 120ms;
       }
-      #boot .hyper i {
+      #boot .swirl {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 150vmax;
+        height: 150vmax;
+        margin: -75vmax 0 0 -75vmax;
+        border-radius: 50%;
+        background: repeating-conic-gradient(from 0deg, rgba(70, 120, 255, 0) 0deg, rgba(100, 155, 255, 0.2) 5deg, rgba(70, 120, 255, 0) 11deg, rgba(160, 120, 255, 0.13) 17deg, rgba(70, 120, 255, 0) 24deg);
+        -webkit-mask-image: radial-gradient(circle, transparent 3%, #000 20%, #000 40%, transparent 68%);
+        mask-image: radial-gradient(circle, transparent 3%, #000 20%, #000 40%, transparent 68%);
+        will-change: transform;
+        animation: boot-swirl 9s linear infinite;
+      }
+      #boot .swirl.b {
+        opacity: 0.8;
+        background: repeating-conic-gradient(from 7deg, rgba(60, 200, 255, 0) 0deg, rgba(80, 210, 255, 0.14) 3deg, rgba(60, 200, 255, 0) 9deg);
+        animation-duration: 14s;
+        animation-direction: reverse;
+      }
+      @keyframes boot-swirl {
+        to { transform: rotate(360deg); }
+      }
+      #boot .hyper i,
+      #boot .hyper b {
         position: absolute;
         left: 50%;
         top: 50%;
@@ -201,34 +261,113 @@
         will-change: transform, opacity;
         animation: boot-warp 1.1s linear infinite;
       }
-      #boot .hyper i:nth-child(2) { animation-delay: -0.367s; --r: 40deg; }
-      #boot .hyper i:nth-child(3) { animation-delay: -0.733s; --r: 80deg; }
-      #boot:not(.boot-go) .hyper i { animation-play-state: paused; }
+      #boot .hyper i:nth-of-type(2) { animation-delay: -0.367s; --r: 40deg; }
+      #boot .hyper i:nth-of-type(3) { animation-delay: -0.733s; --r: 80deg; }
+      #boot .hyper b {
+        width: 140vmax;
+        height: 140vmax;
+        margin: -70vmax 0 0 -70vmax;
+        animation: boot-near 0.64s linear infinite;
+      }
+      #boot .hyper b:nth-of-type(2) { animation-delay: -0.32s; --r: 130deg; }
       @keyframes boot-warp {
         0% { transform: scale(0.35) rotate(var(--r, 0deg)); opacity: 0; }
         30% { opacity: 1; }
         80% { opacity: 0.9; }
         100% { transform: scale(1.4) rotate(var(--r, 0deg)); opacity: 0; }
       }
+      @keyframes boot-near {
+        0% { transform: scale(0.6) rotate(var(--r, 0deg)); opacity: 0; }
+        35% { opacity: 1; }
+        100% { transform: scale(2.1) rotate(var(--r, 0deg)); opacity: 0; }
+      }
+      #boot .core {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 44vmin;
+        height: 44vmin;
+        margin: -22vmin 0 0 -22vmin;
+        border-radius: 50%;
+        background: radial-gradient(circle, #fff 0%, rgba(215, 230, 255, 0.95) 6%, rgba(130, 165, 255, 0.55) 18%, rgba(90, 90, 255, 0.2) 40%, rgba(80, 80, 255, 0) 70%);
+        mix-blend-mode: screen;
+        animation: boot-core 0.9s ease-in-out infinite alternate;
+      }
+      @keyframes boot-core {
+        from { transform: scale(0.9); opacity: 0.8; }
+        to { transform: scale(1.12); opacity: 1; }
+      }
+      #boot:not(.boot-go) .hyper * { animation-play-state: paused; }
+      /* the kick at the launch: a ring of light bursting out from the centre */
+      #boot .burst {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 40vmax;
+        height: 40vmax;
+        margin: -20vmax 0 0 -20vmax;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(200, 225, 255, 0.35) 0%, rgba(255, 255, 255, 0) 40%, rgba(210, 230, 255, 0.85) 56%, rgba(120, 160, 255, 0.35) 63%, rgba(120, 160, 255, 0) 72%);
+        mix-blend-mode: screen;
+        opacity: 0;
+        pointer-events: none;
+      }
+      #boot.boot-go .burst {
+        animation: boot-burst 1000ms cubic-bezier(0.16, 1, 0.3, 1) 40ms both;
+      }
+      @keyframes boot-burst {
+        0% { transform: scale(0.1); opacity: 0; }
+        12% { opacity: 1; }
+        100% { transform: scale(4); opacity: 0; }
+      }
+
+      /* the deck: a faint reflection on the glass, and the frame lit blue by the tunnel */
+      #boot .glass {
+        background: linear-gradient(115deg, rgba(255, 255, 255, 0) 16%, rgba(200, 220, 255, 0.045) 23%, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0) 60%, rgba(200, 220, 255, 0.03) 63%, rgba(255, 255, 255, 0) 68%);
+      }
+      #boot .lit {
+        background: radial-gradient(ellipse 54% 54% at 50% 47%, rgba(90, 140, 255, 0) 76%, rgba(90, 140, 255, 0.34) 91%, rgba(90, 140, 255, 0.12) 104%, rgba(90, 140, 255, 0) 125%);
+        mix-blend-mode: screen;
+        opacity: 0;
+        transition: opacity 700ms ease-out 150ms;
+      }
 
       /* launch: the name goes, the planet falls away, the stars rush past, hyperspace comes up */
       #boot.boot-go .title {
         opacity: 0;
         filter: blur(8px);
+        transform: translateY(-50%) scale(1.15);
       }
-      #boot.boot-go .limb {
+      #boot.boot-go .planet {
         transform: translateY(40vh);
         opacity: 0;
       }
-      #boot.boot-go .sky {
+      #boot.boot-go .sky,
+      #boot.boot-go .glints {
         transform: scale(2.2);
         opacity: 0;
       }
       #boot.boot-go .hyper {
         opacity: 1;
       }
+      #boot.boot-go .lit {
+        opacity: 1;
+        animation: boot-lit 1.1s ease-in-out 900ms infinite alternate;
+      }
+      @keyframes boot-lit {
+        from { opacity: 1; }
+        to { opacity: 0.55; }
+      }
+      #boot.boot-go .ship {
+        animation: boot-rumble 150ms linear 300ms infinite;
+      }
+      @keyframes boot-rumble {
+        0%, 100% { transform: translate(0, 0); }
+        33% { transform: translate(0.7px, -0.5px); }
+        66% { transform: translate(-0.6px, 0.6px); }
+      }
 
-      /* the drive spools: hyperspace surges toward the eye, everything shakes, the light goes white */
+      /* the drive spools: hyperspace surges toward the eye, the core blooms, everything shakes, the light goes white */
       #boot .flash {
         background: #e4efff;
         opacity: 0;
@@ -236,6 +375,16 @@
       #boot.boot-spool .hyper {
         transform: scale(1.5);
         transition: opacity 500ms cubic-bezier(0.23, 1, 0.32, 1), transform 560ms cubic-bezier(0.55, 0, 1, 0.45);
+      }
+      #boot.boot-spool .core {
+        animation: boot-surge 560ms cubic-bezier(0.55, 0, 1, 0.45) forwards;
+      }
+      @keyframes boot-surge {
+        to { transform: scale(5); opacity: 1; }
+      }
+      #boot.boot-spool .lit {
+        animation: none;
+        opacity: 1;
       }
       #boot.boot-spool .space {
         animation: boot-shake 70ms linear infinite;
@@ -266,10 +415,11 @@
         opacity: 0;
       }
       @media (prefers-reduced-motion: reduce) {
-        #boot .hyper i { animation: none; opacity: 0.8; transform: scale(0.9); }
-        #boot .hyper i:nth-child(n + 2) { display: none; }
-        #boot .name, #boot .prompt, #boot .limb { animation: none; }
-        #boot.boot-spool .space { animation: none; }
+        #boot .hyper i, #boot .hyper b { animation: none; opacity: 0.8; transform: scale(0.9); }
+        #boot .hyper i:nth-of-type(n + 2), #boot .hyper b { display: none; }
+        #boot .swirl, #boot .core, #boot .glint, #boot.boot-go .burst, #boot.boot-go .ship, #boot.boot-go .lit { animation: none; }
+        #boot .name, #boot .prompt, #boot .planet, #boot .sun, #boot .flare, #boot .ghosts { animation: none; }
+        #boot.boot-spool .space, #boot.boot-spool .core { animation: none; }
       }
     </style>
   </head>
@@ -294,9 +444,26 @@
     <div id="boot" role="status">
       <div class="space" aria-hidden="true">
         <canvas class="sky"></canvas>
-        <div class="limb"></div>
-        <div class="hyper"><i></i><i></i><i></i></div>
-        <canvas class="deck"></canvas>
+        <div class="glints"></div>
+        <div class="planet">
+          <div class="sun"></div>
+          <canvas class="world"></canvas>
+          <div class="ghosts"></div>
+          <div class="flare"></div>
+        </div>
+        <div class="hyper">
+          <div class="swirl"></div>
+          <div class="swirl b"></div>
+          <i></i><i></i><i></i>
+          <b></b><b></b>
+          <div class="core"></div>
+        </div>
+        <div class="burst"></div>
+        <div class="ship">
+          <div class="glass"></div>
+          <canvas class="deck"></canvas>
+          <div class="lit"></div>
+        </div>
       </div>
       <h1 class="title">
         <span class="name">John Mannully</span>
@@ -310,34 +477,59 @@
       (function () {
         var boot = document.getElementById('boot');
 
-        // draw the streak field once; CSS zooms the copies
-        try {
-          var N = 512;
-          var cv = document.createElement('canvas');
-          cv.width = cv.height = N;
-          var g = cv.getContext('2d');
-          var c = N / 2;
-          g.lineCap = 'round';
-          for (var i = 0; i < 260; i += 1) {
-            var a = Math.random() * 6.2832;
-            var r0 = c * (0.05 + Math.pow(Math.random(), 0.8) * 0.85);
-            var len = c * (0.05 + 0.26 * (r0 / c));
-            var k = 0.35 + 0.65 * (r0 / c);
-            g.strokeStyle = 'rgba(235, 244, 255, ' + (0.9 * k).toFixed(3) + ')';
-            g.lineWidth = 0.6 + 1.5 * k;
-            g.beginPath();
-            g.moveTo(c + Math.cos(a) * r0, c + Math.sin(a) * r0);
-            g.lineTo(c + Math.cos(a) * (r0 + len), c + Math.sin(a) * (r0 + len));
-            g.stroke();
-          }
-          var url = 'url(' + cv.toDataURL('image/png') + ')';
-          var layers = boot.querySelectorAll('.hyper i');
-          for (var j = 0; j < layers.length; j += 1) layers[j].style.backgroundImage = url;
-        } catch (e) {
-          /* no canvas: the glow alone */
-        }
+        var rnd = Math.random;
+        // roughly normal, mean 0, spread about 1
+        var gauss = function () { return (rnd() + rnd() + rnd() + rnd() - 2) * 1.7; };
+        var pick = function (list) { return list[Math.floor(rnd() * list.length)]; };
 
-        // the stars: mostly faint pinpricks, a few brighter and slightly warm or cool
+        // hyperspace streaks, drawn once each with a fading tail and a soft bloom; CSS zooms the copies.
+        // They are only seen after the launch, so the image is encoded off the critical path.
+        var streaks = function (size, count, near, els) {
+          try {
+            var cv = document.createElement('canvas');
+            cv.width = cv.height = size;
+            var g = cv.getContext('2d');
+            var c = size / 2;
+            var tints = ['205, 222, 255', '205, 222, 255', '170, 200, 255', '150, 190, 255', '120, 225, 255', '190, 165, 255', '255, 255, 255'];
+            g.lineCap = 'round';
+            for (var i = 0; i < count; i += 1) {
+              var a = rnd() * 6.2832;
+              var f = near ? 0.4 + rnd() * 0.55 : 0.05 + Math.pow(rnd(), 0.8) * 0.85;
+              var r0 = c * f;
+              var len = c * (near ? 0.18 + rnd() * 0.25 : 0.05 + 0.26 * f);
+              var k = near ? 0.7 + rnd() * 0.3 : 0.35 + 0.65 * f;
+              var tint = pick(tints);
+              var x0 = c + Math.cos(a) * r0, y0 = c + Math.sin(a) * r0;
+              var x1 = c + Math.cos(a) * (r0 + len), y1 = c + Math.sin(a) * (r0 + len);
+              var w = (near ? 1.6 + rnd() * 2.2 : 0.6 + 1.5 * k) * (size / 512);
+              for (var pass = 0; pass < 2; pass += 1) {
+                var grad = g.createLinearGradient(x0, y0, x1, y1);
+                var al = pass ? 0.95 * k : 0.1 * k;
+                grad.addColorStop(0, 'rgba(' + tint + ', 0)');
+                grad.addColorStop(0.75, 'rgba(' + tint + ', ' + (al * 0.8).toFixed(3) + ')');
+                grad.addColorStop(1, 'rgba(255, 255, 255, ' + al.toFixed(3) + ')');
+                g.strokeStyle = grad;
+                g.lineCap = pass ? 'round' : 'butt';
+                g.lineWidth = pass ? w : w * 3;
+                g.beginPath();
+                g.moveTo(x0, y0);
+                g.lineTo(x1, y1);
+                g.stroke();
+              }
+            }
+            var apply = function (src) {
+              for (var j = 0; j < els.length; j += 1) els[j].style.backgroundImage = 'url(' + src + ')';
+            };
+            if (cv.toBlob) cv.toBlob(function (b) { apply(b ? URL.createObjectURL(b) : cv.toDataURL()); });
+            else apply(cv.toDataURL());
+          } catch (e) {
+            /* no canvas: the tunnel alone */
+          }
+        };
+        streaks(1024, 300, false, boot.querySelectorAll('.hyper i'));
+        streaks(1024, 70, true, boot.querySelectorAll('.hyper b'));
+
+        // the sky: a band of the Milky Way with its glow and dust, then stars in their real colours
         var sky = boot.querySelector('.sky');
         var drawSky = function () {
           try {
@@ -347,19 +539,212 @@
             sky.height = Math.round(H * dpr);
             var s = sky.getContext('2d');
             s.setTransform(dpr, 0, 0, dpr, 0, 0);
-            var n = Math.round((W * H) / 2600);
+            var ax = -0.1 * W, ay = 0.9 * H, dx = 1.2 * W, dy = -0.88 * H;
+            var L = Math.hypot(dx, dy), nx = -dy / L, ny = dx / L;
+            var bw = 0.1 * Math.min(W, H) + 0.04 * Math.max(W, H);
+            var at = function (t, o) { return [ax + dx * t + nx * o, ay + dy * t + ny * o]; };
+            var blob = function (p, r, col) {
+              var gr = s.createRadialGradient(p[0], p[1], 0, p[0], p[1], r);
+              gr.addColorStop(0, col);
+              gr.addColorStop(1, 'rgba(0, 0, 0, 0)');
+              s.fillStyle = gr;
+              s.fillRect(p[0] - r, p[1] - r, r * 2, r * 2);
+            };
+            s.globalCompositeOperation = 'lighter';
+            var glow = ['150, 175, 255', '185, 180, 255', '255, 200, 215', '170, 210, 255', '255, 225, 200'];
+            for (var i = 0; i < 80; i += 1) {
+              blob(at(rnd(), gauss() * bw * 0.3), bw * (0.4 + rnd() * 0.9), 'rgba(' + pick(glow) + ', ' + (0.035 + rnd() * 0.04).toFixed(3) + ')');
+            }
+            var n = Math.round((W * H) / 650);
             for (var q = 0; q < n; q += 1) {
-              var b = Math.pow(Math.random(), 3);
-              var tint = Math.random() < 0.5 ? '205, 220, 255' : '255, 236, 214';
-              s.fillStyle = 'rgba(' + tint + ', ' + (0.12 + b * 0.85).toFixed(2) + ')';
+              var p = at(rnd(), gauss() * bw * 0.3);
+              s.fillStyle = 'rgba(215, 225, 255, ' + (0.12 + rnd() * 0.4).toFixed(2) + ')';
+              var z = 0.5 + rnd() * 0.7;
+              s.fillRect(p[0], p[1], z, z);
+            }
+            s.globalCompositeOperation = 'source-over';
+            for (var d = 0; d < 46; d += 1) {
+              blob(at(rnd(), gauss() * bw * 0.1), bw * (0.12 + rnd() * 0.3), 'rgba(2, 4, 10, ' + (0.3 + rnd() * 0.3).toFixed(2) + ')');
+            }
+            var tints = ['165, 190, 255', '165, 190, 255', '215, 225, 255', '235, 238, 255', '235, 238, 255', '255, 244, 220', '255, 214, 170', '255, 170, 150'];
+            var m = Math.round((W * H) / 2200);
+            for (var t = 0; t < m; t += 1) {
+              var b = Math.pow(rnd(), 3);
+              s.fillStyle = 'rgba(' + pick(tints) + ', ' + (0.15 + b * 0.85).toFixed(2) + ')';
               s.beginPath();
-              s.arc(Math.random() * W, Math.random() * H, 0.35 + b * 0.9, 0, 6.2832);
+              s.arc(rnd() * W, rnd() * H, 0.35 + b * 1.0, 0, 6.2832);
               s.fill();
             }
           } catch (e) {
             /* no canvas: plain black */
           }
         };
+
+        // a few bright stars that glint, each its own small canvas twinkling on its own beat
+        var glints = boot.querySelector('.glints');
+        var drawGlints = function () {
+          glints.innerHTML = '';
+          var tints = ['200, 220, 255', '255, 240, 220', '180, 205, 255', '255, 225, 200'];
+          for (var i = 0; i < 12; i += 1) {
+            var x = 8 + rnd() * 84, y = 8 + rnd() * 52;
+            // keep the name clear
+            if (y > 26 && y < 52 && x > 14 && x < 86) { i -= 1; continue; }
+            try {
+              var cv = document.createElement('canvas');
+              cv.className = 'glint';
+              cv.width = cv.height = 80;
+              var g = cv.getContext('2d');
+              var tint = pick(tints);
+              var core = g.createRadialGradient(40, 40, 0, 40, 40, 7);
+              core.addColorStop(0, 'rgba(255, 255, 255, 1)');
+              core.addColorStop(0.3, 'rgba(' + tint + ', 0.6)');
+              core.addColorStop(1, 'rgba(' + tint + ', 0)');
+              g.fillStyle = core;
+              g.fillRect(0, 0, 80, 80);
+              var len = 18 + rnd() * 20;
+              for (var k = 0; k < 2; k += 1) {
+                var sp = k ? g.createLinearGradient(40, 40 - len, 40, 40 + len) : g.createLinearGradient(40 - len, 40, 40 + len, 40);
+                sp.addColorStop(0, 'rgba(' + tint + ', 0)');
+                sp.addColorStop(0.5, 'rgba(255, 255, 255, 0.85)');
+                sp.addColorStop(1, 'rgba(' + tint + ', 0)');
+                g.fillStyle = sp;
+                if (k) g.fillRect(39.2, 40 - len, 1.6, len * 2);
+                else g.fillRect(40 - len, 39.2, len * 2, 1.6);
+              }
+              cv.style.left = x + '%';
+              cv.style.top = y + '%';
+              cv.style.animationDuration = (2.6 + rnd() * 3.4).toFixed(2) + 's';
+              cv.style.animationDelay = (-rnd() * 6).toFixed(2) + 's';
+              glints.appendChild(cv);
+            } catch (e) {
+              return;
+            }
+          }
+        };
+
+        // the planet's night side below the window: a dark disc whose rim sits at 64% of the height,
+        // cities glowing in clusters and along roads (flattened toward the horizon, gone where the sun
+        // is coming up), dark cloud with moonlit edges, and over the rim the atmosphere: a blue haze,
+        // a thin green airglow line and an orange dawn band either side of the sun
+        var world = boot.querySelector('.world');
+        var drawWorld = function () {
+          try {
+            var dpr = Math.min(2, window.devicePixelRatio || 1);
+            var W = window.innerWidth, H = window.innerHeight;
+            world.width = Math.round(W * dpr);
+            world.height = Math.round(H * dpr);
+            var g = world.getContext('2d');
+            g.setTransform(dpr, 0, 0, dpr, 0, 0);
+            var y0 = 0.64 * H, R = 1.2 * Math.max(W, H), cx = W / 2, cy = y0 + R;
+            var rim = function (x) { return cy - Math.sqrt(Math.max(0, R * R - (x - cx) * (x - cx))); };
+            var disc = function () { g.beginPath(); g.arc(cx, cy, R, 0, 6.2832); };
+            var oval = function (x, y, rx, ry, col) {
+              g.save();
+              g.translate(x, y);
+              g.scale(1, ry / rx);
+              var gr = g.createRadialGradient(0, 0, 0, 0, 0, rx);
+              gr.addColorStop(0, col);
+              gr.addColorStop(1, 'rgba(0, 0, 0, 0)');
+              g.fillStyle = gr;
+              g.fillRect(-rx, -rx, rx * 2, rx * 2);
+              g.restore();
+            };
+
+            // the atmosphere's haze above the rim
+            var haze = g.createRadialGradient(cx, cy, R, cx, cy, R + 0.07 * H);
+            haze.addColorStop(0, 'rgba(80, 140, 255, 0.34)');
+            haze.addColorStop(0.35, 'rgba(50, 100, 255, 0.1)');
+            haze.addColorStop(1, 'rgba(40, 80, 255, 0)');
+            g.fillStyle = haze;
+            g.fillRect(0, 0, W, H);
+
+            // the disc: night, with twilight near the sun and blue scattering along the rim
+            g.save();
+            disc();
+            g.fillStyle = '#03050b';
+            g.fill();
+            g.clip();
+            var edge = g.createRadialGradient(cx, cy, R - 0.05 * H, cx, cy, R);
+            edge.addColorStop(0, 'rgba(50, 100, 220, 0)');
+            edge.addColorStop(1, 'rgba(60, 110, 230, 0.3)');
+            g.fillStyle = edge;
+            g.fillRect(0, 0, W, H);
+            oval(cx, y0, 0.55 * W, 0.2 * H, 'rgba(80, 100, 170, 0.3)');
+            oval(cx, y0, 0.22 * W, 0.06 * H, 'rgba(255, 150, 90, 0.35)');
+
+            // cities
+            g.globalCompositeOperation = 'lighter';
+            var warm = ['255, 190, 110', '255, 190, 110', '255, 205, 140', '255, 230, 185', '255, 170, 90'];
+            var spots = [];
+            for (var c = 0; c < 110; c += 1) {
+              var x = rnd() * W, yr = rim(x), t = Math.pow(rnd(), 0.75);
+              var y = yr + 3 + t * (H - yr);
+              var flat = 0.12 + 0.55 * t;
+              var dawn = Math.min(1, Math.abs(x - cx) / (0.17 * W));
+              var fade = Math.pow(dawn, 1.5) * Math.min(1, (y - yr) / (0.02 * H + 1));
+              if (fade < 0.05) continue;
+              var size = (5 + rnd() * 22) * (0.5 + t);
+              spots.push([x, y, flat, fade, size]);
+              oval(x, y, size * 2, size * 2 * flat, 'rgba(255, 160, 80, ' + (0.12 * fade).toFixed(3) + ')');
+              var dots = Math.round((25 + rnd() * 110) * (0.5 + t));
+              for (var k = 0; k < dots; k += 1) {
+                var z = 0.4 + rnd() * 0.9;
+                g.fillStyle = 'rgba(' + pick(warm) + ', ' + ((0.35 + rnd() * 0.65) * fade).toFixed(2) + ')';
+                g.fillRect(x + gauss() * size * 0.5, y + gauss() * size * 0.5 * flat, z, z);
+              }
+            }
+            // roads between neighbouring cities
+            for (var r = 1; r < spots.length; r += 1) {
+              var A = spots[r - 1], B = spots[r];
+              if (Math.hypot(A[0] - B[0], A[1] - B[1]) > 0.25 * W || rnd() < 0.4) continue;
+              var steps = 30 + Math.round(rnd() * 30), f2 = Math.min(A[3], B[3]);
+              for (var u = 0; u < steps; u += 1) {
+                var v = u / steps;
+                g.fillStyle = 'rgba(255, 190, 120, ' + ((0.12 + rnd() * 0.3) * f2).toFixed(2) + ')';
+                g.fillRect(A[0] + (B[0] - A[0]) * v + gauss() * 1.5, A[1] + (B[1] - A[1]) * v + gauss() * 1.5 * A[2], 0.7, 0.7);
+              }
+            }
+            // cloud: dark banks over the lights, their tops catching the moon
+            for (var cl = 0; cl < 34; cl += 1) {
+              var qx = rnd() * W, qr = rim(qx), qt = rnd();
+              var qy = qr + 6 + qt * (H - qr), qf = 0.1 + 0.5 * qt, qs = (30 + rnd() * 140) * (0.5 + qt);
+              g.globalCompositeOperation = 'source-over';
+              oval(qx, qy, qs, qs * qf, 'rgba(3, 5, 11, 0.6)');
+              g.globalCompositeOperation = 'lighter';
+              oval(qx, qy - 2, qs * 0.8, qs * qf * 0.6, 'rgba(110, 130, 175, 0.05)');
+            }
+            g.restore();
+
+            // the rim: dawn glow either side of the sun, the bright limb, the green airglow just above it
+            g.globalCompositeOperation = 'lighter';
+            oval(cx, y0, 0.5 * W, 0.05 * H, 'rgba(120, 170, 255, 0.3)');
+            oval(cx, y0, 0.28 * W, 0.022 * H, 'rgba(255, 165, 95, 0.6)');
+            g.globalCompositeOperation = 'source-over';
+            var line = g.createLinearGradient(0, 0, W, 0);
+            line.addColorStop(0, 'rgba(120, 170, 255, 0.45)');
+            line.addColorStop(0.36, 'rgba(190, 215, 255, 0.85)');
+            line.addColorStop(0.5, 'rgba(255, 246, 232, 1)');
+            line.addColorStop(0.64, 'rgba(190, 215, 255, 0.85)');
+            line.addColorStop(1, 'rgba(120, 170, 255, 0.45)');
+            g.shadowColor = 'rgba(110, 170, 255, 0.9)';
+            g.shadowBlur = 12;
+            g.strokeStyle = line;
+            g.lineWidth = 1.5;
+            disc();
+            g.stroke();
+            g.shadowColor = 'rgba(110, 255, 170, 0.6)';
+            g.shadowBlur = 6;
+            g.strokeStyle = 'rgba(120, 255, 175, 0.16)';
+            g.lineWidth = 1.5;
+            g.beginPath();
+            g.arc(cx, cy, R + Math.max(3, 0.006 * H), 0, 6.2832);
+            g.stroke();
+            g.shadowBlur = 0;
+          } catch (e) {
+            /* no canvas: the sky alone */
+          }
+        };
+
         // the deck around the window, as the 3D cockpit draws it at rest (src/scenes/ship/shape.ts and
         // Cockpit.tsx): outlines in frame units, where x / 0.6 and y / 0.6 are screen coordinates (-1..1)
         var deck = boot.querySelector('.deck');
@@ -525,12 +910,12 @@
           }
         };
 
-        drawSky();
-        drawDeck();
+        var drawAll = function () { drawSky(); drawGlints(); drawWorld(); drawDeck(); };
+        drawAll();
         var resized = 0;
         window.addEventListener('resize', function () {
           clearTimeout(resized);
-          resized = setTimeout(function () { if (boot.isConnected) { drawSky(); drawDeck(); } }, 150);
+          resized = setTimeout(function () { if (boot.isConnected) drawAll(); }, 150);
         });
 
         // a link to a planet or the reader, or reduced motion: no launch, the loader just fades
