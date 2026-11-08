@@ -3,13 +3,15 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useAppStore } from '@/state/useAppStore';
 import { dragLook, flight, warpFx } from '@/state/runtime';
-import { endBoot, onBootReveal } from '@/ui/boot';
+import { departedAt, endBoot, onBootReveal } from '@/ui/boot';
 import { shipSound, warpHum } from '@/audio/drone';
 import { responsiveFov } from './TelescopeCamera';
 
 /*
- * The site opens in hyperspace, seen from the observation deck. The loader's
- * painted hyperspace hands over to this one once the scene is drawing; the
+ * The visitor departs from Earth with a key or tap, and the site opens in
+ * hyperspace, seen from the observation deck. The loader's painted hyperspace
+ * hands over to this one once the scene is drawing (and the visitor has
+ * departed); the
  * drive spools up, and the ship drops out in a flash into the system, the lens
  * snapping back and the deck shuddering. The HUD fades up as the flash clears.
  * A click, tap or key in hyperspace drops out straight away.
@@ -18,7 +20,7 @@ import { responsiveFov } from './TelescopeCamera';
 
 /** Shortest stretch of hyperspace once the scene is up */
 const RUN_MS = 1200;
-/** A cached visit is up in no time: the whole jump lasts at least this long from navigation */
+/** A cached visit is up in no time: the whole jump lasts at least this long from the departure */
 const MIN_TOTAL_MS = 2600;
 /** Asked to drop out: this long for the roar to swell in first */
 const SKIP_MS = 450;
@@ -216,7 +218,7 @@ const Warp = () => {
       }
       const now = performance.now();
       s.start = now;
-      s.runEnd = Math.max(RUN_MS, MIN_TOTAL_MS - now);
+      s.runEnd = Math.max(RUN_MS, MIN_TOTAL_MS - (now - departedAt()));
     });
     // anyone in a hurry drops out now (the same press unlocks the sound for the drop)
     const skip = () => {
@@ -258,7 +260,7 @@ const Warp = () => {
     dragLook.pitch = 0;
 
     // sound needs a gesture first: the roar starts whenever audio becomes available in hyperspace
-    if (!s.hum && s.phase < 2) s.hum = warpHum();
+    if (!s.hum && s.phase < 2 && departedAt() > 0) s.hum = warpHum();
 
     let gain = 1;
     let speed = SPEED;

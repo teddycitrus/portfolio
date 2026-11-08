@@ -44,11 +44,14 @@
     </script>
     <style>
       /*
-       * The loader is the view from the observation deck in hyperspace, drawn
-       * before any script runs. The window sits exactly where the 3D cockpit
-       * puts it (the outline in src/scenes/ship/shape.ts, in screen space), so
-       * when the scene takes over the two views line up and only the light
-       * changes. Window corners in screen percent: x = 50 + 50 * nx, y = 50 - 50 * ny.
+       * The loader is the view from the observation deck, drawn before the app
+       * loads: the ship waits in orbit over Earth, ready to depart. Any key or
+       * tap departs (and, being a gesture, lets the sound play): hyperspace
+       * comes up in the window until the 3D scene takes over. The window sits
+       * exactly where the 3D cockpit puts it (the outline in
+       * src/scenes/ship/shape.ts, in screen space), so when the scene takes over
+       * the two views line up. Window corners in screen percent:
+       * x = 50 + 50 * nx, y = 50 - 50 * ny.
        */
       #boot {
         --hud: 191, 230, 255;
@@ -81,7 +84,79 @@
       #boot .win {
         clip-path: var(--win);
         overflow: hidden;
+        background: #02040a;
+      }
+      /* Earth below the window, drawn once to a canvas; it falls away as the ship departs */
+      #boot .earth {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        transform-origin: 50% 100%;
+        transition: opacity 700ms cubic-bezier(0.23, 1, 0.32, 1), transform 900ms cubic-bezier(0.55, 0, 0.75, 0.2);
+      }
+      #boot .hyper {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
         background: radial-gradient(circle at 50% 50%, #dfeaff 0%, #7d9ff0 6%, #3a5cb8 22%, #1d3170 48%, #0d1838 100%);
+        transition: opacity 600ms cubic-bezier(0.23, 1, 0.32, 1) 120ms;
+      }
+      #boot.boot-go .earth {
+        opacity: 0;
+        transform: scale(0.82) translateY(6%);
+      }
+      #boot.boot-go .hyper {
+        opacity: 1;
+      }
+      #boot:not(.boot-go) .hyper i {
+        animation-play-state: paused;
+      }
+      /* the call to depart, on the glass above Earth */
+      #boot .depart {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 36%;
+        margin: 0;
+        text-align: center;
+        text-transform: uppercase;
+        text-shadow: 0 0 10px rgba(110, 190, 255, 0.6);
+        animation: boot-in 600ms cubic-bezier(0.23, 1, 0.32, 1) 200ms backwards;
+        transition: opacity 200ms ease-out;
+      }
+      #boot .depart span {
+        display: block;
+      }
+      #boot .ready {
+        font-size: 12px;
+        font-weight: 500;
+        letter-spacing: 0.34em;
+        color: rgba(var(--hud), 0.75);
+      }
+      #boot .press {
+        margin-top: 14px;
+        font-size: 18px;
+        font-weight: 500;
+        letter-spacing: 0.22em;
+        color: #fff;
+        animation: boot-call 1.8s ease-in-out infinite;
+      }
+      #boot .press .coarse { display: none; }
+      @media (pointer: coarse) {
+        #boot .press .fine { display: none; }
+        #boot .press .coarse { display: inline; }
+      }
+      @keyframes boot-in {
+        from { opacity: 0; transform: translateY(6px); }
+      }
+      @keyframes boot-call {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+      }
+      #boot.boot-go .depart,
+      #boot.boot-direct .depart {
+        opacity: 0;
       }
       /*
        * Hyperspace: one field of streaks drawn once, in three copies zooming out
@@ -119,6 +194,7 @@
       @media (prefers-reduced-motion: reduce) {
         #boot .win i { animation: none; opacity: 0.8; transform: scale(0.9); }
         #boot .win i:nth-child(n + 2) { display: none; }
+        #boot .press { animation: none; }
       }
     </style>
   </head>
@@ -140,15 +216,19 @@
         <p>This site needs JavaScript and WebGL for the interactive version.</p>
       </main>
     </noscript>
-    <div id="boot" role="status" aria-label="Loading">
+    <div id="boot" role="status">
       <div class="deck" aria-hidden="true">
         <div class="rim"></div>
-        <div class="win"><i></i><i></i><i></i></div>
+        <div class="win"><canvas class="earth"></canvas><div class="hyper"><i></i><i></i><i></i></div></div>
       </div>
+      <p class="depart">
+        <span class="ready">Ready to depart</span>
+        <span class="press"><span class="fine">Press any key</span><span class="coarse">Tap to depart</span></span>
+      </p>
     </div>
     <script>
-      // The loader: hyperspace past the deck window. It runs before the app bundle; once the scene
-      // is drawing under it, the app stops it through window.__nav.
+      // The loader: Earth through the deck window, then hyperspace once a key or tap departs. It runs
+      // before the app bundle; the app waits for the departure and stops it through window.__nav.
       (function () {
         var boot = document.getElementById('boot');
 
@@ -173,13 +253,132 @@
             g.stroke();
           }
           var url = 'url(' + cv.toDataURL('image/png') + ')';
-          var layers = boot.querySelectorAll('.win i');
+          var layers = boot.querySelectorAll('.hyper i');
           for (var j = 0; j < layers.length; j += 1) layers[j].style.backgroundImage = url;
         } catch (e) {
           /* no canvas: the glow alone */
         }
 
+        // Earth from orbit: ocean, land and cloud, lit from the upper left, with its atmosphere
+        var earth = boot.querySelector('.earth');
+        var seed = 7;
+        var rnd = function () { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+        var drawEarth = function () {
+          try {
+            var dpr = Math.min(2, window.devicePixelRatio || 1);
+            var W = window.innerWidth, H = window.innerHeight;
+            earth.width = Math.round(W * dpr);
+            earth.height = Math.round(H * dpr);
+            var g = earth.getContext('2d');
+            g.setTransform(dpr, 0, 0, dpr, 0, 0);
+            seed = 7;
+            for (var i = 0; i < 260; i += 1) {
+              g.fillStyle = 'rgba(230, 238, 255, ' + (0.25 + rnd() * 0.65).toFixed(2) + ')';
+              var sr = rnd() < 0.08 ? 1.3 : 0.7;
+              g.fillRect(rnd() * W, rnd() * H, sr, sr);
+            }
+            var R = Math.max(W * 0.55, H * 0.75);
+            var cx = W * 0.5, cy = H * 0.56 + R;
+            var halo = g.createRadialGradient(cx, cy, R * 0.98, cx, cy, R * 1.09);
+            halo.addColorStop(0, 'rgba(120, 180, 255, 0.55)');
+            halo.addColorStop(1, 'rgba(120, 180, 255, 0)');
+            g.fillStyle = halo;
+            g.fillRect(0, 0, W, H);
+            g.save();
+            g.beginPath();
+            g.arc(cx, cy, R, 0, 6.2832);
+            g.clip();
+            var sea = g.createLinearGradient(0, cy - R, 0, cy - R * 0.6);
+            sea.addColorStop(0, '#2d6fc4');
+            sea.addColorStop(1, '#0d2c5e');
+            g.fillStyle = sea;
+            g.fillRect(cx - R, cy - R, R * 2, R * 2);
+            // a point on the visible cap: angle around the centre and depth in from the limb; things
+            // near the limb are squashed toward it, as on a sphere seen edge on
+            var spot = function (a, depth, r, color, stretch) {
+              var d = R - depth;
+              var k = Math.max(0.12, Math.sqrt(1 - (d / R) * (d / R)));
+              g.fillStyle = color;
+              g.beginPath();
+              g.ellipse(cx + Math.cos(a) * d, cy + Math.sin(a) * d, r * stretch, r * k, a + 1.5708, 0, 6.2832);
+              g.fill();
+            };
+            // land: a few continents, each a random walk of small patches
+            for (var c = 0; c < 9; c += 1) {
+              var ca = -1.5708 + (rnd() - 0.5) * 2.0;
+              var cd = R * (0.02 + rnd() * 0.2);
+              var tint = ['rgba(70, 118, 62, 0.85)', 'rgba(96, 120, 70, 0.85)', 'rgba(140, 126, 88, 0.8)'][c % 3];
+              for (var k2 = 0; k2 < 60; k2 += 1) {
+                ca += (rnd() - 0.5) * 0.035;
+                cd = Math.min(R * 0.3, Math.max(R * 0.005, cd + (rnd() - 0.5) * R * 0.02));
+                spot(ca, cd, R * (0.008 + rnd() * 0.02), tint, 1);
+              }
+            }
+            // cloud: long thin bands along the latitudes
+            for (var m = 0; m < 70; m += 1) {
+              spot(-1.5708 + (rnd() - 0.5) * 2.1, R * rnd() * 0.3, R * (0.006 + rnd() * 0.014),
+                'rgba(245, 249, 255, ' + (0.18 + rnd() * 0.3).toFixed(2) + ')', 3 + rnd() * 4);
+            }
+            var shade = g.createLinearGradient(cx - R * 0.5, cy - R, cx + R * 0.6, cy - R * 0.5);
+            shade.addColorStop(0, 'rgba(2, 4, 10, 0)');
+            shade.addColorStop(1, 'rgba(2, 4, 10, 0.85)');
+            g.fillStyle = shade;
+            g.fillRect(cx - R, cy - R, R * 2, R * 2);
+            g.restore();
+            g.strokeStyle = 'rgba(170, 215, 255, 0.7)';
+            g.lineWidth = 1.5;
+            g.beginPath();
+            g.arc(cx, cy, R, 3.6, 5.4);
+            g.stroke();
+          } catch (e) {
+            /* no canvas: the window stays dark */
+          }
+        };
+        drawEarth();
+        var resized = 0;
+        window.addEventListener('resize', function () {
+          clearTimeout(resized);
+          resized = setTimeout(function () { if (boot.isConnected) drawEarth(); }, 120);
+        });
+
+        // a link to a planet or the reader, or reduced motion: no departure, the loader just fades
+        var direct = !!location.hash.replace(/^#\/?/, '') ||
+          (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        if (direct) boot.classList.add('boot-direct');
+
+        // any key or tap departs; the same gesture lets the warp be heard
+        var departed = false;
+        var queue = [];
+        var depart = function (e) {
+          if (departed || direct) return;
+          if (e.type === 'keydown') {
+            if (e.metaKey || e.ctrlKey || e.altKey || /^(Tab|Shift|Control|Alt|Meta|CapsLock)$/.test(e.key)) return;
+            if (e.key === ' ') e.preventDefault();
+          }
+          departed = true;
+          window.__nav.departedAt = performance.now();
+          try {
+            var AC = window.AudioContext || window.webkitAudioContext;
+            if (AC) {
+              var ac = new AC();
+              ac.resume();
+              window.__bootAudio = ac;
+            }
+          } catch (err) {
+            /* no audio: the warp is silent */
+          }
+          boot.classList.add('boot-go');
+          window.removeEventListener('keydown', depart, true);
+          window.removeEventListener('pointerdown', depart, true);
+          for (var q = 0; q < queue.length; q += 1) queue[q]();
+          queue = [];
+        };
+        window.addEventListener('keydown', depart, true);
+        window.addEventListener('pointerdown', depart, true);
+
         window.__nav = {
+          departedAt: 0,
+          onDepart: function (fn) { if (departed) fn(); else queue.push(fn); },
           stopDrawing: function () {
             var w = boot.querySelector('.deck');
             if (w) w.style.display = 'none';

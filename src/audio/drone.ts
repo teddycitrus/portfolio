@@ -158,7 +158,8 @@ const impulse = (c: AudioContext, seconds: number) => {
 const build = () => {
   const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!AC) return false;
-  ctx = new AC();
+  // the loader makes one on the departure, inside the gesture, so it is already allowed to play
+  ctx = (window as unknown as { __bootAudio?: AudioContext }).__bootAudio ?? new AC();
   const comp = ctx.createDynamicsCompressor();
   comp.threshold.value = -20;
   comp.ratio.value = 3;
@@ -420,9 +421,8 @@ export const initDrone = () => {
   };
   window.addEventListener('pointerdown', onGesture, true);
   window.addEventListener('keydown', onGesture, true);
-  // try straight away: a browser that allows sound without a click (a site you have
-  // played sound on before, or autoplay allowed in its settings) plays the warp from the first frame
-  onGesture();
+  // departed before the bundle was here: that gesture already unlocked the loader's audio
+  if ((window as unknown as { __bootAudio?: AudioContext }).__bootAudio) onGesture();
   document.addEventListener('visibilitychange', () => {
     if (!ctx) return;
     if (document.hidden) void ctx.suspend();
