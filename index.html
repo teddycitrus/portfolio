@@ -45,9 +45,10 @@
     </script>
     <style>
       /*
-       * The loader, drawn before the app loads: black space, a field of stars,
-       * a planet's night side along the foot of the screen with only its
-       * atmosphere lit, and the name. Any key or tap launches (and, being a
+       * The loader, drawn before the app loads: the observation deck around the
+       * viewer (painted to match the 3D cockpit, which lines up under it), and
+       * through its window black space, a field of stars, a planet's night side
+       * with only its atmosphere lit, and the name. Any key or tap launches (and, being a
        * gesture, lets the sound play): the planet falls away, the stars stretch
        * and hyperspace fills the screen for the whole jump, so nothing that
        * loads later cuts into it. The app spools it up into a white flash and
@@ -82,6 +83,12 @@
         position: absolute;
         inset: 0;
       }
+      #boot .deck {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
       #boot .sky {
         width: 100%;
         height: 100%;
@@ -91,7 +98,7 @@
       #boot .limb {
         position: absolute;
         left: 50%;
-        top: calc(100% - 17vmin);
+        top: 64%;
         width: 240vmax;
         height: 240vmax;
         margin-left: -120vmax;
@@ -289,6 +296,7 @@
         <canvas class="sky"></canvas>
         <div class="limb"></div>
         <div class="hyper"><i></i><i></i><i></i></div>
+        <canvas class="deck"></canvas>
       </div>
       <h1 class="title">
         <span class="name">John Mannully</span>
@@ -352,11 +360,177 @@
             /* no canvas: plain black */
           }
         };
+        // the deck around the window, as the 3D cockpit draws it at rest (src/scenes/ship/shape.ts and
+        // Cockpit.tsx): outlines in frame units, where x / 0.6 and y / 0.6 are screen coordinates (-1..1)
+        var deck = boot.querySelector('.deck');
+        var D = 0.6;
+        var corners = [[-0.78, 0.8], [0.78, 0.8], [0.9, 0.64], [0.9, -0.46], [0.6, -0.7], [-0.6, -0.7], [-0.9, -0.46], [-0.9, 0.64]];
+        var round = function (pts, rr) {
+          var out = [];
+          for (var i = 0; i < pts.length; i += 1) {
+            var p = pts[i], a = pts[(i - 1 + pts.length) % pts.length], b = pts[(i + 1) % pts.length];
+            var la = Math.hypot(a[0] - p[0], a[1] - p[1]), lb = Math.hypot(b[0] - p[0], b[1] - p[1]);
+            var ra = Math.min(rr, la / 2) / la, rb = Math.min(rr, lb / 2) / lb;
+            var s0 = [p[0] + (a[0] - p[0]) * ra, p[1] + (a[1] - p[1]) * ra];
+            var e0 = [p[0] + (b[0] - p[0]) * rb, p[1] + (b[1] - p[1]) * rb];
+            for (var k = 0; k <= 5; k += 1) {
+              var t = k / 5, u = 1 - t;
+              out.push([u * u * s0[0] + 2 * u * t * p[0] + t * t * e0[0], u * u * s0[1] + 2 * u * t * p[1] + t * t * e0[1]]);
+            }
+          }
+          return out;
+        };
+        var hole = round(corners.slice().reverse(), 0.045).map(function (q) { return [q[0] * D, q[1] * D]; });
+        var grow = function (pts, d) {
+          var n = pts.length;
+          var normal = function (i) {
+            var a = pts[i], b = pts[(i + 1) % n];
+            var l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+            return [(b[1] - a[1]) / l, -(b[0] - a[0]) / l];
+          };
+          return pts.map(function (p, i) {
+            var n1 = normal((i - 1 + n) % n), n2 = normal(i);
+            var k = d / Math.max(0.2, 1 + n1[0] * n2[0] + n1[1] * n2[1]);
+            return [p[0] + (n1[0] + n2[0]) * k, p[1] + (n1[1] + n2[1]) * k];
+          });
+        };
+        var drawDeck = function () {
+          try {
+            var dpr = Math.min(2, window.devicePixelRatio || 1);
+            var W = window.innerWidth, H = window.innerHeight;
+            deck.width = Math.round(W * dpr);
+            deck.height = Math.round(H * dpr);
+            var g = deck.getContext('2d');
+            g.setTransform(dpr, 0, 0, dpr, 0, 0);
+            var X = function (x) { return (0.5 + (0.5 * x) / D) * W; };
+            var Y = function (y) { return (0.5 - (0.5 * y) / D) * H; };
+            var path = function (pts) {
+              g.beginPath();
+              pts.forEach(function (q, i) { if (i) g.lineTo(X(q[0]), Y(q[1])); else g.moveTo(X(q[0]), Y(q[1])); });
+              g.closePath();
+            };
+
+            // the bulkhead: dark brushed plates, lit from the fixture above the window
+            var wall = g.createLinearGradient(0, 0, 0, H);
+            wall.addColorStop(0, '#262d38');
+            wall.addColorStop(0.45, '#181d26');
+            wall.addColorStop(1, '#0c0f15');
+            g.fillStyle = wall;
+            g.fillRect(0, 0, W, H);
+            var lamp = g.createRadialGradient(W / 2, 0, 0, W / 2, 0, Math.max(W, H) * 0.6);
+            lamp.addColorStop(0, 'rgba(210, 220, 240, 0.16)');
+            lamp.addColorStop(1, 'rgba(210, 220, 240, 0)');
+            g.fillStyle = lamp;
+            g.fillRect(0, 0, W, H);
+            for (var b = 0; b < 900; b += 1) {
+              g.fillStyle = 'rgba(' + (b % 2 ? '255,255,255' : '0,0,0') + ',' + (0.012 + Math.random() * 0.018).toFixed(3) + ')';
+              g.fillRect(Math.random() * W, Math.random() * H, 20 + Math.random() * 90, 1);
+            }
+            // panel seams: a dark groove with a lit lower lip, and rivets along them
+            var seam = function (x0, y0, x1, y1) {
+              g.strokeStyle = 'rgba(6, 8, 12, 0.85)';
+              g.lineWidth = 2;
+              g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+              g.strokeStyle = 'rgba(255, 255, 255, 0.07)';
+              g.lineWidth = 1;
+              g.beginPath(); g.moveTo(x0 + 1, y0 + 1.5); g.lineTo(x1 + 1, y1 + 1.5); g.stroke();
+            };
+            var rowH = H / 4.2, colW = W / 3.2;
+            for (var ry = 0; ry * rowH < H; ry += 1) {
+              var y0 = ry * rowH + rowH * 0.15;
+              seam(0, y0, W, y0);
+              for (var cx2 = (ry % 2) * colW * 0.5; cx2 < W; cx2 += colW) seam(cx2, y0, cx2, y0 + rowH);
+              for (var rx = 8; rx < W; rx += 26) {
+                g.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                g.beginPath(); g.arc(rx + 0.6, y0 + 9.6, 2, 0, 6.2832); g.fill();
+                g.fillStyle = 'rgba(255, 255, 255, 0.18)';
+                g.beginPath(); g.arc(rx, y0 + 9, 1.3, 0, 6.2832); g.fill();
+              }
+            }
+            // the cut through the bulkhead reads as thick metal
+            path(grow(hole, 0.02));
+            g.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+            g.lineWidth = 10;
+            g.stroke();
+            // the raised frame around the window
+            path(grow(hole, 0.045));
+            var trim = g.createLinearGradient(0, Y(0.5), 0, Y(-0.45));
+            trim.addColorStop(0, '#3a414d');
+            trim.addColorStop(0.5, '#262b34');
+            trim.addColorStop(1, '#171b22');
+            g.fillStyle = trim;
+            g.fill();
+            g.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            g.lineWidth = 1;
+            g.stroke();
+            // rivets on the frame
+            var ring = grow(hole, 0.031);
+            for (var i2 = 0; i2 < ring.length; i2 += 1) {
+              var a2 = ring[i2], b2 = ring[(i2 + 1) % ring.length];
+              var steps = Math.max(1, Math.round(Math.hypot(b2[0] - a2[0], b2[1] - a2[1]) / 0.04));
+              for (var k2 = 0; k2 < steps; k2 += 1) {
+                var px = X(a2[0] + ((b2[0] - a2[0]) * k2) / steps), py = Y(a2[1] + ((b2[1] - a2[1]) * k2) / steps);
+                g.fillStyle = 'rgba(0, 0, 0, 0.55)';
+                g.beginPath(); g.arc(px + 0.6, py + 0.7, 2.2, 0, 6.2832); g.fill();
+                g.fillStyle = 'rgba(200, 210, 225, 0.4)';
+                g.beginPath(); g.arc(px, py, 1.4, 0, 6.2832); g.fill();
+              }
+            }
+            // the window itself: cut out, so what is outside shows through
+            g.save();
+            g.globalCompositeOperation = 'destination-out';
+            g.fillStyle = '#000';
+            path(hole);
+            g.fill();
+            g.restore();
+            // the light strip just inside the frame
+            path(grow(hole, 0.006));
+            g.strokeStyle = 'rgba(150, 190, 255, 0.75)';
+            g.lineWidth = 1.5;
+            g.shadowColor = 'rgba(120, 170, 255, 0.9)';
+            g.shadowBlur = 8;
+            g.stroke();
+            g.shadowBlur = 0;
+            // the console standing on the dash across the window's foot
+            var cl = function (x, y) { return [x, y]; };
+            var con = [cl(-0.445, -0.402), cl(0.445, -0.402), cl(0.46, -0.507), cl(-0.46, -0.507)];
+            path([con[3], con[2], con[1], con[0]]);
+            g.fillStyle = '#2a3039';
+            g.fill();
+            var face = grow([con[3], con[2], con[1], con[0]], -0.006);
+            path(face);
+            g.fillStyle = '#06101c';
+            g.fill();
+            g.strokeStyle = 'rgba(120, 190, 255, 0.35)';
+            g.lineWidth = 1;
+            g.stroke();
+            g.save();
+            path(face);
+            g.clip();
+            var fx0 = X(-0.45), fx1 = X(0.45), fy0 = Y(-0.41), fy1 = Y(-0.5);
+            g.strokeStyle = 'rgba(110, 200, 255, 0.07)';
+            for (var gx = fx0; gx < fx1; gx += (fx1 - fx0) / 40) { g.beginPath(); g.moveTo(gx, fy0); g.lineTo(gx, fy1); g.stroke(); }
+            g.strokeStyle = 'rgba(110, 205, 255, 0.75)';
+            g.lineWidth = 1.5;
+            g.beginPath();
+            for (var wx = fx0; wx <= fx1; wx += 3) {
+              var uu = (wx - fx0) / (fx1 - fx0);
+              var wy = fy0 + (fy1 - fy0) * (0.42 + 0.2 * Math.sin(uu * 62) * Math.sin(uu * 15));
+              if (wx === fx0) g.moveTo(wx, wy); else g.lineTo(wx, wy);
+            }
+            g.stroke();
+            g.restore();
+          } catch (e) {
+            /* no canvas: the view alone */
+          }
+        };
+
         drawSky();
+        drawDeck();
         var resized = 0;
         window.addEventListener('resize', function () {
           clearTimeout(resized);
-          resized = setTimeout(function () { if (boot.isConnected) drawSky(); }, 150);
+          resized = setTimeout(function () { if (boot.isConnected) { drawSky(); drawDeck(); } }, 150);
         });
 
         // a link to a planet or the reader, or reduced motion: no launch, the loader just fades
