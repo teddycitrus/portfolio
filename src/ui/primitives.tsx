@@ -64,8 +64,6 @@ export const useShort = () => useMedia('(max-height: 500px)');
  */
 export const usePanelView = () =>
   useMedia('(max-width: 699px), (orientation: portrait) and (max-width: 1024px), (max-height: 500px)');
-/** Phones too narrow for the dock and the sound toggle to share the bottom row. */
-export const useTiny = () => useMedia('(max-width: 399px)');
 
 /** Shadow that keeps bare text legible over bright skies and planets. */
 export const FLOAT_TEXT = '[text-shadow:0_1px_2px_rgba(5,7,13,0.9),0_0_14px_rgba(5,7,13,0.75)]';

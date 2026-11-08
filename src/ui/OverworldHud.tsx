@@ -15,10 +15,9 @@ import {
   SAFE,
   cx,
   usePresence,
-  useTiny,
 } from './primitives';
 import { useScreenMarkers } from './useScreenMarkers';
-import DashControls, { SoundToggle } from './DashControls';
+import DashControls from './DashControls';
 import AlienName from './AlienName';
 
 const SAFE_BANDS = { top: 84, bottom: 104 };
@@ -55,8 +54,10 @@ const PlanetLabels = ({ hovered, isTouch }: { hovered: string | null; isTouch: b
             <button
               ref={bind(p.id, 'anchor')}
               type="button"
-              tabIndex={-1}
               aria-label={`Land on ${p.title}`}
+              aria-keyshortcuts={String(p.index)}
+              onFocus={() => setHovered(p.id)}
+              onBlur={() => useAppStore.getState().hoveredPlanetId === p.id && setHovered(null)}
               {...common}
               className={cx(
                 IN_WORLD,
@@ -104,71 +105,12 @@ const PlanetLabels = ({ hovered, isTouch }: { hovered: string | null; isTouch: b
   );
 };
 
-const Dock = ({ hovered, isTouch }: { hovered: string | null; isTouch: boolean }) => {
-  const setHovered = useAppStore((s) => s.setHoveredPlanet);
-  const travelTo = useAppStore((s) => s.travelTo);
-  return (
-    // short screens have no room under the console: the dock moves up into the top bar
-    <nav
-      aria-label="Planets"
-      className={cx(
-        'pointer-events-none absolute inset-x-0 flex justify-center px-3',
-        'bottom-[max(16px,env(safe-area-inset-bottom))] [@media(max-height:500px)]:bottom-auto [@media(max-height:500px)]:top-[max(18px,env(safe-area-inset-top))]',
-        // too narrow to centre between the name and the page button: sit against the button
-        '[@media(max-height:500px)_and_(max-width:639px)]:justify-end [@media(max-height:500px)_and_(max-width:639px)]:pr-[calc(max(20px,env(safe-area-inset-right))+44px)]',
-        HUD_ZOOM,
-      )}
-    >
-      <ul className={cx('pointer-events-auto flex max-w-full items-stretch gap-1 sm:gap-3', FLOAT_TEXT)}>
-        {planets.map((p) => {
-          const on = hovered === p.id;
-          return (
-            <li key={p.id} className="relative" style={{ '--accent': p.accent } as CSSProperties}>
-              <button
-                type="button"
-                onClick={() => travelTo(p.id)}
-                onPointerEnter={() => !isTouch && setHovered(p.id)}
-                onPointerLeave={() => !isTouch && setHovered(null)}
-                onFocus={() => setHovered(p.id)}
-                onBlur={() => setHovered(null)}
-                aria-label={p.title}
-                aria-keyshortcuts={String(p.index)}
-                className="flex h-12 items-center justify-center gap-2 px-2 sm:h-10"
-              >
-                <span
-                  className={cx(
-                    'text-[13px] font-medium transition-colors duration-200 sm:text-[14px]',
-                    on ? 'text-[var(--accent)]' : 'text-ink/80',
-                  )}
-                >
-                  {p.title}
-                </span>
-                {!isTouch && (
-                  <Kbd
-                    className={cx(
-                      'hidden sm:inline-flex',
-                      on && 'border-[color-mix(in_srgb,var(--accent)_50%,transparent)]',
-                    )}
-                  >
-                    {p.index}
-                  </Kbd>
-                )}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
-  );
-};
-
 const OverworldHud = () => {
   const mode = useAppStore((s) => s.mode);
   const hovered = useAppStore((s) => s.hoveredPlanetId);
   const isTouch = useAppStore((s) => s.isTouch);
   const readerOpen = useAppStore((s) => s.readerOpen);
   const openReader = useAppStore((s) => s.openReader);
-  const tiny = useTiny();
   const { mounted, visible } = usePresence(mode === 'overworld', 300);
   if (!mounted) return null;
 
@@ -189,7 +131,6 @@ const OverworldHud = () => {
           <p className={cx('whitespace-nowrap font-display leading-none text-ink', DISPLAY.d24, FLOAT_TEXT)}>{profile.name}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          {tiny && <SoundToggle className="relative" />}
           <Button
             size="sm"
             onClick={() => openReader()}
@@ -203,7 +144,6 @@ const OverworldHud = () => {
         </div>
       </header>
 
-      <Dock hovered={hovered} isTouch={isTouch} />
       <DashControls />
     </div>
   );

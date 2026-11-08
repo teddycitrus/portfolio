@@ -6,7 +6,7 @@ import { profile } from '@/data/content';
 import { dashPanel } from '@/state/runtime';
 import { setSoundEnabled, useSoundEnabled } from '@/audio/drone';
 import { linkProps } from './BeaconContent';
-import { SAFE, cx, useTiny } from './primitives';
+import { SAFE, cx } from './primitives';
 
 const ICONS: Record<string, ComponentType<{ className?: string }>> = {
   Email: SiGmail,
@@ -52,7 +52,6 @@ const drawLogos = async (svgs: SVGSVGElement[]) => {
 const DashControls = () => {
   const keys = useRef<(HTMLAnchorElement | null)[]>([]);
   const icons = useRef<HTMLDivElement>(null);
-  const tiny = useTiny();
   const links = profile.links;
 
   // the logo strip, drawn once from the same icons
@@ -161,8 +160,7 @@ const DashControls = () => {
           return <Icon key={l.label} />;
         })}
       </div>
-      {/* tiny phones carry the toggle in the header instead (OverworldHud) */}
-      {!tiny && <SoundToggle className="absolute" style={{ left: SAFE.left, bottom: SAFE.bottom }} />}
+      <SoundToggle className="absolute" style={{ left: SAFE.left, bottom: SAFE.bottom }} />
     </>
   );
 };

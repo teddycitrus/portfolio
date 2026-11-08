@@ -256,11 +256,18 @@ export const useScreenMarkers = (source: Record<string, PlanetScreenInfo>, opts:
             const pushed = clash ? clash.y + clash.h + PAD : below;
             if (fits(pushed, ah) && freeOf(pushed, ah)) y = pushed;
             else {
-              // title only, but still only where it is free; otherwise hide (the dock covers navigation)
+              // title only, but still only where it is free; otherwise hide
               const ch = a.dataset.compact === 'true' ? sz.h : Math.max(ah - 18, Math.round(ah * 0.6));
               const upY = info.y - info.size - g - ch;
+              // last resort before hiding: over the edge of a neighbouring target, but never
+              // over another label (on small portrait screens every name stays readable)
+              const clearOfLabels = (yy: number, hh: number) => !placed.find(x, yy, aw, hh);
               if (fits(below, ch) && freeOf(below, ch)) y = below;
               else if (fits(upY, ch) && freeOf(upY, ch)) {
+                y = upY;
+                up = true;
+              } else if (fits(below, ch) && clearOfLabels(below, ch)) y = below;
+              else if (fits(upY, ch) && clearOfLabels(upY, ch)) {
                 y = upY;
                 up = true;
               } else {
