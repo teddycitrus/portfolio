@@ -29,7 +29,7 @@ const REANCHOR = 2.2;
 const MEASURE_EVERY = 20;
 /** How quickly the whole block glides to a new anchor (per second) */
 const GLIDE_RATE = 2.4;
-/** How quickly each deployed screen turns to stay square to the view (per second) */
+/** How quickly the block of deployed screens turns to stay square to the view (per second) */
 const FACE_RATE = 5;
 const GAP = 0.08;
 /** Corner radius of a deployed screen, world units (drawn in the hologram shader) */
@@ -406,6 +406,9 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
     topY: 0,
     planFit: 1,
     planVer: -1,
+    /** The block as one sheet: its centre, and its facing (square to the view, smoothed) */
+    blockPos: new THREE.Vector3(),
+    blockQuat: new THREE.Quaternion(),
     /** Frame counter for the periodic size check */
     frame: 0,
     /** The block sits left of the monument */
@@ -519,6 +522,15 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
       s.fit += (s.planFit - s.fit) * k;
     }
     const lay = s.active ? s.lay : null;
+    if (lay) {
+      // the block's centre, where the plan puts it; its facing follows the view smoothly
+      s.blockPos
+        .set(s.vRegionX + (lay.w * s.fit) / 2, s.vTopY - (lay.h * s.fit) / 2, -PLANE_D)
+        .applyQuaternion(s.viewQuat)
+        .add(s.viewPos);
+      if (first) s.blockQuat.copy(camera.quaternion);
+      else s.blockQuat.slerp(camera.quaternion, damp(reducedMotion ? 30 : FACE_RATE, dt));
+    }
 
     let anyOut = false;
     const spin = reducedMotion ? 0 : 0.22 * (index % 2 ? -1 : 1);
@@ -543,14 +555,16 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
       const orbitQuat = _oq.copy(_o.quaternion);
 
       if (lay && s.active) {
-        // the screen slot stays put in the block; its facing follows the view, turning smoothly
-        // so its face stays square to the line of sight (the camera's own orientation: +z back
-        // toward the eye), however the viewer steps or looks about
+        // the screen's slot on the block, which turns as one flat sheet about its centre to stay
+        // square to the view: the screens never leave one plane, so the gaps of the layout hold
+        // on screen and no two of them can overlap
         const [lx, ly] = lay.pos[i];
-        _tp.set(s.vRegionX + lx * s.fit, s.vTopY - ly * s.fit, -PLANE_D).applyQuaternion(s.viewQuat).add(s.viewPos);
+        _tp
+          .set(lx * s.fit - (lay.w * s.fit) / 2, (lay.h * s.fit) / 2 - ly * s.fit, 0)
+          .applyQuaternion(s.blockQuat)
+          .add(s.blockPos);
         p.target.copy(_tp);
-        if (!p.hasTarget) p.face.copy(camera.quaternion);
-        else p.face.slerp(camera.quaternion, damp(reducedMotion ? 30 : FACE_RATE, dt));
+        p.face.copy(s.blockQuat);
         p.hasTarget = true;
       }
       if (p.prog <= 0) p.hasTarget = false;
@@ -569,8 +583,9 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
       if (!reducedMotion && p.m > 0) {
         // deployed screens drift gently, each on its own slow rhythm
         const k = p.m * p.m;
-        grp.translateY(Math.sin(t * 0.9 + i * 1.7) * BOB * k);
-        grp.translateX(Math.sin(t * 0.6 + i * 2.9) * BOB * 0.5 * k);
+        // the bob is shared, so the block floats as one and the gaps between screens never change
+        grp.translateY(Math.sin(t * 0.9 + index * 1.7) * BOB * k);
+        grp.translateX(Math.sin(t * 0.6 + index * 2.9) * BOB * 0.5 * k);
         grp.rotateX(Math.sin(t * 0.7 + i * 1.3) * SWAY * k);
         grp.rotateY(Math.sin(t * 0.55 + i * 2.2) * SWAY * k);
         grp.rotateZ(Math.sin(t * 0.8 + i * 0.9) * SWAY * 0.4 * k);
