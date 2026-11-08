@@ -96,18 +96,6 @@
     color: var(--ink-muted);
   }
 
-  /* labels on the dash displays: lit like the display ink */
-  .dash-key {
-    text-shadow: 0 0 10px rgba(110, 200, 255, 0.55);
-  }
-  .dash-key:hover,
-  .dash-key:focus-visible {
-    text-shadow: 0 0 14px rgba(150, 220, 255, 0.9);
-  }
-  .dash-key:focus-visible {
-    box-shadow: 0 0 0 1px rgba(169, 220, 255, 0.7);
-  }
-
   .kbd {
     display: inline-flex;
     align-items: center;

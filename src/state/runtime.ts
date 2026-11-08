@@ -103,10 +103,18 @@ export const flight = {
 
 /**
  * The console across the dash, under the window: in orbit its keys are the
- * contact links. The cockpit writes its screen rect (CSS px) every frame; the
- * DOM keys write which one is under the pointer, and its cell lights up.
+ * contact links. The cockpit writes the screen corners of its face (CSS px,
+ * bottom left, bottom right, top right, top left) every frame; the DOM keys
+ * write which one is under the pointer or focused, and its cell lights up.
+ * `logos` is the strip of logos the DOM draws once for the cockpit to paint on
+ * the face.
  */
-export const dashPanel = { x: 0, y: 0, w: 0, h: 0, visible: false, hot: -1 };
+export const dashPanel = {
+  quad: [0, 0, 0, 0, 0, 0, 0, 0],
+  visible: false,
+  hot: -1,
+  logos: null as HTMLCanvasElement | null,
+};
 
 /**
  * The hyperspace arrival the site opens on, written by the warp and read by

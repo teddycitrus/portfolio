@@ -259,6 +259,7 @@ const Cockpit = () => {
   const glass = useMemo(() => glassMaterial(), []);
   const consoleRef = useRef<THREE.Mesh>(null);
   const screen = useMemo(() => instrumentMaterial(0, CONSOLE_KEYS, CONSOLE_W / CONSOLE_H / 2), []);
+  const logos = useRef<{ canvas: HTMLCanvasElement | null; tex: THREE.CanvasTexture | null }>({ canvas: null, tex: null });
   const rig = useRef<Rig>({
     mode: useAppStore.getState().mode,
     diveAt: -1,
@@ -285,6 +286,7 @@ const Cockpit = () => {
       for (const g of [parts.bulkhead, parts.ring, parts.lightStrip, parts.rivetGeo, parts.dash]) g.dispose();
       parts.tex.dispose();
       parts.trimTex.dispose();
+      logos.current.tex?.dispose();
     },
     [parts, glass, screen],
   );
@@ -496,25 +498,24 @@ const Cockpit = () => {
       // in orbit the console turns into a row of key faces; the graphics come back in flight
       screen.uniforms.uFace.value += ((asControls ? 1 : 0) - screen.uniforms.uFace.value) * damp(8, dt);
       screen.uniforms.uHot.value = asControls ? d.hot : -1;
-      d.visible = asControls && !!mesh;
-      let x0 = Infinity;
-      let y0 = Infinity;
-      let x1 = -Infinity;
-      let y1 = -Infinity;
-      for (const [cx, cy] of d.visible && mesh ? CONSOLE_CORNERS : []) {
-        _corner.set(cx, cy, 0);
-        mesh!.localToWorld(_corner).project(camera);
-        const px = ((_corner.x + 1) / 2) * size.width;
-        const py = ((1 - _corner.y) / 2) * size.height;
-        x0 = Math.min(x0, px);
-        x1 = Math.max(x1, px);
-        y0 = Math.min(y0, py);
-        y1 = Math.max(y1, py);
+      // the logos are drawn by the DOM once its icons are up: paint them on the face
+      if (d.logos && d.logos !== logos.current.canvas) {
+        logos.current.tex?.dispose();
+        const tex = new THREE.CanvasTexture(d.logos);
+        tex.anisotropy = 8;
+        logos.current = { canvas: d.logos, tex };
+        screen.uniforms.uLogos.value = tex;
+        screen.uniforms.uLogoOn.value = 1;
       }
-      d.x = x0;
-      d.y = y0;
-      d.w = x1 - x0;
-      d.h = y1 - y0;
+      d.visible = asControls && !!mesh;
+      if (d.visible && mesh) {
+        CONSOLE_CORNERS.forEach(([cx, cy], k) => {
+          _corner.set(cx, cy, 0);
+          mesh.localToWorld(_corner).project(camera);
+          d.quad[k * 2] = ((_corner.x + 1) / 2) * size.width;
+          d.quad[k * 2 + 1] = ((1 - _corner.y) / 2) * size.height;
+        });
+      }
     }
     const l = leds.current;
     if (l) {

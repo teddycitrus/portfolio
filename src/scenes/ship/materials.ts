@@ -87,6 +87,9 @@ export const instrumentMaterial = (kind: 0 | 1, keys = 1, stretch = 1) =>
       uKeys: { value: keys },
       uHot: { value: -1 },
       uStretch: { value: stretch },
+      // the logos painted on the key cells (alpha), and whether they are there yet
+      uLogos: { value: null as THREE.Texture | null },
+      uLogoOn: { value: 0 },
     },
     vertexShader: /* glsl */ `
       varying vec2 vUv;
@@ -105,6 +108,8 @@ export const instrumentMaterial = (kind: 0 | 1, keys = 1, stretch = 1) =>
       // the key cell under the pointer, or -1
       uniform float uHot;
       uniform float uStretch;
+      uniform sampler2D uLogos;
+      uniform float uLogoOn;
       varying vec2 vUv;
       void main() {
         vec2 uv = vUv;
@@ -162,6 +167,7 @@ export const instrumentMaterial = (kind: 0 | 1, keys = 1, stretch = 1) =>
         vec3 faceCol = mix(vec3(0.012, 0.022, 0.04), vec3(0.03, 0.05, 0.08), uv.y)
           + ink * line * (0.22 + 0.45 * hot)
           + ink * glow * (0.03 + 0.14 * hot)
+          + vec3(0.62, 0.86, 1.0) * (uLogoOn > 0.5 ? texture2D(uLogos, uv).a : 0.0) * (0.75 + 0.55 * hot)
           + vec3(0.45, 1.0, 0.7) * led * ledOn * 0.9
           + ink * (0.5 + 0.5 * sin(uv.y * 160.0)) * 0.006;
         col = mix(col, faceCol, uFace);

@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { useAppStore } from '@/state/useAppStore';
 import { dragLook, flight, warpFx } from '@/state/runtime';
 import { endBoot, navDisplay, onBootReveal } from '@/ui/boot';
-import { sfxReady, shipSound, soundWanted, warpHum } from '@/audio/drone';
+import { shipSound, warpHum } from '@/audio/drone';
 import { responsiveFov } from './TelescopeCamera';
 
 /*
@@ -14,10 +14,7 @@ import { responsiveFov } from './TelescopeCamera';
  * out in a flash into the system, the lens snapping back and the deck
  * shuddering. The welcome holds on the glass for about a second, the HUD comes
  * up once it is gone. A click, tap or key in hyperspace drops out straight away.
- * Browsers keep audio locked until a gesture, so with sound on and no gesture
- * yet the ship waits at 100% for one ("Click to drop out"): that click starts
- * the roar and the drop is heard. Nobody clicking, it drops out silently after
- * HOLD_MS. The system outside is not drawn until the drop.
+ * The system outside is not drawn until the drop.
  */
 
 /** Shortest run of the display to 100% once the scene is up */
@@ -26,8 +23,6 @@ const RUN_MS = 1200;
 const MIN_TOTAL_MS = 2600;
 /** Asked to drop out: this long for the display to finish and the roar to swell in */
 const SKIP_MS = 450;
-/** Waiting for a click so the drop can be heard, at most this long */
-const HOLD_MS = 6000;
 /** The drive spooling up, ending in the flash */
 const SPOOL_MS = 560;
 /** The lens settling after the drop */
@@ -173,9 +168,6 @@ const Warp = () => {
     runEnd: 0,
     travel: 0,
     phase: 0 as 0 | 1 | 2 | 3,
-    /** When the ship started waiting at 100% for a click (ms into the jump), or -1 */
-    holdAt: -1,
-    asked: false,
     flashAt: 0,
     hud: false,
     welcome: false,
@@ -233,10 +225,9 @@ const Warp = () => {
     });
     // anyone in a hurry drops out now (the same press unlocks the sound for the drop)
     const skip = () => {
-      if (s.start < 0 || s.phase !== 0 || s.asked) return;
-      s.asked = true;
+      if (s.start < 0 || s.phase !== 0) return;
       const ms = performance.now() - s.start;
-      if (s.runEnd - ms <= SKIP_MS && s.holdAt < 0) return;
+      if (s.runEnd - ms <= SKIP_MS) return;
       s.runEnd = ms + SKIP_MS;
       navDisplay.to(1, SKIP_MS);
     };
@@ -281,15 +272,6 @@ const Warp = () => {
     let fov = base + WARP_FOV;
     let shake = 0.0011;
     if (s.phase === 0 && s.start >= 0 && ms >= s.runEnd) {
-      // with sound wanted but still locked, wait for the click that unlocks it
-      if (!s.asked && soundWanted() && !sfxReady() && s.holdAt < 0) {
-        s.holdAt = ms;
-        navDisplay.status('At destination');
-        navDisplay.ready();
-      }
-    }
-    const held = s.holdAt >= 0 && !s.asked && ms - s.holdAt < HOLD_MS;
-    if (s.phase === 0 && s.start >= 0 && ms >= s.runEnd && !held) {
       s.phase = 1;
       navDisplay.status('Dropping out');
       navDisplay.spool();
