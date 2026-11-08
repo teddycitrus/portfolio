@@ -69,8 +69,8 @@
           "label": "Hello",
           "kind": "profile",
           "content": {
-            "heading": "I'm John.",
-            "body": "I'm a first-year computer science student at the University of Toronto. I love tech and hackathons, where one weekend is enough to take an idea from nothing to something that works. Outside of code, music is a big part of my life and I'm in my church choir. I also play casual volleyball (very much a beginner) and train calisthenics."
+            "heading": "I am John.",
+            "body": "I am a first-year computer science student at the University of Toronto. I like technology and hackathons. At a hackathon, one weekend is sufficient to change an idea into a product that works. Music is important to me, and I sing in my church choir. I also play volleyball for fun (I am a beginner), and I do calisthenics."
           }
         },
         {
@@ -85,7 +85,7 @@
               "First year",
               "Expected Apr 2029"
             ],
-            "body": "Coursework so far: Intro to CS (CSC110), Calculus with Proofs (MAT148) and Linear Algebra.",
+            "body": "My courses: Introduction to Computer Science (CSC110), Calculus with Proofs (MAT148) and Linear Algebra.",
             "aside": {
               "heading": "High school",
               "facts": [
@@ -106,8 +106,8 @@
           "label": "Focus",
           "kind": "profile",
           "content": {
-            "heading": "What I'm working toward",
-            "body": "I'm going deeper on AI and machine learning: computer vision, voice interfaces, and agents that can be trusted to act on their own, which is what Bastion does."
+            "heading": "My goals",
+            "body": "I continue to study AI and machine learning in more depth. My areas are computer vision, voice interfaces and AI agents that can operate safely without a human. Bastion is an agent of this type."
           }
         }
       ]
@@ -123,7 +123,7 @@
         0.5,
         -33
       ],
-      "radius": 5.0,
+      "radius": 5,
       "time": "night",
       "style": "gas-giant",
       "palette": [
@@ -146,11 +146,11 @@
           "content": {
             "heading": "Iris",
             "period": "Feb 2025",
-            "description": "An accessibility tool that turns a webcam feed and speech into full computer control, so people who can't use a mouse or keyboard can still click, scroll, switch tabs and type.",
+            "description": "An accessibility tool that uses a webcam and speech to control a computer. People who cannot use a mouse or a keyboard can click, scroll, change tabs and type with it.",
             "highlights": [
-              "Real-time eye and mouth tracking mapped to clicks, scrolling and tab switching.",
-              "Offline speech recognition types dictated text, so motion and voice work as one interface.",
-              "Built at Hack The Valley X (UTSC)."
+              "It tracks the eyes and the mouth in real time and changes their movements into clicks, scroll actions and tab changes.",
+              "Speech recognition operates offline and types the words that you speak. Movement and voice operate as one interface.",
+              "I made it at Hack The Valley X (UTSC)."
             ],
             "stack": [
               "Python",
@@ -177,11 +177,11 @@
           "content": {
             "heading": "Eureka",
             "period": "May 2026",
-            "description": "Maps supplier and logistics exposure onto an interactive globe. It scores breaking news against a company's supplier graph and briefs decision-makers through AI voice agents they can question in plain English.",
+            "description": "It shows the risk to the suppliers and logistics of a company on an interactive globe. It compares news events with the supplier graph of the company. Then AI voice agents tell decision-makers about the risk and answer their questions in plain English.",
             "highlights": [
-              "News events are scored against each company's supplier graph to flag exposed suppliers.",
-              "Voice agents brief people by phone and answer follow-up questions about their risk.",
-              "Built for EurekaHacks 2026 at Waterloo's Accelerator Centre."
+              "It gives each news event a score against the supplier graph of each company and identifies the suppliers that are at risk.",
+              "Voice agents call people by phone, give them the risk report and answer their questions.",
+              "We made it for EurekaHacks 2026 at the Accelerator Centre in Waterloo."
             ],
             "stack": [
               "Next.js",
@@ -211,11 +211,11 @@
           "content": {
             "heading": "Bastion",
             "period": "Oct 2026",
-            "description": "An autonomous blue-team agent that sits in front of a web app as a reverse proxy, watches its traffic and contains attacks on its own. A fast classifier flags suspicious requests, and an LLM investigator decides how to respond with no human in the loop.",
+            "description": "An autonomous blue-team agent that operates as a reverse proxy in front of a web app. It monitors the traffic and stops attacks without a human. A fast classifier finds suspicious requests, and an LLM investigator decides the response.",
             "highlights": [
-              "Two-tier triage: every request is scored by a classifier, and only flagged ones reach the LLM investigator.",
-              "Diverts attackers to a honeypot, bans sources and installs route-scoped virtual patches, with every action recorded and executed at most once.",
-              "Ships a full local lab: a de-fingerprinted vulnerable target and a red-team agent that attacks it."
+              "Two-tier triage: a classifier gives a score to each request. Only the flagged requests go to the LLM investigator.",
+              "It sends attackers to a honeypot, blocks their sources and installs virtual patches for specified routes. It records each action and does each action one time only.",
+              "It includes a full local lab: a vulnerable target with its fingerprints removed, and a red-team agent that attacks the target."
             ],
             "stack": [
               "Python",
@@ -240,11 +240,11 @@
           "content": {
             "heading": "ShieldClaw",
             "period": "2026",
-            "description": "A security control plane for OpenClaw. Every AI agent gets its own machine identity, every request is checked against policy, risky actions go to a human for approval, and sensitive data is redacted before the agent sees it.",
+            "description": "A security control plane for OpenClaw. Each AI agent gets its own machine identity, and the system checks each request against policy. Risky actions must get approval from a human. The system removes sensitive data before the agent sees it.",
             "highlights": [
-              "FastAPI proxy in front of OpenClaw with a separate Auth0 identity for every agent.",
-              "Scope checks and fine-grained authorization through OpenFGA policies.",
-              "Risky actions are evaluated and can require human approval in Discord; sensitive data is redacted per agent."
+              "A FastAPI proxy in front of OpenClaw gives each agent a separate Auth0 identity.",
+              "OpenFGA policies do the scope checks and the fine-grained authorization.",
+              "The system examines risky actions, and some actions must get human approval in Discord. It removes sensitive data for each agent."
             ],
             "stack": [
               "Python",
