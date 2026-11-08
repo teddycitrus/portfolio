@@ -297,6 +297,19 @@
       #boot.boot-go .ship {
         animation: boot-rumble 150ms linear 300ms infinite;
       }
+      /* the whole view sways in the jump, about the size of the shudder after the drop */
+      #boot.boot-go .space {
+        animation: boot-sway 1.3s ease-in-out 250ms infinite;
+      }
+      @keyframes boot-sway {
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        12% { transform: translate(2.2px, -1.4px) rotate(0.12deg); }
+        26% { transform: translate(-1.6px, 1.8px) rotate(-0.08deg); }
+        41% { transform: translate(1.2px, 2.1px) rotate(0.06deg); }
+        55% { transform: translate(-2.4px, -0.8px) rotate(-0.14deg); }
+        69% { transform: translate(1.8px, -1.9px) rotate(0.1deg); }
+        84% { transform: translate(-1px, 1.3px) rotate(-0.05deg); }
+      }
       @keyframes boot-rumble {
         0%, 100% { transform: translate(0, 0); }
         33% { transform: translate(0.7px, -0.5px); }
@@ -353,7 +366,7 @@
       @media (prefers-reduced-motion: reduce) {
         #boot .hyper i, #boot .hyper b { animation: none; opacity: 0.8; transform: scale(0.9); }
         #boot .hyper i:nth-of-type(n + 2), #boot .hyper b { display: none; }
-        #boot .swirl, #boot .core, #boot.boot-go .burst, #boot.boot-go .ship, #boot.boot-go .lit { animation: none; }
+        #boot .swirl, #boot .core, #boot.boot-go .burst, #boot.boot-go .ship, #boot.boot-go .space, #boot.boot-go .lit { animation: none; }
         #boot .term .ty { animation: none; clip-path: none; }
         #boot .term .pr { animation: none; opacity: 1; }
         #boot .term .cur { animation: none; }
