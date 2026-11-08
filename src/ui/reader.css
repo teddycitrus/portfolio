@@ -2,7 +2,7 @@
  * The reader page, set like the E2B docs (docs.e2b.dev): pure black, Inter at
  * 440 / 520 / 580 with tight tracking, grey body text under near-white
  * headings, 1px hairlines, Commit Mono for labels and square buttons, and one
- * orange-red accent. Scoped to .docs so the in-world panels keep their look.
+ * sky-blue accent taken from the ship (the window light strip, the dash LEDs and the console). Scoped to .docs so the in-world panels keep their look.
  */
 .docs {
   --d-bg: #000;
@@ -14,8 +14,8 @@
   --d-line-2: #2c2c2c;
   --d-raise: #0a0a0a;
   --d-hover: #141414;
-  --d-accent: #e32a01;
-  --accent: #e32a01;
+  --d-accent: #7cc0ff;
+  --accent: #7cc0ff;
   --d-ease: cubic-bezier(0.23, 1, 0.32, 1);
   color: var(--d-body);
   font-family: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
@@ -116,7 +116,7 @@
 .docs .d-btn-primary {
   background: var(--d-accent);
   border-color: var(--d-accent);
-  color: #fff;
+  color: #04101c;
 }
 .docs .d-chip {
   display: inline-flex;
@@ -232,8 +232,8 @@
     border-color: #3d3d3d;
   }
   .docs .d-btn-primary:hover {
-    background: #f23b12;
-    border-color: #f23b12;
+    background: #a3d3ff;
+    border-color: #a3d3ff;
   }
   .docs .d-row:hover {
     background: var(--d-hover);
@@ -254,5 +254,5 @@
   border-radius: 2px;
 }
 .docs ::selection {
-  background: rgba(227, 42, 1, 0.35);
+  background: rgba(124, 192, 255, 0.3);
 }
