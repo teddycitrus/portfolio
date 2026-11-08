@@ -48,10 +48,10 @@ const LABEL_FADE_MS = 350;
 const LABEL_STAGGER_MS = 80;
 
 /**
- * On-screen beacon labels (name + index on a short accent stem) and edge
- * arrows for beacons out of view. All positioning happens in the shared
- * marker loop; labels are pointer targets only, the chips are the
- * accessible route.
+ * Edge arrows for monuments out of view. The monuments themselves carry no
+ * floating names: the plaques, orbs and screens say what they are. All
+ * positioning happens in the shared marker loop; the arrows are pointer
+ * targets only, the chips are the accessible route.
  */
 const BeaconMarkers = ({ planet, focused }: { planet: Planet; focused: string | null }) => {
   const narrow = useNarrow();
@@ -90,39 +90,8 @@ const BeaconMarkers = ({ planet, focused }: { planet: Planet; focused: string | 
   return (
     <div className="absolute inset-0 overflow-hidden">
       {planet.beacons.map((b) => {
-        const on = focused === b.id;
         return (
           <div key={b.id}>
-            <button
-              ref={bind(b.id, 'anchor')}
-              type="button"
-              tabIndex={-1}
-              aria-hidden="true"
-              onClick={() => openBeacon(b.id)}
-              className="group pointer-events-auto absolute left-0 top-0 cursor-pointer [transform-origin:50%_100%]"
-              style={{ visibility: 'hidden' }}
-            >
-              <span
-                className={cx(
-                  IN_WORLD,
-                  'flex items-center px-2 py-1 transition-colors duration-200 group-data-[compact=true]:hidden',
-                  on ? 'text-[var(--accent)]' : 'text-ink group-hover:text-white',
-                )}
-              >
-                <span className="whitespace-nowrap font-display text-[15px] leading-tight max-sm:text-[13px]">
-                  {b.label}
-                </span>
-              </span>
-              {/* stem down toward the monument; length set by the marker loop */}
-              <span
-                aria-hidden="true"
-                className="absolute left-1/2 top-full h-[var(--stem,14px)] w-px -translate-x-1/2 bg-[var(--accent)] opacity-70 group-data-[compact=true]:hidden"
-              />
-              {/* collapsed form when there is no room for the name */}
-              <span className="hidden h-3 w-3 items-center justify-center group-data-[compact=true]:flex">
-                <span className="h-3 w-px bg-[var(--accent)] shadow-[0_0_0_1px_rgba(5,7,13,0.6)]" />
-              </span>
-            </button>
             <button
               ref={bind(b.id, 'edge')}
               type="button"

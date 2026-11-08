@@ -118,11 +118,9 @@ export const dashPanel = {
 
 /**
  * The hyperspace arrival the site opens on, written by the warp and read by
- * the overworld (hidden in hyperspace) and the cockpit (the rumble).
+ * the cockpit (the rumble and the lens).
  */
 export const warpFx = {
-  /** True while the ship is in hyperspace: the system outside is not drawn */
-  inside: false,
   /** Shake of the deck, same scale as the cockpit's own */
   shake: 0,
   /** Degrees the lens is widened past rest; the cockpit frame keeps its size on screen regardless */

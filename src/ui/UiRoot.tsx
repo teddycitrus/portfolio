@@ -56,8 +56,6 @@ const UiRoot = () => {
           <TransitionVeil />
         </div>
       )}
-      {/* the flash of the drop out of hyperspace; driven by the warp itself */}
-      <div id="warp-flash" aria-hidden="true" className="pointer-events-none absolute inset-0 z-[60] bg-[#e4efff] opacity-0" />
       <Reader />
     </div>
   );
