@@ -79,12 +79,19 @@
         inset: 0;
       }
       #boot canvas.sky,
-      #boot canvas.world,
-      #boot canvas.deck {
+      #boot canvas.world {
         position: absolute;
         inset: 0;
         width: 100%;
         height: 100%;
+      }
+      /* the deck runs 48px past every edge, so the jump's sway and rumble never uncover what is behind it */
+      #boot canvas.deck {
+        position: absolute;
+        left: -48px;
+        top: -48px;
+        width: calc(100% + 96px);
+        height: calc(100% + 96px);
       }
       /* the window as a screen: a faint glow and scanlines behind the terminal */
       #boot .screen {
@@ -515,10 +522,13 @@
           try {
             var dpr = Math.min(2, window.devicePixelRatio || 1);
             var W = window.innerWidth, H = window.innerHeight;
-            deck.width = Math.round(W * dpr);
-            deck.height = Math.round(H * dpr);
+            // drawn in viewport coordinates, with an overscan margin of plain bulkhead all round
+            // (matches the CSS on canvas.deck)
+            var O = 48;
+            deck.width = Math.round((W + O * 2) * dpr);
+            deck.height = Math.round((H + O * 2) * dpr);
             var g = deck.getContext('2d');
-            g.setTransform(dpr, 0, 0, dpr, 0, 0);
+            g.setTransform(dpr, 0, 0, dpr, O * dpr, O * dpr);
             var X = function (x) { return (0.5 + (0.5 * x) / D) * W; };
             var Y = function (y) { return (0.5 - (0.5 * y) / D) * H; };
             var path = function (pts) {
@@ -533,15 +543,15 @@
             wall.addColorStop(0.45, '#181d26');
             wall.addColorStop(1, '#0c0f15');
             g.fillStyle = wall;
-            g.fillRect(0, 0, W, H);
+            g.fillRect(-O, -O, W + O * 2, H + O * 2);
             var lamp = g.createRadialGradient(W / 2, 0, 0, W / 2, 0, Math.max(W, H) * 0.6);
             lamp.addColorStop(0, 'rgba(210, 220, 240, 0.16)');
             lamp.addColorStop(1, 'rgba(210, 220, 240, 0)');
             g.fillStyle = lamp;
-            g.fillRect(0, 0, W, H);
+            g.fillRect(-O, -O, W + O * 2, H + O * 2);
             for (var b = 0; b < 900; b += 1) {
               g.fillStyle = 'rgba(' + (b % 2 ? '255,255,255' : '0,0,0') + ',' + (0.012 + Math.random() * 0.018).toFixed(3) + ')';
-              g.fillRect(Math.random() * W, Math.random() * H, 20 + Math.random() * 90, 1);
+              g.fillRect(Math.random() * (W + O * 2) - O, Math.random() * (H + O * 2) - O, 20 + Math.random() * 90, 1);
             }
             // panel seams: a dark groove with a lit lower lip, and rivets along them
             var seam = function (x0, y0, x1, y1) {
@@ -555,9 +565,9 @@
             var rowH = H / 4.2, colW = W / 3.2;
             for (var ry = 0; ry * rowH < H; ry += 1) {
               var y0 = ry * rowH + rowH * 0.15;
-              seam(0, y0, W, y0);
+              seam(-O, y0, W + O, y0);
               for (var cx2 = (ry % 2) * colW * 0.5; cx2 < W; cx2 += colW) seam(cx2, y0, cx2, y0 + rowH);
-              for (var rx = 8; rx < W; rx += 26) {
+              for (var rx = 8 - 26 * 2; rx < W + O; rx += 26) {
                 g.fillStyle = 'rgba(0, 0, 0, 0.5)';
                 g.beginPath(); g.arc(rx + 0.6, y0 + 9.6, 2, 0, 6.2832); g.fill();
                 g.fillStyle = 'rgba(255, 255, 255, 0.18)';

@@ -117,14 +117,16 @@ export const useInputBridge = (): void => {
         else if (s.mode === 'planet') s.exitPlanet();
         return;
       }
+      // R toggles the page view (Esc closes it too)
+      if (e.key === 'r' || e.key === 'R') {
+        if (s.readerOpen) s.closeReader();
+        else s.openReader(s.activePlanetId);
+        return;
+      }
       if (s.readerOpen) return;
 
       if (e.key === 'q' || e.key === 'Q') {
         s.exitPlanet();
-        return;
-      }
-      if (e.key === 'r' || e.key === 'R') {
-        s.openReader(s.activePlanetId);
         return;
       }
       if (/^[1-9]$/.test(e.key) && (s.mode === 'overworld' || s.mode === 'planet')) {

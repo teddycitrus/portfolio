@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import type { Planet } from '@/types/content';
 import { useAppStore } from '@/state/useAppStore';
 import { addRim, noRaycast } from './common';
-import { faceZ, frameGeometry, hairGeometry, headGeometry, headHalfWidth, lensGeometry } from './figure';
+import { faceZ, frameGeometry, hairGeometry, headGeometry, headHalfWidth, hoodieGeometry, lensGeometry } from './figure';
 
 /** Warm medium brown, from the photos */
 const SKIN = '#9e6b4f';
@@ -14,6 +14,8 @@ const LENS_H = 0.024;
 /** Face landmarks, head-local height */
 const EYE_Y = 0.006;
 const EYE_X = 0.03;
+/** Half-angle of the open zip down the front of the hoodie */
+const HOOD_GAP = 0.34;
 
 /*
  * The about planet's camp, where I sit: a log by the fire, me on it with a
@@ -114,10 +116,12 @@ export const Camp = ({
       lip: std('#9a5a4c', 0.5, 0, 0.08),
       hair: Object.assign(std('#0c0a0a', 0.62, 0, 0.14), { side: THREE.DoubleSide }),
       brow: std('#0e0b0a', 0.8),
-      tee: std('#283c62', 0.9, 0, 0.16),
-      collar: std('#22345a', 0.9, 0, 0.12),
-      band: std('#2f8fe0', 0.45, 0, 0.1),
-      jeans: std('#2f3b52', 0.9),
+      hoodie: Object.assign(std('#3a281d', 0.95, 0, 0.16), { side: THREE.DoubleSide }),
+      shirt: std('#e6dfd0', 0.92, 0, 0.12),
+      pants: std('#17171a', 0.9, 0, 0.1),
+      flap: std('#222226', 0.9),
+      zip: new THREE.MeshStandardMaterial({ color: '#2a2019', roughness: 0.4, metalness: 0.5 }),
+      cord: std('#d9d0bf', 0.8),
       shoe: std('#e8e6e1', 0.6),
       sole: std('#2a2a2a', 0.8),
       // matte dark navy acetate
@@ -148,6 +152,7 @@ export const Camp = ({
       hair: hairGeometry(),
       frame: frameGeometry(LENS_W, LENS_H, 0.0042, 0.004),
       lens: lensGeometry(LENS_W, LENS_H),
+      hoodie: hoodieGeometry(HOOD_GAP),
     }),
     [],
   );
@@ -200,15 +205,24 @@ export const Camp = ({
       ))}
 
       <group rotation={[0, BODY_YAW, 0]}>
-        {/* hips and legs, knees up a little, feet on the ground */}
-        <mesh material={m.jeans} position={[0, 0.5, -0.02]} rotation={[0, 0, Math.PI / 2]} scale={[0.8, 1, 1.05]} castShadow raycast={noRaycast}>
-          <capsuleGeometry args={[0.1, 0.16, 4, 12]} />
+        {/* hips and legs in baggy black cargo track pants, knees up a little, feet on the ground */}
+        <mesh material={m.pants} position={[0, 0.5, -0.02]} rotation={[0, 0, Math.PI / 2]} scale={[0.84, 1, 1.08]} castShadow raycast={noRaycast}>
+          <capsuleGeometry args={[0.105, 0.16, 4, 12]} />
         </mesh>
         <Mirror>
           {(s) => (
             <group key={s}>
-              <Limb a={[s * 0.1, 0.5, 0]} b={[s * 0.12, 0.54, 0.47]} r={0.07} material={m.jeans} />
-              <Limb a={[s * 0.12, 0.53, 0.48]} b={[s * 0.14, 0.11, 0.53]} r={0.058} material={m.jeans} />
+              <Limb a={[s * 0.1, 0.5, 0]} b={[s * 0.125, 0.54, 0.47]} r={0.08} material={m.pants} />
+              {/* a cargo pocket on the outer thigh, its flap a shade lighter */}
+              <mesh material={m.pants} position={[s * 0.195, 0.53, 0.25]} rotation={[0.08, s * 0.05, 0]} castShadow raycast={noRaycast}>
+                <boxGeometry args={[0.03, 0.085, 0.13]} />
+              </mesh>
+              <mesh material={m.flap} position={[s * 0.205, 0.575, 0.25]} rotation={[0.08, s * 0.05, 0]} raycast={noRaycast}>
+                <boxGeometry args={[0.024, 0.016, 0.132]} />
+              </mesh>
+              <Limb a={[s * 0.125, 0.53, 0.48]} b={[s * 0.14, 0.2, 0.525]} r={0.07} material={m.pants} />
+              {/* elastic ankle cuffs */}
+              <Limb a={[s * 0.14, 0.2, 0.525]} b={[s * 0.142, 0.13, 0.53]} r={0.052} material={m.pants} />
               <mesh material={m.shoe} position={[s * 0.14, 0.058, 0.6]} rotation={[Math.PI / 2, 0, 0]} scale={[1.05, 1, 0.72]} castShadow raycast={noRaycast}>
                 <capsuleGeometry args={[0.052, 0.16, 4, 12]} />
               </mesh>
@@ -219,30 +233,48 @@ export const Camp = ({
           )}
         </Mirror>
 
-        {/* torso in a fitted crew-neck tee, slim, leaning a little toward the laptop */}
+        {/* torso, leaning a little toward the laptop: a baggy off-white tee under an open dark brown zip-up hoodie */}
         <group ref={chest} position={[0, 0.58, 0]} rotation={[0.16, 0, 0]}>
-          <mesh material={m.tee} position={[0, 0.27, 0]} scale={[1.18, 1, 0.72]} castShadow raycast={noRaycast}>
-            <capsuleGeometry args={[0.15, 0.3, 6, 16]} />
+          <mesh material={m.shirt} position={[0, 0.255, 0]} scale={[1.06, 1, 0.7]} castShadow raycast={noRaycast}>
+            <capsuleGeometry args={[0.145, 0.28, 6, 16]} />
           </mesh>
-          {/* the rib collar and a long neck */}
-          <mesh material={m.collar} position={[0, 0.49, 0.012]} rotation={[Math.PI / 2 - 0.16, 0, 0]} scale={[1.1, 1, 1]} raycast={noRaycast}>
-            <torusGeometry args={[0.054, 0.011, 8, 24]} />
+          <mesh material={m.shirt} position={[0, 0.49, 0.012]} rotation={[Math.PI / 2 - 0.16, 0, 0]} scale={[1.1, 1, 1]} raycast={noRaycast}>
+            <torusGeometry args={[0.052, 0.009, 8, 24]} />
+          </mesh>
+          <mesh geometry={geo.hoodie} material={m.hoodie} scale={[1.12, 1, 0.74]} castShadow raycast={noRaycast} />
+          {/* the zip tapes down both open edges, the pull hanging off one, the drawcords */}
+          <Mirror>
+            {(s) => {
+              const edge = (r: number, y: number): V3 => [s * r * 1.12 * Math.sin(HOOD_GAP), y, r * 0.74 * Math.cos(HOOD_GAP)];
+              return (
+                <group key={s}>
+                  <Limb a={edge(0.163, 0.03)} b={edge(0.162, 0.42)} r={0.0055} material={m.zip} />
+                  <Limb a={edge(0.12, 0.47)} b={[s * 0.03, 0.3, 0.13]} r={0.0028} material={m.cord} />
+                </group>
+              );
+            }}
+          </Mirror>
+          <mesh material={m.zip} position={[1.12 * 0.165 * Math.sin(HOOD_GAP), 0.33, 0.74 * 0.165 * Math.cos(HOOD_GAP) + 0.006]} raycast={noRaycast}>
+            <boxGeometry args={[0.008, 0.022, 0.004]} />
+          </mesh>
+          {/* the hood bunched behind the neck, its edges coming round to the front */}
+          <mesh material={m.hoodie} position={[0, 0.5, -0.06]} rotation={[0.25, 0, 0]} scale={[1.3, 0.62, 1.05]} castShadow raycast={noRaycast}>
+            <torusGeometry args={[0.092, 0.04, 8, 18]} />
           </mesh>
           <mesh material={m.skin} position={[0, 0.555, 0.02]} castShadow raycast={noRaycast}>
             <cylinderGeometry args={[0.036, 0.043, 0.14, 14]} />
           </mesh>
 
-          {/* arms: short sleeves, bare forearms down to the keyboard, the event wristband on the left */}
+          {/* arms in the hoodie's sleeves down to ribbed cuffs, the hands out on the keyboard */}
           <Mirror>
             {(s) => (
               <group key={s}>
-                <mesh material={m.tee} position={[s * 0.178, 0.425, 0]} castShadow raycast={noRaycast}>
-                  <sphereGeometry args={[0.05, 14, 12]} />
+                <mesh material={m.hoodie} position={[s * 0.182, 0.425, 0]} castShadow raycast={noRaycast}>
+                  <sphereGeometry args={[0.058, 14, 12]} />
                 </mesh>
-                <Limb a={[s * 0.2, 0.42, 0]} b={[s * 0.222, 0.31, 0.066]} r={0.049} material={m.tee} />
-                <Limb a={[s * 0.2, 0.42, 0]} b={[s * 0.24, 0.17, 0.15]} r={0.04} material={m.skin} />
-                <Limb a={[s * 0.24, 0.17, 0.15]} b={[s * 0.1, 0.12, 0.36]} r={0.034} material={m.skin} />
-                {s === 1 && <Limb a={[0.124, 0.128, 0.323]} b={[0.116, 0.126, 0.336]} r={0.037} material={m.band} />}
+                <Limb a={[s * 0.2, 0.42, 0]} b={[s * 0.24, 0.17, 0.15]} r={0.05} material={m.hoodie} />
+                <Limb a={[s * 0.24, 0.17, 0.15]} b={[s * 0.125, 0.128, 0.31]} r={0.044} material={m.hoodie} />
+                <Limb a={[s * 0.125, 0.128, 0.31]} b={[s * 0.108, 0.123, 0.345]} r={0.036} material={m.hoodie} />
               </group>
             )}
           </Mirror>

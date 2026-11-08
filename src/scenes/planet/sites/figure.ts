@@ -29,10 +29,10 @@ const table = (pts: readonly (readonly [number, number])[], t: number) => {
 
 /** Width of the head at a height (unit y, -1 chin .. 1 crown): narrow jaw and chin, cheekbones, a rounded crown */
 const WIDTH = [
-  [-1, 0.56],
-  [-0.93, 0.72],
-  [-0.8, 0.82],
-  [-0.5, 0.86],
+  [-1, 0.6],
+  [-0.93, 0.77],
+  [-0.8, 0.87],
+  [-0.5, 0.9],
   [-0.2, 0.92],
   [0.05, 0.97],
   [0.35, 1.0],
@@ -128,7 +128,7 @@ const capGeometry = () => {
     const h = hairline(az);
     const yn = lerp(h, 0.999, t * t * (3 - 2 * t) * 0.35 + t * 0.65);
     const ry = Math.sqrt(Math.max(0, 1 - yn * yn));
-    headPoint(Math.sin(az) * ry, yn, Math.cos(az) * ry, _p, 1.015 + 0.17 * Math.pow(t, 0.8));
+    headPoint(Math.sin(az) * ry, yn, Math.cos(az) * ry, _p, 1.015 + 0.09 * Math.pow(t, 0.8));
     pos.setXYZ(i, _p.x, _p.y, _p.z);
   }
   g.computeVertexNormals();
@@ -184,12 +184,12 @@ export const hairGeometry = () => {
       const yStart = lerp(0.78, 0.96, along);
       const azRoot = PART + side * 0.05;
       const azEnd = side * lerp(1.3, 1.75, along);
-      const root = on(PART + side * 0.04, yStart, 1.07);
+      const root = on(PART + side * 0.04, yStart, 1.05);
       // pushed back along the part as the locks go from the forehead to the crown
       const zBack = lerp(0.0, -0.075, along);
-      const mid = on(azRoot + side * (0.6 + j), lerp(0.88, 0.92, along) + j * 0.3, 1.42 + j * 0.4);
-      const out = on(azEnd + side * j, lerp(0.42, 0.5, along) - 0.05 * Math.sin(k * 1.7), 1.22);
-      const flick = on(azEnd + side * 0.15, lerp(0.36, 0.44, along) + 0.06, 1.3);
+      const mid = on(azRoot + side * (0.6 + j), lerp(0.88, 0.92, along) + j * 0.3, 1.24 + j * 0.25);
+      const out = on(azEnd + side * j, lerp(0.42, 0.5, along) - 0.05 * Math.sin(k * 1.7), 1.16);
+      const flick = on(azEnd + side * 0.15, lerp(0.36, 0.44, along) + 0.06, 1.2);
       const shift = (p: [number, number, number], w: number): [number, number, number] => [p[0], p[1], p[2] + zBack * w];
       parts.push(lock([shift(root, 1), shift(mid, 1), shift(out, 0.6), shift(flick, 0.5)], 0.024 - along * 0.004, 0.3));
     }
@@ -203,8 +203,8 @@ export const hairGeometry = () => {
         lock(
           [
             on(a0, 0.72, 1.04),
-            on(a0 + side * 0.18, 0.88, 1.38),
-            on(a0 + side * (0.5 + k * 0.08), 0.62 - k * 0.03, 1.24),
+            on(a0 + side * 0.18, 0.86, 1.22),
+            on(a0 + side * (0.5 + k * 0.08), 0.62 - k * 0.03, 1.16),
             on(side * (0.8 + k * 0.12), 0.32 + k * 0.03, 1.12),
             on(side * (1.12 + k * 0.1), 0.26 + k * 0.04, 1.2),
           ],
@@ -230,7 +230,7 @@ export const hairGeometry = () => {
     const az = Math.PI - 0.9 + (k / 6) * 1.8;
     parts.push(
       lock(
-        [on(az, 0.82, 1.14), on(az, 0.42, 1.16), on(az, 0.0, 1.1), on(az, -0.28, 1.04), on(az, -0.36, 1.03)],
+        [on(az, 0.82, 1.08), on(az, 0.42, 1.12), on(az, 0.0, 1.1), on(az, -0.28, 1.04), on(az, -0.36, 1.03)],
         0.016,
         0.25,
       ),
@@ -245,7 +245,7 @@ export const hairGeometry = () => {
     [2.5, 0.85, 2.9, 0.8],
   ];
   for (const [a0, y0, a1, y1] of strands)
-    parts.push(lock([on(a0, y0, 1.3), on((a0 + a1) / 2, (y0 + y1) / 2 + 0.04, 1.42), on(a1, y1 - 0.12, 1.44)], 0.0018, 0.6));
+    parts.push(lock([on(a0, y0, 1.14), on((a0 + a1) / 2, (y0 + y1) / 2 + 0.03, 1.22), on(a1, y1 - 0.12, 1.24)], 0.0016, 0.6));
   const g = mergeGeometries(parts.map((p) => p.toNonIndexed()));
   parts.forEach((p) => p.dispose());
   return g!;
@@ -266,9 +266,9 @@ export const frameGeometry = (w: number, h: number, t: number, depth: number) =>
   };
   const outer = new THREE.Shape();
   // a little deeper at the top, like the acetate frames in the photos
-  round(outer, -w / 2 - t, -h / 2 - t * 0.9, w + 2 * t, h + t * 2.2, t * 1.6);
+  round(outer, -w / 2 - t, -h / 2 - t * 0.9, w + 2 * t, h + t * 2.2, Math.min(h / 2 + t, 0.0095));
   const hole = new THREE.Path();
-  round(hole, -w / 2, -h / 2, w, h, t * 0.9);
+  round(hole, -w / 2, -h / 2, w, h, Math.min(h / 2, 0.0068));
   outer.holes.push(hole);
   const g = new THREE.ExtrudeGeometry(outer, { depth, bevelEnabled: true, bevelThickness: depth * 0.3, bevelSize: t * 0.25, bevelSegments: 2, curveSegments: 4 });
   g.translate(0, 0, -depth / 2);
@@ -284,4 +284,26 @@ export const lensGeometry = (w: number, h: number) => {
   s.lineTo(-w / 2, h / 2);
   s.closePath();
   return new THREE.ShapeGeometry(s);
+};
+
+/**
+ * The open zip-up hoodie's body: the torso profile turned round the spine,
+ * leaving a gap down the front where the zip hangs open, with a thicker
+ * ribbed hem. `gap` is the half-angle of the opening (0 faces the front).
+ */
+export const hoodieGeometry = (gap: number) => {
+  const profile = [
+    [0.0, -0.005],
+    [0.15, 0.0],
+    [0.162, 0.03],
+    [0.152, 0.06],
+    [0.158, 0.16],
+    [0.168, 0.3],
+    [0.17, 0.38],
+    [0.162, 0.44],
+    [0.14, 0.49],
+    [0.09, 0.53],
+    [0.058, 0.55],
+  ].map(([r, y]) => new THREE.Vector2(r, y));
+  return new THREE.LatheGeometry(profile, 28, gap, Math.PI * 2 - gap * 2);
 };
