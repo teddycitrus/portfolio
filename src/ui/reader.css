@@ -1,0 +1,258 @@
+/*
+ * The reader page, set like the E2B docs (docs.e2b.dev): pure black, Inter at
+ * 440 / 520 / 580 with tight tracking, grey body text under near-white
+ * headings, 1px hairlines, Commit Mono for labels and square buttons, and one
+ * orange-red accent. Scoped to .docs so the in-world panels keep their look.
+ */
+.docs {
+  --d-bg: #000;
+  --d-fg: #f4f4f4;
+  --d-body: #a6a6a6;
+  --d-muted: #7a7a7a;
+  --d-faint: #525252;
+  --d-line: #1f1f1f;
+  --d-line-2: #2c2c2c;
+  --d-raise: #0a0a0a;
+  --d-hover: #141414;
+  --d-accent: #e32a01;
+  --accent: #e32a01;
+  --d-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  color: var(--d-body);
+  font-family: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  font-weight: 440;
+  font-size: 16px;
+  letter-spacing: -0.006em;
+  font-feature-settings: 'cv11', 'calt';
+}
+.docs .d-mono {
+  font-family: 'Commit Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0;
+}
+
+/* type */
+.docs .d-h1 {
+  color: var(--d-fg);
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: 580;
+  letter-spacing: -0.022em;
+}
+.docs .d-h2 {
+  color: var(--d-fg);
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 580;
+  letter-spacing: -0.019em;
+}
+.docs .d-h3 {
+  color: var(--d-fg);
+  font-size: 18px;
+  line-height: 28px;
+  font-weight: 580;
+  letter-spacing: -0.012em;
+}
+.docs .d-p {
+  color: var(--d-body);
+  font-size: 16px;
+  line-height: 26px;
+  letter-spacing: -0.01em;
+}
+.docs .d-strong {
+  color: var(--d-fg);
+  font-weight: 520;
+}
+.docs .d-meta {
+  font-family: 'Commit Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 18px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--d-muted);
+}
+.docs .d-list {
+  display: grid;
+  gap: 8px;
+  padding-left: 20px;
+  list-style: disc;
+}
+.docs .d-list li {
+  color: var(--d-body);
+  font-size: 16px;
+  line-height: 26px;
+  padding-left: 4px;
+}
+.docs .d-list li::marker {
+  color: var(--d-faint);
+}
+
+/* links, buttons, chips */
+.docs .d-link {
+  color: var(--d-fg);
+  text-decoration: underline;
+  text-decoration-color: var(--d-line-2);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  transition: text-decoration-color 150ms ease, color 150ms ease;
+}
+.docs .d-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--d-line-2);
+  background: transparent;
+  color: var(--d-fg);
+  font-family: 'Commit Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: background-color 150ms ease, border-color 150ms ease, transform 120ms var(--d-ease);
+}
+.docs .d-btn:active {
+  transform: scale(0.97);
+}
+.docs .d-btn-primary {
+  background: var(--d-accent);
+  border-color: var(--d-accent);
+  color: #fff;
+}
+.docs .d-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--d-line-2);
+  border-radius: 6px;
+  background: var(--d-raise);
+  color: var(--d-fg);
+  font-family: 'Commit Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1;
+}
+.docs .d-kbd {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--d-line-2);
+  border-radius: 4px;
+  color: var(--d-muted);
+  font-family: 'Commit Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  text-transform: none;
+}
+.docs .d-card {
+  border: 1px solid var(--d-line);
+  border-radius: 8px;
+  background: var(--d-raise);
+}
+.docs .d-row {
+  transition: background-color 150ms ease;
+}
+
+/* navigation */
+.docs .d-nav-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 12px;
+  color: var(--d-body);
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: -0.006em;
+  text-align: left;
+  transition: color 150ms ease;
+}
+.docs .d-nav-item svg {
+  width: 16px;
+  height: 16px;
+  color: var(--d-muted);
+  transition: color 150ms ease;
+}
+.docs .d-nav-item[aria-current='true'] {
+  color: var(--d-fg);
+  font-weight: 520;
+}
+.docs .d-nav-item[aria-current='true'] svg {
+  color: var(--d-fg);
+}
+.docs .d-toc-item {
+  display: block;
+  width: 100%;
+  padding: 4px 0;
+  color: var(--d-muted);
+  font-size: 13px;
+  line-height: 20px;
+  text-align: left;
+  transition: color 150ms ease;
+}
+.docs .d-toc-item[aria-current='true'] {
+  color: var(--d-fg);
+  font-weight: 520;
+}
+.docs .d-tab {
+  position: relative;
+  display: flex;
+  height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px;
+  color: var(--d-body);
+  font-size: 14px;
+  transition: color 150ms ease;
+}
+.docs .d-tab::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--d-accent);
+  transform: scaleX(0);
+  transition: transform 200ms var(--d-ease);
+}
+.docs .d-tab[aria-current='true'] {
+  color: var(--d-fg);
+  font-weight: 520;
+}
+.docs .d-tab[aria-current='true']::after {
+  transform: scaleX(1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .docs .d-link:hover {
+    text-decoration-color: var(--d-accent);
+  }
+  .docs .d-btn:hover {
+    background: var(--d-hover);
+    border-color: #3d3d3d;
+  }
+  .docs .d-btn-primary:hover {
+    background: #f23b12;
+    border-color: #f23b12;
+  }
+  .docs .d-row:hover {
+    background: var(--d-hover);
+  }
+  .docs .d-nav-item:hover,
+  .docs .d-toc-item:hover,
+  .docs .d-tab:hover {
+    color: var(--d-fg);
+  }
+  .docs .d-nav-item:hover svg {
+    color: var(--d-fg);
+  }
+}
+
+.docs :focus-visible {
+  outline: 1.5px solid var(--d-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.docs ::selection {
+  background: rgba(227, 42, 1, 0.35);
+}

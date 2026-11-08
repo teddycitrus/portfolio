@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from "react";
 import type {
   AwardContent,
   Beacon,
@@ -8,26 +8,45 @@ import type {
   ProfileContent,
   ProjectContent,
   SkillsContent,
-} from '@/types/content';
-import { ArrowIcon, Chip, DISPLAY, PlayIcon, buttonClass, cx } from './primitives';
-import { findProjectBeacon } from './navigation';
+} from "@/types/content";
+import {
+  ArrowIcon,
+  Chip,
+  DISPLAY,
+  PlayIcon,
+  buttonClass,
+  cx,
+} from "./primitives";
+import { findProjectBeacon } from "./navigation";
 
 /** Entry headings share one size across every kind, in the reader and on the screens. */
-export const ENTRY_HEADING = cx('font-display leading-[1.1] text-ink', DISPLAY.d32);
+export const ENTRY_HEADING = cx(
+  "font-display leading-[1.1] text-ink",
+  DISPLAY.d32,
+);
 
 /**
  * Shared content renderers for the beacon panel and the reader page so a
  * piece of content reads the same in both places.
  */
-export type Variant = 'panel' | 'reader';
+export type Variant = "panel" | "reader";
 
-const isMail = (url: string) => url.startsWith('mailto:');
-export const linkProps = (url: string) => (isMail(url) ? {} : { target: '_blank', rel: 'noreferrer' });
+const isMail = (url: string) => url.startsWith("mailto:");
+export const linkProps = (url: string) =>
+  isMail(url) ? {} : { target: "_blank", rel: "noreferrer" };
 
-export const Heading = ({ variant, children, className }: { variant: Variant; children: ReactNode; className?: string }) => {
-  const cls = cx(ENTRY_HEADING, className);
-  return variant === 'panel' ? (
-    <h2 tabIndex={-1} data-panel-heading className={cx(cls, 'scroll-mt-4')}>
+export const Heading = ({
+  variant,
+  children,
+  className,
+}: {
+  variant: Variant;
+  children: ReactNode;
+  className?: string;
+}) => {
+  const cls = cx(variant === "reader" ? "d-h3" : ENTRY_HEADING, className);
+  return variant === "panel" ? (
+    <h2 tabIndex={-1} data-panel-heading className={cx(cls, "scroll-mt-4")}>
       {children}
     </h2>
   ) : (
@@ -35,66 +54,159 @@ export const Heading = ({ variant, children, className }: { variant: Variant; ch
   );
 };
 
-export const Body = ({ children, variant }: { children: ReactNode; variant: Variant }) => (
-  <p className={cx('text-ink/85', variant === 'panel' ? 'text-[15px] leading-[1.65]' : 'text-[16px] leading-[1.7]')}>
+export const Body = ({
+  children,
+  variant,
+}: {
+  children: ReactNode;
+  variant: Variant;
+}) => (
+  <p
+    className={
+      variant === "panel" ? "text-[15px] leading-[1.65] text-ink/85" : "d-p"
+    }
+  >
     {children}
   </p>
 );
 
-export const MetaLine = ({ items }: { items: ReactNode[] }) => (
-  <p className="label flex flex-wrap items-center gap-x-3 gap-y-1">
+export const MetaLine = ({
+  items,
+  variant = "panel",
+}: {
+  items: ReactNode[];
+  variant?: Variant;
+}) => (
+  <p
+    className={cx(
+      variant === "reader" ? "d-meta" : "label",
+      "flex flex-wrap items-center gap-x-3 gap-y-1",
+    )}
+  >
     {items.map((m, i) => (
       <span key={i}>{m}</span>
     ))}
   </p>
 );
 
-export const Highlights = ({ items, variant }: { items: string[]; variant: Variant }) => (
-  <ul className="space-y-2.5">
-    {items.map((h) => (
-      <li
-        key={h}
-        className={cx(
-          'flex gap-3 text-ink/85',
-          variant === 'panel' ? 'text-[14px] leading-[1.6]' : 'text-[15px] leading-[1.65]',
-        )}
-      >
-        <span aria-hidden="true" className="mt-[0.8em] h-px w-3 shrink-0 bg-[var(--accent)]" />
-        <span>{h}</span>
-      </li>
-    ))}
-  </ul>
-);
+export const Highlights = ({
+  items,
+  variant,
+}: {
+  items: string[];
+  variant: Variant;
+}) =>
+  variant === "reader" ? (
+    <ul className="d-list">
+      {items.map((h) => (
+        <li key={h}>{h}</li>
+      ))}
+    </ul>
+  ) : (
+    <ul className="space-y-2.5">
+      {items.map((h) => (
+        <li
+          key={h}
+          className={cx(
+            "flex gap-3 text-ink/85",
+            variant === "panel"
+              ? "text-[14px] leading-[1.6]"
+              : "text-[15px] leading-[1.65]",
+          )}
+        >
+          <span
+            aria-hidden="true"
+            className="mt-[0.8em] h-px w-3 shrink-0 bg-[var(--accent)]"
+          />
+          <span>{h}</span>
+        </li>
+      ))}
+    </ul>
+  );
 
 /** Compact closing block: a small label, then the numbers inline. `bare` drops the divider when it stands alone. */
-export const Aside = ({ heading, facts, bare }: { heading: string; facts: Fact[]; bare?: boolean }) => (
-  <section className={cx('space-y-2', !bare && 'border-t border-line pt-4')}>
-    <h4 className="label">{heading}</h4>
-    <dl className="flex flex-wrap gap-x-8 gap-y-2">
-      {facts.map((f) => (
-        <div key={f.label} className="flex items-baseline gap-2">
-          <dt className="text-[13px] text-ink-muted">{f.label}</dt>
-          <dd className="text-[15px] font-medium text-ink">{f.value}</dd>
-        </div>
-      ))}
-    </dl>
-  </section>
-);
+export const Aside = ({
+  heading,
+  facts,
+  bare,
+  variant = "panel",
+}: {
+  heading: string;
+  facts: Fact[];
+  bare?: boolean;
+  variant?: Variant;
+}) =>
+  variant === "reader" ? (
+    <section className="d-card px-5 py-4">
+      <h4 className="d-meta mb-2">{heading}</h4>
+      <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-6 gap-y-2">
+        {facts.map((f) => (
+          <div key={f.label} className="contents">
+            <dt className="text-[14px] text-[var(--d-body)]">{f.label}</dt>
+            <dd className="d-mono text-[14px] text-[var(--d-fg)]">{f.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  ) : (
+    <section className={cx("space-y-2", !bare && "border-t border-line pt-4")}>
+      <h4 className="label">{heading}</h4>
+      <dl className="flex flex-wrap gap-x-8 gap-y-2">
+        {facts.map((f) => (
+          <div key={f.label} className="flex items-baseline gap-2">
+            <dt className="text-[13px] text-ink-muted">{f.label}</dt>
+            <dd className="text-[15px] font-medium text-ink">{f.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
 
-export const StackChips = ({ items, label = 'Stack' }: { items: string[]; label?: string }) => (
-  <ul className="flex flex-wrap gap-x-4 gap-y-2.5" aria-label={label}>
+export const StackChips = ({
+  items,
+  label = "Stack",
+  variant = "panel",
+}: {
+  items: string[];
+  label?: string;
+  variant?: Variant;
+}) => (
+  <ul
+    className={cx(
+      "flex flex-wrap",
+      variant === "reader" ? "gap-2" : "gap-x-4 gap-y-2.5",
+    )}
+    aria-label={label}
+  >
     {items.map((s) => (
       <li key={s}>
-        <Chip>{s}</Chip>
+        {variant === "reader" ? (
+          <span className="d-chip">{s}</span>
+        ) : (
+          <Chip>{s}</Chip>
+        )}
       </li>
     ))}
   </ul>
 );
 
-export const LinkButtons = ({ links }: { links: ExternalLink[] }) => (
-  <div className="flex flex-wrap gap-x-6">
+export const LinkButtons = ({
+  links,
+  variant = "panel",
+}: {
+  links: ExternalLink[];
+  variant?: Variant;
+}) => (
+  <div
+    className={cx("flex flex-wrap", variant === "reader" ? "gap-2" : "gap-x-6")}
+  >
     {links.map((l) => (
-      <a key={l.url} href={l.url} {...linkProps(l.url)} className={buttonClass('ghost', 'md')}>
+      <a
+        key={l.url}
+        href={l.url}
+        {...linkProps(l.url)}
+        className={variant === "reader" ? "d-btn" : buttonClass("ghost", "md")}
+      >
         {l.label}
         <ArrowIcon external={!isMail(l.url)} />
       </a>
@@ -103,7 +215,15 @@ export const LinkButtons = ({ links }: { links: ExternalLink[] }) => (
 );
 
 /** Poster first; the iframe only loads after a click. */
-export const VideoEmbed = ({ videoId, title, poster }: { videoId: string; title: string; poster?: string }) => {
+export const VideoEmbed = ({
+  videoId,
+  title,
+  poster,
+}: {
+  videoId: string;
+  title: string;
+  poster?: string;
+}) => {
   const [play, setPlay] = useState(false);
   // custom poster, then YouTube's max-res frame, then the always-present hq frame
   const sources = [
@@ -134,7 +254,11 @@ export const VideoEmbed = ({ videoId, title, poster }: { videoId: string; title:
             onError={() => setSrc((i) => Math.min(i + 1, sources.length - 1))}
             onLoad={(e) => {
               // YouTube serves a 120px grey placeholder instead of a 404 for missing max-res frames
-              if (e.currentTarget.naturalWidth <= 120 && src < sources.length - 1) setSrc(src + 1);
+              if (
+                e.currentTarget.naturalWidth <= 120 &&
+                src < sources.length - 1
+              )
+                setSrc(src + 1);
             }}
             alt=""
             loading="lazy"
@@ -151,36 +275,57 @@ export const VideoEmbed = ({ videoId, title, poster }: { videoId: string; title:
   );
 };
 
-export const ProfileBody = ({ c, variant }: { c: ProfileContent; variant: Variant }) => (
+export const ProfileBody = ({
+  c,
+  variant,
+}: {
+  c: ProfileContent;
+  variant: Variant;
+}) => (
   <div className="space-y-5">
     <div className="space-y-3">
       <Heading variant={variant}>{c.heading}</Heading>
-      {c.meta && c.meta.length > 0 && <MetaLine items={c.meta} />}
+      {c.meta && c.meta.length > 0 && (
+        <MetaLine items={c.meta} variant={variant} />
+      )}
     </div>
     <Body variant={variant}>{c.body}</Body>
-    {c.highlights && c.highlights.length > 0 && <Highlights items={c.highlights} variant={variant} />}
-    {c.aside && <Aside {...c.aside} />}
+    {c.highlights && c.highlights.length > 0 && (
+      <Highlights items={c.highlights} variant={variant} />
+    )}
+    {c.aside && <Aside {...c.aside} variant={variant} />}
   </div>
 );
 
-export const ProjectBody = ({ c, variant }: { c: ProjectContent; variant: Variant }) => (
+export const ProjectBody = ({
+  c,
+  variant,
+}: {
+  c: ProjectContent;
+  variant: Variant;
+}) => (
   <div className="space-y-5">
     <div className="space-y-3">
       <Heading variant={variant}>{c.heading}</Heading>
       {/* one compact meta line: when, and what it won */}
       <MetaLine
+        variant={variant}
         items={[
           c.period,
-          c.team && 'Team',
+          c.team && "Team",
           c.award && <span className="text-[var(--accent)]">{c.award}</span>,
         ].filter(Boolean)}
       />
     </div>
-    {c.videoId && <VideoEmbed videoId={c.videoId} title={c.heading} poster={c.poster} />}
+    {c.videoId && (
+      <VideoEmbed videoId={c.videoId} title={c.heading} poster={c.poster} />
+    )}
     <Body variant={variant}>{c.description}</Body>
-    {c.highlights.length > 0 && <Highlights items={c.highlights} variant={variant} />}
-    {c.stack.length > 0 && <StackChips items={c.stack} />}
-    {c.links.length > 0 && <LinkButtons links={c.links} />}
+    {c.highlights.length > 0 && (
+      <Highlights items={c.highlights} variant={variant} />
+    )}
+    {c.stack.length > 0 && <StackChips items={c.stack} variant={variant} />}
+    {c.links.length > 0 && <LinkButtons links={c.links} variant={variant} />}
   </div>
 );
 
@@ -191,10 +336,14 @@ interface AwardProps {
   onProject?: (planetId: string, beaconId: string) => void;
 }
 
-export const AwardProject = ({ c, onProject }: Pick<AwardProps, 'c' | 'onProject'>) => {
+export const AwardProject = ({
+  c,
+  onProject,
+}: Pick<AwardProps, "c" | "onProject">) => {
   if (!c.project) return null;
   const match = findProjectBeacon(c.project);
-  if (!match || !onProject) return <span className="text-ink">{c.project}</span>;
+  if (!match || !onProject)
+    return <span className="text-ink">{c.project}</span>;
   return (
     <button
       type="button"
@@ -223,21 +372,41 @@ export const AwardBody = ({ c, variant, onProject }: AwardProps) => (
   </div>
 );
 
-export const SkillsBody = ({ c, variant }: { c: SkillsContent; variant: Variant }) => (
+export const SkillsBody = ({
+  c,
+  variant,
+}: {
+  c: SkillsContent;
+  variant: Variant;
+}) => (
   <div className="space-y-5">
     <Heading variant={variant}>{c.heading}</Heading>
     <StackChips items={c.items} label="Skills" />
   </div>
 );
 
-export const LinkBody = ({ label, c, variant }: { label: string; c: LinkContent; variant: Variant }) => (
+export const LinkBody = ({
+  label,
+  c,
+  variant,
+}: {
+  label: string;
+  c: LinkContent;
+  variant: Variant;
+}) => (
   <div className="space-y-5">
     <div className="space-y-2">
       <Heading variant={variant}>{label}</Heading>
-      <p className="break-all font-mono text-[13px] text-[var(--accent)]">{c.handle}</p>
+      <p className="break-all font-mono text-[13px] text-[var(--accent)]">
+        {c.handle}
+      </p>
     </div>
-    <a href={c.url} {...linkProps(c.url)} className={cx(buttonClass('primary', 'md'), 'w-full justify-between')}>
-      {isMail(c.url) ? 'Write an email' : `Open ${label}`}
+    <a
+      href={c.url}
+      {...linkProps(c.url)}
+      className={cx(buttonClass("primary", "md"), "w-full justify-between")}
+    >
+      {isMail(c.url) ? "Write an email" : `Open ${label}`}
       <ArrowIcon external={!isMail(c.url)} className="h-4 w-4" />
     </a>
   </div>
@@ -250,18 +419,22 @@ export const BeaconBody = ({
 }: {
   beacon: Beacon;
   variant: Variant;
-  onProject?: AwardProps['onProject'];
+  onProject?: AwardProps["onProject"];
 }) => {
   switch (beacon.kind) {
-    case 'profile':
+    case "profile":
       return <ProfileBody c={beacon.content} variant={variant} />;
-    case 'project':
+    case "project":
       return <ProjectBody c={beacon.content} variant={variant} />;
-    case 'award':
-      return <AwardBody c={beacon.content} variant={variant} onProject={onProject} />;
-    case 'skills':
+    case "award":
+      return (
+        <AwardBody c={beacon.content} variant={variant} onProject={onProject} />
+      );
+    case "skills":
       return <SkillsBody c={beacon.content} variant={variant} />;
-    case 'link':
-      return <LinkBody label={beacon.label} c={beacon.content} variant={variant} />;
+    case "link":
+      return (
+        <LinkBody label={beacon.label} c={beacon.content} variant={variant} />
+      );
   }
 };

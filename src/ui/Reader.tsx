@@ -1,40 +1,79 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
-import { planets, profile } from '@/data/content';
-import type { Beacon, Planet } from '@/types/content';
-import { useAppStore } from '@/state/useAppStore';
-import { AwardProject, ENTRY_HEADING, ProfileBody, ProjectBody, StackChips, linkProps } from './BeaconContent';
-import { visitPlanet } from './navigation';
-import { ArrowIcon, Button, CloseIcon, DISPLAY, EASE, Kbd, SAFE, cx, usePresence } from './primitives';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
+import { planets, profile } from "@/data/content";
+import type { Beacon, Planet } from "@/types/content";
+import { useAppStore } from "@/state/useAppStore";
+import { TbAlignLeft, TbCode, TbTrophy, TbUser, TbX } from "react-icons/tb";
+import type { IconType } from "react-icons";
+import "@fontsource-variable/inter/wght.css";
+import "@fontsource/commit-mono/400.css";
+import "./reader.css";
+import {
+  AwardProject,
+  ProfileBody,
+  ProjectBody,
+  StackChips,
+  linkProps,
+} from "./BeaconContent";
+import { visitPlanet } from "./navigation";
+import { ArrowIcon, EASE, usePresence } from "./primitives";
 
 const sectionId = (id: string) => `reader-${id}`;
 const entryId = (id: string) => `reader-entry-${id}`;
 
-const contactLinks = profile.links;
+const contactLinks = profile.links.filter((l) => l.label !== "Resume");
+const resume = profile.links.find((l) => l.label === "Resume");
+const ICONS: Record<string, IconType> = {
+  about: TbUser,
+  projects: TbCode,
+  awards: TbTrophy,
+};
 
-const SectionBody = ({ planet, onProject }: { planet: Planet; onProject: (beaconId: string) => void }) => {
+const SectionBody = ({
+  planet,
+  onProject,
+}: {
+  planet: Planet;
+  onProject: (beaconId: string) => void;
+}) => {
   const b = planet.beacons;
-  const projects = b.filter((x): x is Extract<Beacon, { kind: 'project' }> => x.kind === 'project');
-  const profiles = b.filter((x): x is Extract<Beacon, { kind: 'profile' }> => x.kind === 'profile');
-  const awards = b.filter((x): x is Extract<Beacon, { kind: 'award' }> => x.kind === 'award');
-  const skills = b.filter((x): x is Extract<Beacon, { kind: 'skills' }> => x.kind === 'skills');
-  const links = b.filter((x): x is Extract<Beacon, { kind: 'link' }> => x.kind === 'link');
+  const projects = b.filter(
+    (x): x is Extract<Beacon, { kind: "project" }> => x.kind === "project",
+  );
+  const profiles = b.filter(
+    (x): x is Extract<Beacon, { kind: "profile" }> => x.kind === "profile",
+  );
+  const awards = b.filter(
+    (x): x is Extract<Beacon, { kind: "award" }> => x.kind === "award",
+  );
+  const skills = b.filter(
+    (x): x is Extract<Beacon, { kind: "skills" }> => x.kind === "skills",
+  );
+  const links = b.filter(
+    (x): x is Extract<Beacon, { kind: "link" }> => x.kind === "link",
+  );
 
   return (
-    <div className="space-y-12">
-      {profiles.length > 0 && (
-        <div className="space-y-10">
-          {profiles.map((p) => (
-            <article key={p.id} id={entryId(p.id)}>
-              <ProfileBody c={p.content} variant="reader" />
-            </article>
-          ))}
-        </div>
-      )}
+    <div className="space-y-10">
+      {profiles.map((p) => (
+        <article key={p.id} id={entryId(p.id)} className="scroll-mt-32">
+          <ProfileBody c={p.content} variant="reader" />
+        </article>
+      ))}
 
       {projects.length > 0 && (
-        <div className="divide-y divide-line">
+        <div className="divide-y divide-[var(--d-line)]">
           {projects.map((p) => (
-            <article key={p.id} id={entryId(p.id)} className="scroll-mt-8 py-10 first:pt-0 last:pb-0">
+            <article
+              key={p.id}
+              id={entryId(p.id)}
+              className="scroll-mt-32 py-10 first:pt-0 last:pb-0"
+            >
               <ProjectBody c={p.content} variant="reader" />
             </article>
           ))}
@@ -42,54 +81,69 @@ const SectionBody = ({ planet, onProject }: { planet: Planet; onProject: (beacon
       )}
 
       {awards.length > 0 && (
-        <ol className="border-t border-line">
+        <ol className="d-card divide-y divide-[var(--d-line)] overflow-hidden">
           {awards.map((a) => (
-            <li key={a.id} id={entryId(a.id)} className="space-y-2 border-b border-line py-6 last:border-b-0 last:pb-0">
-              <h3 className={ENTRY_HEADING}>{a.content.event}</h3>
-              <p className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[16px] text-ink/90">
-                <span>{a.content.result}</span>
-                {a.content.year && <span className="label">{a.content.year}</span>}
-                {a.content.project && (
-                  <span className="inline-flex items-baseline gap-2 text-[14px]">
-                    <span className="label">Project</span>
-                    <AwardProject c={a.content} onProject={(_pid, bid) => onProject(bid)} />
-                  </span>
+            <li
+              key={a.id}
+              id={entryId(a.id)}
+              className="d-row scroll-mt-32 space-y-1.5 px-5 py-4"
+            >
+              <div className="flex items-baseline justify-between gap-4">
+                <h3 className="d-strong text-[16px]">{a.content.event}</h3>
+                {a.content.year && (
+                  <span className="d-meta shrink-0">{a.content.year}</span>
                 )}
-              </p>
+              </div>
+              <p className="d-p">{a.content.result}</p>
+              {a.content.project && (
+                <p className="flex items-baseline gap-3 pt-1 text-[14px]">
+                  <span className="d-meta">Project</span>
+                  <AwardProject
+                    c={a.content}
+                    onProject={(_pid, bid) => onProject(bid)}
+                  />
+                </p>
+              )}
             </li>
           ))}
         </ol>
       )}
 
       {skills.length > 0 && (
-        <div className="grid gap-x-10 gap-y-8 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2">
           {skills.map((s) => (
-            <div key={s.id} id={entryId(s.id)} className="space-y-3">
-              <h3 className={cx('font-display leading-tight text-ink', DISPLAY.d24)}>
-                {s.content.heading}
-              </h3>
-              <StackChips items={s.content.items} label={s.content.heading} />
+            <div
+              key={s.id}
+              id={entryId(s.id)}
+              className="d-card scroll-mt-32 space-y-3 p-5"
+            >
+              <h3 className="d-h3">{s.content.heading}</h3>
+              <StackChips
+                items={s.content.items}
+                label={s.content.heading}
+                variant="reader"
+              />
             </div>
           ))}
         </div>
       )}
 
       {links.length > 0 && (
-        <ul className="border-t border-line">
+        <ul className="d-card divide-y divide-[var(--d-line)] overflow-hidden">
           {links.map((l) => (
             <li key={l.id} id={entryId(l.id)}>
               <a
                 href={l.content.url}
                 {...linkProps(l.content.url)}
-                className="group grid grid-cols-[1fr_auto] items-center gap-x-6 gap-y-1.5 border-b border-line py-5 [li:last-child>&]:border-b-0 sm:grid-cols-[160px_1fr_auto]"
+                className="d-row grid grid-cols-[120px_1fr_auto] items-center gap-4 px-5 py-3.5"
               >
-                <span className={cx('col-start-1 row-start-1', ENTRY_HEADING, 'leading-none')}>{l.label}</span>
-                <span className="col-span-2 col-start-1 row-start-2 break-all font-mono text-[13px] text-ink-muted transition-colors duration-200 group-hover:text-[var(--accent)] sm:col-span-1 sm:col-start-2 sm:row-start-1">
+                <span className="d-strong text-[14px]">{l.label}</span>
+                <span className="d-mono truncate text-[13px] text-[var(--d-muted)]">
                   {l.content.handle}
                 </span>
                 <ArrowIcon
-                  external={!l.content.url.startsWith('mailto:')}
-                  className="col-start-2 row-start-1 h-4 w-4 text-ink-muted transition-[color,transform] duration-200 ease-out group-hover:translate-x-0.5 group-hover:text-[var(--accent)] sm:col-start-3"
+                  external={!l.content.url.startsWith("mailto:")}
+                  className="h-3.5 w-3.5 text-[var(--d-muted)]"
                 />
               </a>
             </li>
@@ -104,10 +158,9 @@ const Reader = () => {
   const open = useAppStore((s) => s.readerOpen);
   const section = useAppStore((s) => s.readerSection);
   const closeReader = useAppStore((s) => s.closeReader);
-  const isTouch = useAppStore((s) => s.isTouch);
   const noWebGL = useAppStore((s) => s.noWebGL);
   const { mounted, visible } = usePresence(open, 350);
-  const [current, setCurrent] = useState<string>(planets[0]?.id ?? '');
+  const [current, setCurrent] = useState<string>(planets[0]?.id ?? "");
 
   const scroller = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDivElement>(null);
@@ -130,7 +183,8 @@ const Reader = () => {
     return () => {
       const el = returnFocus.current;
       returnFocus.current = null;
-      if (el && document.contains(el)) requestAnimationFrame(() => el.focus({ preventScroll: true }));
+      if (el && document.contains(el))
+        requestAnimationFrame(() => el.focus({ preventScroll: true }));
     };
   }, [open]);
   // focus the dialog once it is actually in the DOM (Tab then reaches Close first)
@@ -157,10 +211,12 @@ const Reader = () => {
       (entries) => {
         const hit = entries
           .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-        if (hit) setCurrent(hit.target.id.replace('reader-', ''));
+          .sort(
+            (a, b) => a.boundingClientRect.top - b.boundingClientRect.top,
+          )[0];
+        if (hit) setCurrent(hit.target.id.replace("reader-", ""));
       },
-      { root: scroller.current, rootMargin: '-30% 0px -60% 0px' },
+      { root: scroller.current, rootMargin: "-30% 0px -60% 0px" },
     );
     planets.forEach((p) => {
       const el = document.getElementById(sectionId(p.id));
@@ -176,8 +232,8 @@ const Reader = () => {
     if (!row || !btn) return;
     const l = btn.offsetLeft - 16;
     const r = btn.offsetLeft + btn.offsetWidth + 16 - row.clientWidth;
-    if (row.scrollLeft > l) row.scrollTo({ left: l, behavior: 'smooth' });
-    else if (row.scrollLeft < r) row.scrollTo({ left: r, behavior: 'smooth' });
+    if (row.scrollLeft > l) row.scrollTo({ left: l, behavior: "smooth" });
+    else if (row.scrollLeft < r) row.scrollTo({ left: r, behavior: "smooth" });
   }, [current]);
 
   if (!mounted) return null;
@@ -185,19 +241,26 @@ const Reader = () => {
   const goTo = (id: string) => {
     const el = document.getElementById(id);
     const sc = scroller.current;
-    if (el && sc) sc.scrollTo({ top: el.offsetTop - topOffset(), behavior: 'smooth' });
+    if (el && sc)
+      sc.scrollTo({ top: el.offsetTop - topOffset(), behavior: "smooth" });
   };
 
   // focus trap-lite: keep Tab inside the dialog
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key !== 'Tab' || !dialog.current) return;
-    const items = [...dialog.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), iframe')].filter(
-      (el) => el.offsetParent !== null,
-    );
+    if (e.key !== "Tab" || !dialog.current) return;
+    const items = [
+      ...dialog.current.querySelectorAll<HTMLElement>(
+        "a[href], button:not([disabled]), iframe",
+      ),
+    ].filter((el) => el.offsetParent !== null);
     if (!items.length) return;
     const first = items[0];
     const last = items[items.length - 1];
-    if (e.shiftKey && (document.activeElement === first || document.activeElement === dialog.current)) {
+    if (
+      e.shiftKey &&
+      (document.activeElement === first ||
+        document.activeElement === dialog.current)
+    ) {
       e.preventDefault();
       last.focus();
     } else if (!e.shiftKey && document.activeElement === last) {
@@ -208,6 +271,8 @@ const Reader = () => {
 
   const currentPlanet = planets.find((p) => p.id === current);
 
+  const entries = currentPlanet?.beacons ?? [];
+
   return (
     <div
       ref={dialog}
@@ -216,62 +281,105 @@ const Reader = () => {
       aria-label={`${profile.name}, portfolio`}
       tabIndex={-1}
       onKeyDown={onKeyDown}
-      className="pointer-events-auto absolute inset-0 z-[60] outline-none"
-      style={{ '--accent': currentPlanet?.accent ?? '#e9eef7' } as CSSProperties}
+      className="docs pointer-events-auto absolute inset-0 z-[60] outline-none"
     >
       <div
         aria-hidden="true"
-        className="absolute inset-0 bg-space/90 backdrop-blur-md"
-        style={{ opacity: visible ? 1 : 0, transition: `opacity 350ms ${EASE}` }}
+        className="absolute inset-0 bg-black"
+        style={{
+          opacity: visible ? 1 : 0,
+          transition: `opacity 300ms ${EASE}`,
+        }}
       />
-
-      {!noWebGL && (
-        <>
-          {/* keeps the floating Close legible over scrolling text on phones */}
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-space via-space/80 to-transparent lg:hidden"
-            style={{ height: `calc(${SAFE.top} + 64px)`, opacity: visible ? 1 : 0 }}
-          />
-          <Button
-            size="sm"
-            onClick={closeReader}
-            aria-label="Close page"
-            className="absolute z-20"
-            style={{ top: SAFE.top, right: SAFE.right, opacity: visible ? 1 : 0 }}
-          >
-            <CloseIcon className="h-3.5 w-3.5 text-ink-muted" />
-            Close
-            {!isTouch && <Kbd className="ml-0.5 hidden md:inline-flex">Esc</Kbd>}
-          </Button>
-        </>
-      )}
 
       <div
         ref={scroller}
         className="scrollbar-thin absolute inset-0 overflow-y-auto overscroll-contain"
         style={{
           opacity: visible ? 1 : 0,
-          transform: visible ? 'none' : 'translateY(12px)',
-          transition: `opacity 400ms ${EASE}, transform 500ms ${EASE}`,
+          transform: visible ? "none" : "translateY(8px)",
+          transition: `opacity 300ms ${EASE}, transform 400ms ${EASE}`,
         }}
       >
-        <div className="relative mx-auto grid max-w-[1120px] grid-cols-1 lg:grid-cols-[180px_minmax(0,720px)] lg:justify-center lg:gap-16">
-          <nav aria-label="Sections" className="hidden lg:block">
-            <ol className="sticky top-0 space-y-1 pt-[148px]">
+        <header
+          className="sticky top-0 z-20 border-b border-[var(--d-line)] bg-black/85 backdrop-blur-md"
+          style={{ paddingTop: "env(safe-area-inset-top)" }}
+        >
+          <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between gap-4 px-[max(20px,env(safe-area-inset-left))] lg:px-[72px]">
+            <span className="d-strong text-[16px] tracking-[-0.02em]">
+              {profile.name}
+            </span>
+            <div className="flex items-center gap-2">
+              {resume && (
+                <a
+                  href={resume.url}
+                  {...linkProps(resume.url)}
+                  className="d-btn d-btn-primary h-9 px-4"
+                >
+                  Resume
+                </a>
+              )}
+              {!noWebGL && (
+                <button
+                  type="button"
+                  onClick={closeReader}
+                  aria-label="Close page"
+                  className="d-btn h-9"
+                >
+                  <TbX className="h-3.5 w-3.5" />
+                  Close
+                  <span className="hidden md:inline-flex">
+                    <span className="d-kbd">Esc</span>
+                  </span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* section tabs for phones and tablets; the side nav takes over at lg */}
+          <nav
+            ref={tabs}
+            aria-label="Sections"
+            className="border-t border-[var(--d-line)] lg:hidden"
+          >
+            <ol
+              ref={tabRow}
+              className="scrollbar-thin flex gap-6 overflow-x-auto px-[max(20px,env(safe-area-inset-left))]"
+            >
               {planets.map((p) => {
-                const on = current === p.id;
+                const Icon = ICONS[p.id] ?? TbAlignLeft;
                 return (
-                  <li key={p.id} style={{ '--accent': p.accent } as CSSProperties}>
+                  <li key={p.id} className="shrink-0">
                     <button
                       type="button"
                       onClick={() => goTo(sectionId(p.id))}
-                      aria-current={on ? 'true' : undefined}
-                      className={cx(
-                        'flex w-full items-center rounded-md py-1.5 text-left text-[14px] transition-colors duration-200',
-                        on ? 'text-ink' : 'text-ink-faint hover:text-ink-muted',
-                      )}
+                      aria-current={current === p.id ? "true" : undefined}
+                      className="d-tab"
                     >
+                      <Icon className="h-4 w-4" />
+                      {p.title}
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          </nav>
+        </header>
+
+        <div className="mx-auto grid max-w-[1440px] grid-cols-1 px-[max(20px,env(safe-area-inset-left))] lg:grid-cols-[256px_minmax(0,660px)] lg:gap-9 lg:px-[72px] xl:grid-cols-[256px_minmax(0,660px)_minmax(0,264px)] xl:justify-between">
+          <nav aria-label="Sections" className="hidden lg:block">
+            <ol className="sticky top-16 space-y-1 pt-10">
+              {planets.map((p) => {
+                const Icon = ICONS[p.id] ?? TbAlignLeft;
+                return (
+                  <li key={p.id}>
+                    <button
+                      type="button"
+                      onClick={() => goTo(sectionId(p.id))}
+                      aria-current={current === p.id ? "true" : undefined}
+                      className="d-nav-item -ml-3"
+                    >
+                      <Icon />
                       {p.title}
                     </button>
                   </li>
@@ -280,102 +388,91 @@ const Reader = () => {
             </ol>
           </nav>
 
-          <main
-            className={cx(
-              'px-[max(24px,env(safe-area-inset-left))] pb-32 md:px-10 lg:px-0 lg:pt-32',
-              noWebGL
-                ? 'pt-[calc(max(20px,env(safe-area-inset-top))+28px)]'
-                : 'pt-[calc(max(20px,env(safe-area-inset-top))+76px)]',
-            )}
-          >
-            <header className="border-line pb-12 lg:border-b">
-              <h1 className={cx('font-display leading-[0.95] tracking-[-0.035em] text-ink', DISPLAY.d80)}>
-                {profile.name}
-              </h1>
-              <ul className="mt-7 flex flex-wrap gap-x-6 gap-y-2">
-                {contactLinks.map((l) => (
-                  <li key={l.label}>
-                    <a
-                      href={l.url}
-                      {...linkProps(l.url)}
-                      className="inline-flex items-center gap-1.5 text-[14px] text-ink underline decoration-line underline-offset-[5px] transition-colors duration-200 hover:decoration-ink"
-                    >
-                      {l.label}
-                      <ArrowIcon external={!l.url.startsWith('mailto:')} className="h-3 w-3 text-ink-muted" />
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </header>
-
-            {/* section tabs for phones and tablets; the side nav takes over at lg */}
-            <nav
-              ref={tabs}
-              aria-label="Sections"
-              className="sticky z-[5] -mx-[max(24px,env(safe-area-inset-left))] border-y border-line bg-space/80 backdrop-blur-md md:-mx-10 lg:hidden"
-              style={{ top: noWebGL ? 0 : `calc(${SAFE.top} + 48px)` }}
-            >
-              <ol
-                ref={tabRow}
-                className="scrollbar-thin flex gap-1 overflow-x-auto px-[max(16px,env(safe-area-inset-left))] py-2 md:px-8"
-              >
-                {planets.map((p) => {
-                  const on = current === p.id;
-                  return (
-                    <li key={p.id} className="shrink-0" style={{ '--accent': p.accent } as CSSProperties}>
-                      <button
-                        type="button"
-                        onClick={() => goTo(sectionId(p.id))}
-                        aria-current={on ? 'true' : undefined}
-                        className={cx(
-                          'flex h-9 items-center px-3 text-[14px] transition-colors duration-200',
-                          on ? 'text-ink' : 'text-ink-muted',
-                        )}
-                      >
-                        {p.title}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ol>
-            </nav>
+          <main className="min-w-0 pb-32 pt-10">
+            <h1 className="d-h1">{profile.name}</h1>
+            <p className="d-p mt-3">
+              {profile.location
+                ? `${profile.role}, ${profile.location}`
+                : profile.role}
+            </p>
+            <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-2">
+              {contactLinks.map((l) => (
+                <li key={l.label}>
+                  <a
+                    href={l.url}
+                    {...linkProps(l.url)}
+                    className="d-link inline-flex items-center gap-1.5 text-[14px]"
+                  >
+                    {l.label}
+                    <ArrowIcon
+                      external={!l.url.startsWith("mailto:")}
+                      className="h-3 w-3 text-[var(--d-muted)]"
+                    />
+                  </a>
+                </li>
+              ))}
+            </ul>
 
             {planets.map((p) => (
               <section
                 key={p.id}
                 id={sectionId(p.id)}
                 aria-labelledby={`${sectionId(p.id)}-title`}
-                className="border-b border-line py-16 last:border-b-0"
-                style={{ '--accent': p.accent } as CSSProperties}
+                className="mt-14 scroll-mt-32 border-t border-[var(--d-line)] pt-10"
               >
-                <div className="mb-10 flex items-end justify-between gap-4">
-                  <h2
-                    id={`${sectionId(p.id)}-title`}
-                    className={cx(
-                      'font-display leading-none text-ink',
-                      DISPLAY.d52,
-                    )}
-                  >
+                <div className="mb-8 flex items-center justify-between gap-4">
+                  <h2 id={`${sectionId(p.id)}-title`} className="d-h2">
                     {p.title}
                   </h2>
                   {!noWebGL && (
-                    <Button size="sm" variant="ghost" onClick={() => visitPlanet(p.id)} className="group shrink-0">
-                      Land on planet
-                      <ArrowIcon className="text-[var(--accent)] transition-transform duration-200 ease-out group-hover:translate-x-0.5" />
-                    </Button>
+                    <button
+                      type="button"
+                      onClick={() => visitPlanet(p.id)}
+                      className="d-btn shrink-0"
+                    >
+                      Land on the planet
+                      <ArrowIcon className="h-3 w-3" />
+                    </button>
                   )}
                 </div>
-                <SectionBody planet={p} onProject={(bid) => goTo(entryId(bid))} />
+                <SectionBody
+                  planet={p}
+                  onProject={(bid) => goTo(entryId(bid))}
+                />
               </section>
             ))}
 
-            <footer className="space-y-2 pt-8 text-[13px] text-ink-faint">
-              {noWebGL && <p>The interactive version needs WebGL.</p>}
+            <footer className="mt-16 space-y-1 border-t border-[var(--d-line)] pt-6 text-[13px] text-[var(--d-muted)]">
+              {noWebGL && (
+                <p>The interactive version of this site needs WebGL.</p>
+              )}
               <p>
                 {profile.name} / {new Date().getFullYear()}
               </p>
             </footer>
           </main>
+
+          <aside aria-label="On this page" className="hidden xl:block">
+            <div className="sticky top-16 pt-10">
+              <h2 className="mb-2 flex items-center gap-2 text-[14px] font-[580] text-[#d0d0d0]">
+                <TbAlignLeft className="h-4 w-4" />
+                On this page
+              </h2>
+              <ul>
+                {entries.map((b) => (
+                  <li key={b.id}>
+                    <button
+                      type="button"
+                      onClick={() => goTo(entryId(b.id))}
+                      className="d-toc-item"
+                    >
+                      {b.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </aside>
         </div>
       </div>
     </div>
