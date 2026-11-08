@@ -29,6 +29,8 @@ const REANCHOR = 2.2;
 const MEASURE_EVERY = 20;
 /** How quickly the whole block glides to a new anchor (per second) */
 const GLIDE_RATE = 2.4;
+/** How quickly each deployed screen turns to stay square to the view (per second) */
+const FACE_RATE = 5;
 const GAP = 0.08;
 /** Corner radius of a deployed screen, world units (drawn in the hologram shader) */
 const CORNER = 0.085;
@@ -541,13 +543,14 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
       const orbitQuat = _oq.copy(_o.quaternion);
 
       if (lay && s.active) {
-        // the screen slot in the block as shown, facing the spot it was laid out for
+        // the screen slot stays put in the block; its facing follows the view, turning smoothly
+        // so its face stays square to the line of sight (the camera's own orientation: +z back
+        // toward the eye), however the viewer steps or looks about
         const [lx, ly] = lay.pos[i];
         _tp.set(s.vRegionX + lx * s.fit, s.vTopY - ly * s.fit, -PLANE_D).applyQuaternion(s.viewQuat).add(s.viewPos);
-        _o.position.copy(_tp);
-        _o.lookAt(s.viewPos);
         p.target.copy(_tp);
-        p.face.copy(_o.quaternion);
+        if (!p.hasTarget) p.face.copy(camera.quaternion);
+        else p.face.slerp(camera.quaternion, damp(reducedMotion ? 30 : FACE_RATE, dt));
         p.hasTarget = true;
       }
       if (p.prog <= 0) p.hasTarget = false;
