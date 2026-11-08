@@ -27,7 +27,13 @@ const LABEL_GAP = (size: number) => size * 0.32 + 18;
 const ringed = new Set(planets.filter((p) => p.rings).map((p) => p.id));
 const EXTENT = (id: string, size: number) => ({ x: size * (ringed.has(id) ? 2.3 : 1.15), y: size * 1.15 });
 
+/** After the arrival the names fade up one by one, from this long after the HUD starts to show */
+const LABEL_DELAY_MS = 500;
+const LABEL_STAGGER_MS = 220;
+const LABEL_FADE_MS = 1400;
+
 const PlanetLabels = ({ hovered, isTouch }: { hovered: string | null; isTouch: boolean }) => {
+  const intro = useAppStore((s) => s.intro);
   const setHovered = useAppStore((s) => s.setHoveredPlanet);
   const travelTo = useAppStore((s) => s.travelTo);
   const priorityId = useRef<string | null>(hovered);
@@ -61,7 +67,16 @@ const PlanetLabels = ({ hovered, isTouch }: { hovered: string | null; isTouch: b
             >
               {/* staggered reveal so the first overworld frame is calm; the name translates out of runes */}
               <span className="block animate-fade-in" style={{ animationDelay: `${550 + i * 90}ms` }}>
-                <AlienName text={p.title} active={isHover} delay={550 + i * 90} />
+                <span
+                  className="block"
+                  style={{
+                    opacity: intro ? 0 : 1,
+                    filter: intro ? 'blur(3px)' : 'none',
+                    transition: `opacity ${LABEL_FADE_MS}ms ${EASE} ${LABEL_DELAY_MS + i * LABEL_STAGGER_MS}ms, filter ${LABEL_FADE_MS}ms ${EASE} ${LABEL_DELAY_MS + i * LABEL_STAGGER_MS}ms`,
+                  }}
+                >
+                  <AlienName text={p.title} active={isHover} delay={LABEL_DELAY_MS + i * LABEL_STAGGER_MS} />
+                </span>
               </span>
             </button>
             <button

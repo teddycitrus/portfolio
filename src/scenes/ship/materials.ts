@@ -82,7 +82,8 @@ export const instrumentMaterial = (kind: 0 | 1, keys = 1, stretch = 1) =>
     uniforms: {
       uTime: { value: 0 },
       uKind: { value: kind },
-      uFace: { value: 1 },
+      // 0 = the instrument, 1 = the key faces; in between, the faces sweep in from the left
+      uFace: { value: 0 },
       uHover: { value: 0 },
       uKeys: { value: keys },
       uHot: { value: -1 },
@@ -167,10 +168,15 @@ export const instrumentMaterial = (kind: 0 | 1, keys = 1, stretch = 1) =>
         vec3 faceCol = mix(vec3(0.012, 0.022, 0.04), vec3(0.03, 0.05, 0.08), uv.y)
           + ink * line * (0.22 + 0.45 * hot)
           + ink * glow * (0.03 + 0.14 * hot)
-          + vec3(0.62, 0.86, 1.0) * (uLogoOn > 0.5 ? texture2D(uLogos, uv).a : 0.0) * (0.75 + 0.55 * hot)
           + vec3(0.45, 1.0, 0.7) * led * ledOn * 0.9
           + ink * (0.5 + 0.5 * sin(uv.y * 160.0)) * 0.006;
-        col = mix(col, faceCol, uFace);
+        // the sweep: a bright edge crosses the console, key faces behind it, the logos a beat later
+        float edgeX = uFace * 1.3 - 0.15;
+        float rev = smoothstep(edgeX + 0.06, edgeX - 0.06, uv.x);
+        float revLogo = smoothstep(edgeX - 0.04, edgeX - 0.2, uv.x);
+        float edge = exp(-pow((uv.x - edgeX) * 30.0, 2.0)) * step(0.001, uFace) * step(uFace, 0.999);
+        col = mix(col, faceCol, rev) + ink * edge * 0.9;
+        col += vec3(0.62, 0.86, 1.0) * (uLogoOn > 0.5 ? texture2D(uLogos, uv).a : 0.0) * (0.75 + 0.55 * hot) * revLogo;
         gl_FragColor = vec4(col * vig, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>

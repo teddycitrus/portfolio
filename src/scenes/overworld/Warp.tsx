@@ -3,34 +3,31 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useAppStore } from '@/state/useAppStore';
 import { dragLook, flight, warpFx } from '@/state/runtime';
-import { endBoot, navDisplay, onBootReveal } from '@/ui/boot';
+import { endBoot, onBootReveal } from '@/ui/boot';
 import { shipSound, warpHum } from '@/audio/drone';
 import { responsiveFov } from './TelescopeCamera';
 
 /*
  * The site opens in hyperspace, seen from the observation deck. The loader's
- * painted hyperspace hands over to this one once the scene is drawing; the nav
- * display on the glass runs on to 100%, the drive spools up, and the ship drops
- * out in a flash into the system, the lens snapping back and the deck
- * shuddering. The welcome holds on the glass for about a second, the HUD comes
- * up once it is gone. A click, tap or key in hyperspace drops out straight away.
+ * painted hyperspace hands over to this one once the scene is drawing; the
+ * drive spools up, and the ship drops out in a flash into the system, the lens
+ * snapping back and the deck shuddering. The HUD fades up as the flash clears.
+ * A click, tap or key in hyperspace drops out straight away.
  * The system outside is not drawn until the drop.
  */
 
-/** Shortest run of the display to 100% once the scene is up */
+/** Shortest stretch of hyperspace once the scene is up */
 const RUN_MS = 1200;
 /** A cached visit is up in no time: the whole jump lasts at least this long from navigation */
 const MIN_TOTAL_MS = 2600;
-/** Asked to drop out: this long for the display to finish and the roar to swell in */
+/** Asked to drop out: this long for the roar to swell in first */
 const SKIP_MS = 450;
 /** The drive spooling up, ending in the flash */
 const SPOOL_MS = 560;
 /** The lens settling after the drop */
 const SETTLE_MS = 1100;
-/** The welcome on the glass, from the flash, before the display switches off */
-const WELCOME_MS = 1150;
-/** The HUD comes up once the display has switched off (220 ms in index.html), so the two never stack */
-const HUD_AT = WELCOME_MS + 220;
+/** The HUD starts fading up this long after the flash, as it clears */
+const HUD_AT = 450;
 
 /** The tunnel: a long tube ahead of the deck */
 const TUBE_R = 34;
@@ -170,7 +167,6 @@ const Warp = () => {
     phase: 0 as 0 | 1 | 2 | 3,
     flashAt: 0,
     hud: false,
-    welcome: false,
     done: false,
     hum: null as ((fade: number) => void) | null,
   });
@@ -221,7 +217,6 @@ const Warp = () => {
       const now = performance.now();
       s.start = now;
       s.runEnd = Math.max(RUN_MS, MIN_TOTAL_MS - now);
-      navDisplay.to(1, s.runEnd);
     });
     // anyone in a hurry drops out now (the same press unlocks the sound for the drop)
     const skip = () => {
@@ -229,7 +224,6 @@ const Warp = () => {
       const ms = performance.now() - s.start;
       if (s.runEnd - ms <= SKIP_MS) return;
       s.runEnd = ms + SKIP_MS;
-      navDisplay.to(1, SKIP_MS);
     };
     window.addEventListener('pointerdown', skip);
     window.addEventListener('keydown', skip);
@@ -273,8 +267,6 @@ const Warp = () => {
     let shake = 0.0011;
     if (s.phase === 0 && s.start >= 0 && ms >= s.runEnd) {
       s.phase = 1;
-      navDisplay.status('Dropping out');
-      navDisplay.spool();
       shipSound('dropout', SPOOL_MS / 1000);
       s.hum?.(SPOOL_MS / 1000);
       s.hum = null;
@@ -298,7 +290,7 @@ const Warp = () => {
         s.flashAt = performance.now();
         warpFx.inside = false;
         flight.heat = 0;
-        navDisplay.arrived();
+        endBoot();
         if (f) {
           f.style.transition = 'opacity 520ms cubic-bezier(0.23, 1, 0.32, 1)';
           f.style.opacity = '0';
@@ -317,11 +309,7 @@ const Warp = () => {
         flight.speed = 0;
         useAppStore.getState().endIntro();
       }
-      if (!s.welcome && since >= WELCOME_MS) {
-        s.welcome = true;
-        endBoot();
-      }
-      if (k >= 1 && s.welcome && s.hud) {
+      if (k >= 1 && s.hud) {
         s.done = true;
         warpFx.shake = 0;
         warpFx.lens = 0;
@@ -330,7 +318,6 @@ const Warp = () => {
     }
     warpFx.shake = shake;
     warpFx.lens = fov - base;
-    if (!s.welcome) navDisplay.drift(warpFx.glassX, warpFx.glassY);
 
     if (Math.abs(camera.fov - fov) > 1e-3) {
       camera.fov = fov;

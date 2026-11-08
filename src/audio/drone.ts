@@ -412,13 +412,17 @@ export const initDrone = () => {
   }
   const onGesture = () => {
     if (enabled) start();
-    if (ctx) {
+    // a context made before any gesture stays suspended: keep listening until one resumes it
+    if (ctx && ctx.state === 'running') {
       window.removeEventListener('pointerdown', onGesture, true);
       window.removeEventListener('keydown', onGesture, true);
     }
   };
   window.addEventListener('pointerdown', onGesture, true);
   window.addEventListener('keydown', onGesture, true);
+  // try straight away: a browser that allows sound without a click (a site you have
+  // played sound on before, or autoplay allowed in its settings) plays the warp from the first frame
+  onGesture();
   document.addEventListener('visibilitychange', () => {
     if (!ctx) return;
     if (document.hidden) void ctx.suspend();

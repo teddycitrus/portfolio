@@ -87,6 +87,9 @@ const _corner = new THREE.Vector3();
 const CONSOLE_W = 0.72;
 const CONSOLE_H = 0.06;
 const CONSOLE_KEYS = profile.links.length;
+/** The key faces sweeping in across the console, and the instrument coming back */
+const FACE_IN_S = 1.6;
+const FACE_OUT_S = 0.5;
 const CONSOLE_CORNERS = [
   [-CONSOLE_W / 2, -CONSOLE_H / 2],
   [CONSOLE_W / 2, -CONSOLE_H / 2],
@@ -485,18 +488,13 @@ const Cockpit = () => {
     // in hyperspace it is still an instrument; the key faces come up with the HUD
     const asControls = mode === 'overworld' && deploy > 0.999 && !store.intro;
     ship.updateMatrixWorld();
-    // the nav display is projected on the glass: it follows the glass as the deck drifts and shudders
-    if (store.intro) {
-      _corner.set(0, 0, -FRAME_DEPTH);
-      frame.localToWorld(_corner).project(camera);
-      warpFx.glassX = (_corner.x * size.width) / 2;
-      warpFx.glassY = (-_corner.y * size.height) / 2;
-    }
     {
       const d = dashPanel;
       const mesh = consoleRef.current;
-      // in orbit the console turns into a row of key faces; the graphics come back in flight
-      screen.uniforms.uFace.value += ((asControls ? 1 : 0) - screen.uniforms.uFace.value) * damp(8, dt);
+      // in orbit the console turns into a row of key faces, swept in left to right after the
+      // arrival; the graphics come back quicker in flight
+      const face = screen.uniforms.uFace;
+      face.value = asControls ? Math.min(1, face.value + dt / FACE_IN_S) : Math.max(0, face.value - dt / FACE_OUT_S);
       screen.uniforms.uHot.value = asControls ? d.hot : -1;
       // the logos are drawn by the DOM once its icons are up: paint them on the face
       if (d.logos && d.logos !== logos.current.canvas) {
