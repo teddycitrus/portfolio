@@ -11,8 +11,7 @@ import BeaconScreens from './BeaconScreens';
 import { getBeaconFacing } from '@/data/content';
 import { addRim } from './sites/common';
 import { STATUE_HEIGHT, TempleStatue } from './sites/Temple';
-import { OUTPOST_HEIGHT, OutpostBuilding } from './sites/Outpost';
-import { outpostKind } from './sites/site';
+import { CAMP_HEIGHT, Camp } from './sites/Camp';
 
 /* ---------- meaning: award tiers, project glyphs, skill counts ---------- */
 
@@ -79,10 +78,8 @@ const buildSpec = (theme: Architecture, b: BeaconData, index: number): PillarSpe
   switch (theme) {
     case 'temple':
       return { theme, height: STATUE_HEIGHT + 0.1, floatY: STATUE_HEIGHT, shade, form };
-    case 'outpost': {
-      const top = OUTPOST_HEIGHT[outpostKind(b.id, index)];
-      return { theme, height: top + 0.15, floatY: top, shade, form };
-    }
+    case 'outpost':
+      return { theme, height: CAMP_HEIGHT, floatY: CAMP_HEIGHT, shade, form };
     case 'obelisk': {
       const steps = v[0] < 0.5 ? 2 : 1;
       const H = 2.3 + v[1] * 0.7;
@@ -246,8 +243,11 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
     return Math.atan2(fx - position[0], fz - position[2]);
   }, [planet, position]);
   const built = spec.theme === 'temple' || spec.theme === 'outpost';
-  /** Reach of the focus ring and the hit volume: buildings are wider than monuments */
-  const reach = spec.theme === 'outpost' ? 1.9 : 1;
+  /** Reach of the focus ring and the hit volume: the camp is wider than a monument */
+  const reach = spec.theme === 'outpost' ? 1.5 : 1;
+  /** The outpost's beacons all sit at the camp: the first draws it and carries every one's screens */
+  const camp = spec.theme === 'outpost';
+  const groupIds = useMemo(() => planet.beacons.map((b) => b.id), [planet]);
 
   const mats = useMemo(() => {
     const accent = new THREE.Color(planet.accent);
@@ -1112,13 +1112,15 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
     }
   }
 
+  if (camp && index > 0) return null;
+
   return (
     <group position={position}>
       <group rotation={[0, yaw, 0]}>
         {spec.theme === 'temple' ? (
           <TempleStatue beacon={beacon} planet={planet} focus={state} rim={rim} rimColor={rimColor} reducedMotion={reducedMotion} index={index} />
-        ) : spec.theme === 'outpost' ? (
-          <OutpostBuilding beacon={beacon} planet={planet} index={index} focus={state} rim={rim} rimColor={rimColor} reducedMotion={reducedMotion} />
+        ) : camp ? (
+          <Camp planet={planet} ids={groupIds} rim={rim} rimColor={rimColor} reducedMotion={reducedMotion} />
         ) : (
           <>
             {/* plinth */}
@@ -1145,7 +1147,14 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
         <ringGeometry args={[1.0, 1.035, 96]} />
       </mesh>
 
-      <BeaconScreens beacon={beacon} planet={planet} height={height} index={index} reducedMotion={reducedMotion} />
+      <BeaconScreens
+        beacon={beacon}
+        group={camp ? planet.beacons : undefined}
+        planet={planet}
+        height={height}
+        index={index}
+        reducedMotion={reducedMotion}
+      />
 
       {/* generous invisible hit volume */}
       <mesh

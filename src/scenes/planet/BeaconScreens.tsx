@@ -4,7 +4,7 @@ import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import type { Beacon, Planet } from '@/types/content';
 import { useAppStore } from '@/state/useAppStore';
-import { screenParts } from '@/ui/screenParts';
+import { screenParts, type ScreenPart } from '@/ui/screenParts';
 import { panelFocusIntent } from '@/ui/navigation';
 import { useNarrow } from '@/ui/primitives';
 import { mulberry, seedOf } from './rng';
@@ -185,6 +185,11 @@ interface Panel {
 
 interface Props {
   beacon: Beacon;
+  /**
+   * Beacons that share this spot and open together (the about camp): one
+   * panel each, holding all of its parts, opening when any of them is focused
+   */
+  group?: Beacon[];
   planet: Planet;
   /** Monument height */
   height: number;
@@ -206,10 +211,27 @@ const _tp = new THREE.Vector3();
  * they fan out beside it, turn to face the camera and grow into screens that
  * carry the content as real DOM (links and the video stay clickable).
  */
-const BeaconScreens = ({ beacon, planet, height, index, reducedMotion }: Props) => {
+/** All of a beacon's parts stacked in one panel, as wide as its widest part. */
+const wholePart = (b: Beacon): ScreenPart => {
+  const parts = screenParts(b);
+  return {
+    key: b.id,
+    width: Math.max(...parts.map((p) => p.width)),
+    node: (
+      <div className="space-y-5">
+        {parts.map((p) => (
+          <div key={p.key}>{p.node}</div>
+        ))}
+      </div>
+    ),
+  };
+};
+
+const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion }: Props) => {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const narrow = useNarrow();
-  const parts = useMemo(() => screenParts(beacon), [beacon]);
+  const parts = useMemo(() => (group ? group.map(wholePart) : screenParts(beacon)), [beacon, group]);
+  const ids = useMemo(() => (group ? group.map((b) => b.id) : [beacon.id]), [beacon, group]);
   const root = useRef<THREE.Group>(null);
   const groups = useRef<(THREE.Group | null)[]>([]);
   const htmlGroups = useRef<(THREE.Group | null)[]>([]);
@@ -287,7 +309,7 @@ const BeaconScreens = ({ beacon, planet, height, index, reducedMotion }: Props) 
     const cam = _v.copy(camera.position).sub(base);
     const dist = Math.hypot(cam.x, cam.z);
 
-    const focused = store.focusedBeaconId === beacon.id && store.mode === 'planet' && !store.readerOpen;
+    const focused = !!store.focusedBeaconId && ids.includes(store.focusedBeaconId) && store.mode === 'planet' && !store.readerOpen;
     const want = focused && !narrow && !store.glideBeaconId && dist < (s.active ? DEPLOY_FOLD : DEPLOY_NEAR);
     if (want !== s.active) {
       s.active = want;
@@ -445,10 +467,11 @@ const BeaconScreens = ({ beacon, planet, height, index, reducedMotion }: Props) 
     });
 
     // deliberate opens move keyboard focus to the title screen's heading once it is readable
-    if (s.active && !s.focusedOnce && panels[0].m > 0.95 && panelFocusIntent.id === beacon.id) {
+    const intent = panelFocusIntent.id ? ids.indexOf(panelFocusIntent.id) : -1;
+    if (s.active && !s.focusedOnce && intent >= 0 && panels[intent].m > 0.95) {
       s.focusedOnce = true;
       panelFocusIntent.id = null;
-      contents.current[0]?.querySelector<HTMLElement>('[data-panel-heading]')?.focus({ preventScroll: true });
+      contents.current[intent]?.querySelector<HTMLElement>('[data-panel-heading]')?.focus({ preventScroll: true });
     }
 
     if (!s.active && !anyOut && openRef.current) {
@@ -481,7 +504,7 @@ const BeaconScreens = ({ beacon, planet, height, index, reducedMotion }: Props) 
                   data-beacon-panel
                   data-beacon-screen
                   role="group"
-                  aria-label={i === 0 ? `${beacon.label} details` : undefined}
+                  aria-label={group ? `${group[i].label} details` : i === 0 ? `${beacon.label} details` : undefined}
                   className="relative select-text px-7 py-6 text-ink"
                   style={
                     {

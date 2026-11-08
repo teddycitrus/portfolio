@@ -105,29 +105,25 @@ export const PAD = { r: 1.8, x: SURFACE_SPAWN[0], z: SURFACE_SPAWN[2] };
 /** Out-of-the-way kit: the comms mast and the solar array */
 export const MAST = { x: -11.5, z: -12.5 };
 export const SOLAR = { x: 11, z: -11.5, yaw: -0.6 };
-/** The campfire sits this far in front of the hab, toward the spawn */
-export const CAMPFIRE_AHEAD = 2.5;
+/** The fire, in the camp's frame (x across, z toward the pad): out to my right */
+export const CAMP_FIRE: [number, number] = [1.45, 1.0];
+/** The walker stops this far from me */
+const CAMP_COLLIDE = 1.3;
 
-/** Which building stands for which beacon */
-export type OutpostKind = 'hab' | 'observatory' | 'workshop';
-export const outpostKind = (id: string, index: number): OutpostKind =>
-  /hello|home/.test(id) ? 'hab' : /educ|school/.test(id) ? 'observatory' : /focus|work/.test(id) ? 'workshop' : (['hab', 'observatory', 'workshop'] as const)[index % 3];
-
-const OUTPOST_COLLIDE: Record<OutpostKind, number> = { hab: 2.05, observatory: 1.6, workshop: 1.85 };
+/** A point in the camp's frame to world x, z: the camp faces the landing pad */
+export const campPoint = (planet: Planet, lx: number, lz: number): [number, number] => {
+  const p = getBeaconPosition(planet, 0);
+  const [fx, fz] = getBeaconFacing(planet, p);
+  const yaw = Math.atan2(fx - p[0], fz - p[2]);
+  const c = Math.cos(yaw);
+  const s = Math.sin(yaw);
+  return [p[0] + lx * c + lz * s, p[2] - lx * s + lz * c];
+};
 
 export const padTop = (H: HeightFn) => span(H, PAD.x - PAD.r, PAD.x + PAD.r, PAD.z - PAD.r, PAD.z + PAD.r).hi + 0.12;
 
-/** Where the campfire burns, in front of the hab */
-export const campfireAt = (planet: Planet): [number, number] | null => {
-  const i = planet.beacons.findIndex((b, k) => outpostKind(b.id, k) === 'hab');
-  if (i < 0) return null;
-  const p = getBeaconPosition(planet, i);
-  const [fx, fz] = getBeaconFacing(planet, p);
-  const dx = fx - p[0];
-  const dz = fz - p[2];
-  const d = Math.hypot(dx, dz) || 1;
-  return [p[0] + (dx / d) * CAMPFIRE_AHEAD, p[2] + (dz / d) * CAMPFIRE_AHEAD];
-};
+/** Where the campfire burns, beside me */
+export const campfireAt = (planet: Planet): [number, number] => campPoint(planet, CAMP_FIRE[0], CAMP_FIRE[1]);
 
 const outpostSite = (planet: Planet, H: HeightFn): Site => {
   const top = padTop(H);
@@ -140,14 +136,13 @@ const outpostSite = (planet: Planet, H: HeightFn): Site => {
     [SOLAR.x, SOLAR.z, 2.2],
   ];
   const fire = campfireAt(planet);
-  if (fire) colliders.push([fire[0], fire[1], 0.65]);
+  colliders.push([fire[0], fire[1], 0.7]);
   const clearings: [number, number][] = [
     [MAST.x, MAST.z],
     [SOLAR.x, SOLAR.z],
   ];
-  if (fire) clearings.push(fire);
-  const kinds = planet.beacons.map((b, i) => outpostKind(b.id, i));
-  return { ground, colliders, clearings, collide: (i) => OUTPOST_COLLIDE[kinds[i] ?? 'hab'] };
+  clearings.push(fire);
+  return { ground, colliders, clearings, collide: () => CAMP_COLLIDE };
 };
 
 export const siteFor = (planet: Planet, H: HeightFn): Site => {

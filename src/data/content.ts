@@ -180,6 +180,8 @@ export const getOrbitalPosition = (planet: Planet, t: number, out?: Vec3): Vec3 
 export const SURFACE_SPAWN: Vec3 = [0, 1.6, 5];
 export const SURFACE_HEAD_HEIGHT = 1.6;
 const BEACON_ARC_RADIUS = 9;
+/** Where the about planet's camp is: every one of its beacons is there */
+export const OUTPOST_CAMP: Vec3 = [0, 0, -4.5];
 const BEACON_ARC_SPAN = (94 * Math.PI) / 180;
 
 /** The temple's statues stand in pairs down its aisle, facing in across it */
@@ -198,6 +200,8 @@ export const getBeaconPosition = (planet: Planet, beaconIndex: number): Vec3 => 
     const row = TEMPLE_ROW_Z[Math.min(TEMPLE_ROW_Z.length - 1, Math.floor(beaconIndex / 2))];
     return [beaconIndex % 2 === 0 ? -TEMPLE_AISLE_X : TEMPLE_AISLE_X, 0, row];
   }
+  // the outpost's beacons are all me, sitting at the camp
+  if (planet.architecture === 'outpost') return [...OUTPOST_CAMP];
   const n = planet.beacons.length;
   const t = n === 1 ? 0.5 : beaconIndex / (n - 1);
   const angle = -BEACON_ARC_SPAN / 2 + t * BEACON_ARC_SPAN;

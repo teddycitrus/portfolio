@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { planetById } from '@/data/content';
+import { getBeaconPosition, planetById } from '@/data/content';
 import type { Planet } from '@/types/content';
 import { beaconScreen, dragLook, isKeyDown, joystickState } from '@/state/runtime';
 import { useAppStore } from '@/state/useAppStore';
@@ -89,7 +89,14 @@ const BeaconMarkers = ({ planet, focused }: { planet: Planet; focused: string | 
 
   return (
     <div className="absolute inset-0 overflow-hidden">
-      {planet.beacons.map((b) => {
+      {planet.beacons.map((b, i) => {
+        // beacons sharing a spot (the about camp) get one arrow
+        const [x, , z] = getBeaconPosition(planet, i);
+        if (planet.beacons.slice(0, i).some((_, k) => {
+          const [kx, , kz] = getBeaconPosition(planet, k);
+          return kx === x && kz === z;
+        }))
+          return null;
         return (
           <div key={b.id}>
             <button
