@@ -259,9 +259,19 @@ const Birds = ({
   return <instancedMesh ref={mesh} args={[geo, mat, cfg.count]} frustumCulled={false} />;
 };
 
-/* ---------- walkers: deer and alien hoppers that graze, wander and shy away ---------- */
+/*
+ * ---------- walkers: deer and alien hoppers ----------
+ * They keep to their own routine: walk somewhere, then graze (deer lower their
+ * heads, hoppers peck at the ground) or lie down to rest. One that notices the
+ * viewer looks up and watches, and about half the time comes over; a resting
+ * one only gets up for a viewer close by. Once over, they follow for a while,
+ * greet a viewer who stands still, skip back when rushed, then lose interest
+ * and go back to their routine. A click on one wakes it and makes it greet.
+ */
 
 type Mode = 'wander' | 'curious' | 'shy';
+/** What a wandering animal is up to: walking somewhere, eating, or lying down */
+type Act = 'roam' | 'graze' | 'rest';
 
 interface Walker {
   x: number;
@@ -288,6 +298,13 @@ interface Walker {
   /** Angle and distance offset of its spot beside the viewer, so a group fans out */
   slot: number;
   slotD: number;
+  act: Act;
+  /** 0..1 how far it has lain down */
+  rest: number;
+  /** Seconds left watching the viewer from where it is, without coming over */
+  watch: number;
+  /** How long this one stays interested once it comes over */
+  patience: number;
 }
 
 const WALK_MIN_R = 14;
@@ -297,7 +314,10 @@ const NOTICE = 13;
 const LOSE = 24;
 /** Following distance and how long before they lose interest */
 const FOLLOW = 2.4;
-const BORED_S = 60;
+/** A resting animal only gets up for a viewer this close */
+const WAKE_NEAR = 3.5;
+/** The chance that an animal that notices the viewer comes over, rather than just watching */
+const COME_CHANCE = 0.45;
 const GREET_S = 1.3;
 const WORLD_R = 34;
 
@@ -360,7 +380,12 @@ const Walkers = ({
           look: 0,
           slot: (i % 2 ? 1 : -1) * (0.35 + Math.floor(i / 2) * 0.45),
           slotD: (i % 3) * 0.6,
+          act: rnd() < 0.3 ? 'rest' : 'graze',
+          rest: 0,
+          watch: 0,
+          patience: 14 + rnd() * 10,
         };
+        if (w.act === 'rest') w.rest = 1;
         w.tx = w.x;
         w.tz = w.z;
         return w;
@@ -414,23 +439,34 @@ const Walkers = ({
       w.greet = Math.max(0, w.greet - dt);
 
       if (!reducedMotion) {
-        if (w.mode === 'wander' && cd < NOTICE && w.cool <= 0) {
-          // noticed you: perk up and come over
-          w.mode = 'curious';
-          w.bond = 0;
-          w.callIn = 0.4 + rnd() * 1.2;
+        w.watch = Math.max(0, w.watch - dt);
+        const resting = w.act === 'rest' && !w.moving;
+        if (w.mode === 'wander' && w.cool <= 0 && cd < (resting ? WAKE_NEAR : NOTICE)) {
+          if (resting || rnd() < COME_CHANCE) {
+            // noticed you: perk up (or get up) and come over
+            w.mode = 'curious';
+            w.act = 'roam';
+            w.bond = 0;
+            w.callIn = 0.4 + rnd() * 1.2;
+          } else {
+            // only curious enough to look up and watch you for a while
+            w.watch = 4 + rnd() * 4;
+            w.cool = 10 + rnd() * 12;
+          }
         }
         if (w.mode === 'shy') {
           w.shyT -= dt;
           if (w.shyT <= 0) w.mode = 'curious';
         } else if (w.mode === 'curious') {
           w.bond += dt;
-          if (cd > LOSE || w.bond > BORED_S) {
-            // lost you, or lost interest: back to grazing for a while
+          if (cd > LOSE || w.bond > w.patience) {
+            // lost you, or lost interest: back to its own business for a good while
             w.mode = 'wander';
-            w.cool = cd > LOSE ? 6 : 20 + rnd() * 15;
+            w.cool = cd > LOSE ? 6 : 25 + rnd() * 20;
+            w.patience = 14 + rnd() * 10;
             w.moving = false;
-            w.timer = 0.5 + rnd();
+            w.act = rnd() < 0.35 ? 'rest' : 'graze';
+            w.timer = w.act === 'rest' ? 12 + rnd() * 14 : 4 + rnd() * 8;
           } else if (v.speed > 3.4 && cd < 3.2) {
             // rushed at: skip back a few steps, then come again
             w.mode = 'shy';
@@ -459,6 +495,8 @@ const Walkers = ({
 
       w.timer -= dt;
       if (w.mode === 'wander' && !w.moving && w.timer <= 0) {
+        // done eating or resting: get up and go somewhere else
+        w.act = 'roam';
         pick(w);
         w.moving = true;
       }
@@ -467,10 +505,14 @@ const Walkers = ({
       const d = Math.hypot(dx, dz);
       const hurry = w.mode === 'shy' ? 2.6 : w.mode === 'curious' && d > 5 ? 2.3 : 1;
       const speed = (kind === 'deer' ? 0.9 : 1.1) * hurry;
-      if (w.moving && w.greet <= 0) {
+      if (w.moving && w.greet <= 0 && w.rest < 0.15) {
         if (d < (w.mode === 'wander' ? 0.15 : 0.4)) {
           w.moving = false;
-          if (w.mode === 'wander') w.timer = 3 + rnd() * 6;
+          if (w.mode === 'wander') {
+            // arrived: settle down to eat, or now and then to lie down for a rest
+            w.act = rnd() < 0.25 ? 'rest' : 'graze';
+            w.timer = w.act === 'rest' ? 12 + rnd() * 14 : 4 + rnd() * 8;
+          }
         } else {
           const want = Math.atan2(dx, dz);
           w.yaw += wrapAngle(want - w.yaw) * damp(3, dt);
@@ -481,7 +523,7 @@ const Walkers = ({
           w.z += Math.cos(w.yaw) * step;
           w.phase += step * (kind === 'deer' ? 5.5 : 4.2);
         }
-      } else if (w.mode !== 'wander') {
+      } else if (w.mode !== 'wander' && !w.moving) {
         // stopped near you: turn to face you
         w.yaw += wrapAngle(Math.atan2(px - w.x, pz - w.z) - w.yaw) * damp(2.5, dt);
       }
@@ -514,7 +556,9 @@ const Walkers = ({
         w.x *= WORLD_R / wr;
         w.z *= WORLD_R / wr;
       }
-      w.look += ((w.mode !== 'wander' ? 1 : 0) - w.look) * damp(2, dt);
+      w.look += ((w.mode !== 'wander' || w.watch > 0 ? 1 : 0) - w.look) * damp(2, dt);
+      w.rest += ((w.act === 'rest' && !w.moving && w.mode === 'wander' ? 1 : 0) - w.rest) * damp(w.act === 'rest' ? 0.9 : 2.2, dt);
+      const lie = smooth01(w.rest);
       const lookYaw = Math.max(-0.8, Math.min(0.8, wrapAngle(Math.atan2(px - w.x, pz - w.z) - w.yaw))) * w.look;
       const gp = w.greet > 0 ? 1 - w.greet / GREET_S : 0;
       const gy = ground(w.x, w.z);
@@ -523,16 +567,20 @@ const Walkers = ({
 
       if (kind === 'deer') {
         const swing = w.moving ? Math.sin(w.phase) * 0.55 : 0;
+        // lying down: the legs fold under (front back, hind forward) and the body sinks to the ground
         legs.current[i]?.forEach((leg, k) => {
-          if (leg) leg.rotation.x = (k === 0 || k === 3 ? 1 : -1) * swing;
+          if (leg) leg.rotation.x = (k === 0 || k === 3 ? 1 : -1) * swing * (1 - lie) + (k < 2 ? -1.45 : 1.45) * lie;
         });
-        // graze with the head down while idle, look up now and then; head up and watching when curious
-        const grazing = w.mode === 'wander' && !w.moving && Math.sin(t * 0.5 + i * 2.3) > -0.3;
+        g.position.y -= 0.46 * lie;
+        // graze with the head down, look up now and then (or to watch you); lying down the head
+        // stays up, nodding off and back
+        const grazing = w.mode === 'wander' && !w.moving && w.act === 'graze' && w.watch <= 0 && Math.sin(t * 0.5 + i * 2.3) > -0.3;
         w.head += ((grazing ? 1 : 0) - w.head) * damp(2.5, dt);
         const neck = necks.current[i];
         if (neck) {
           neck.rotation.x =
-            -0.35 + w.head * 1.35 + (grazing ? Math.sin(t * 3 + i) * 0.04 : 0) + Math.sin(gp * Math.PI * 4) * 0.3 * (gp > 0 ? 1 : 0);
+            -0.35 + w.head * 1.35 + (grazing ? Math.sin(t * 3 + i) * 0.04 : 0) + Math.sin(gp * Math.PI * 4) * 0.3 * (gp > 0 ? 1 : 0) +
+            lie * (0.25 + 0.12 * Math.max(0, Math.sin(t * 0.35 + i)) * (w.watch > 0 ? 0 : 1));
           neck.rotation.y = lookYaw;
         }
         // a hello is two little prancing hops
@@ -548,15 +596,22 @@ const Walkers = ({
               ? Math.abs(Math.sin(t * 5 + i)) * 0.3
               : 0;
         const body = g.children[0];
-        body.position.y = 0.24 + hop * 0.38;
+        // eating: little pecks at the ground; resting: settled flat, breathing slowly
+        const pecking = w.mode === 'wander' && !w.moving && w.act === 'graze' && w.watch <= 0;
+        const peck = pecking ? Math.max(0, Math.sin(t * 3.2 + i * 1.3)) ** 3 : 0;
+        body.position.y = 0.24 + hop * 0.38 - lie * 0.1 - peck * 0.04;
+        body.rotation.x = peck * 0.45;
         // a hello is a big hop with a full spin
         body.rotation.y = gp > 0 ? smooth01(gp) * Math.PI * 2 : 0;
-        const squash = w.moving || excited ? 1 - (1 - Math.min(1, hop)) * 0.25 : 1 + Math.sin(t * 2 + i) * 0.03;
+        const squash =
+          (w.moving || excited ? 1 - (1 - Math.min(1, hop)) * 0.25 : 1 + Math.sin(t * (lie > 0.5 ? 0.9 : 2) + i) * 0.03) * (1 - 0.28 * lie);
         body.scale.set(1 / Math.sqrt(squash), squash, 1 / Math.sqrt(squash));
         const neck = necks.current[i];
         if (neck) {
-          neck.rotation.z = Math.sin(t * (w.mode === 'wander' ? 1.3 : 4.5) + i * 1.7) * (w.mode === 'wander' ? 0.25 : 0.35);
+          neck.rotation.z = Math.sin(t * (w.mode === 'wander' ? 1.3 : 4.5) + i * 1.7) * (w.mode === 'wander' ? 0.25 : 0.35) * (1 - lie * 0.8);
           neck.rotation.y = lookYaw;
+          // the eye stalks droop while it rests
+          neck.rotation.x = lie * 0.9;
         }
       }
     });
@@ -566,9 +621,12 @@ const Walkers = ({
     if (!isPoke(e)) return;
     const w = walkers[i];
     if (w.greet > 0) return;
+    // a resting one gets up first; any of them then comes over to say hello
     w.mode = 'curious';
+    w.act = 'roam';
     w.bond = 0;
     w.moving = false;
+    w.watch = 0;
     greet(w);
   };
 

@@ -25,7 +25,9 @@ const PLANE_D = 3.2;
 const DEPLOY_NEAR = 7.5;
 const DEPLOY_FOLD = 8.5;
 /** Camera drift that re-anchors the layout */
-const REANCHOR = 1.8;
+const REANCHOR = 2.2;
+/** How quickly the whole block glides to a new anchor (per second) */
+const GLIDE_RATE = 2.4;
 const GAP = 0.08;
 /** Corner radius of a deployed screen, world units (drawn in the hologram shader) */
 const CORNER = 0.085;
@@ -131,9 +133,10 @@ interface Box {
  * column when that costs little size, and the whole block reads at a glance. Returns centres relative to the block's top-left,
  * the block size and the fit scale.
  */
-const layout = (boxes: Box[], availW: number, availH: number) => {
-  let best: { pos: [number, number][]; w: number; h: number; s: number; score: number } | null = null;
-  for (let cols = 1; cols <= Math.min(4, boxes.length); cols += 1) {
+const layout = (boxes: Box[], availW: number, availH: number, keepCols = 0) => {
+  let best: { pos: [number, number][]; w: number; h: number; s: number; score: number; cols: number } | null = null;
+  const most = Math.min(4, boxes.length);
+  for (let cols = keepCols ? Math.min(keepCols, most) : 1; cols <= (keepCols ? Math.min(keepCols, most) : most); cols += 1) {
     const colW = new Array(cols).fill(0);
     const colH = new Array(cols).fill(0);
     const colOf: number[] = [];
@@ -166,7 +169,7 @@ const layout = (boxes: Box[], availW: number, availH: number) => {
         used[c] += b.h + GAP;
         return p;
       });
-      best = { pos, w: totalW, h: totalH, s, score };
+      best = { pos, w: totalW, h: totalH, s, score, cols };
     }
   }
   return best!;
@@ -339,12 +342,14 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
 
   // content sizes (world units) come from a ResizeObserver, so the frame loop never reads layout
   const ro = useRef<ResizeObserver | null>(null);
+  const sizeVer = useRef(0);
   useEffect(() => {
     const measure = (el: HTMLElement) => {
       const i = contents.current.indexOf(el as HTMLDivElement);
       if (i < 0 || !panels[i] || !el.offsetWidth) return;
       panels[i].size.w = el.offsetWidth / PX;
       panels[i].size.h = el.offsetHeight / PX;
+      sizeVer.current += 1;
     };
     const obs = new ResizeObserver((entries) => entries.forEach((e) => measure(e.target as HTMLElement)));
     ro.current = obs;
@@ -371,6 +376,19 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
     focusedOnce: false,
     /** Fit scale of the last layout, kept while screens fold home */
     fit: 1,
+    /** The plan for the current anchor: the masonry, where the block starts, its top and scale */
+    lay: null as ReturnType<typeof layout> | null,
+    regionX: 0,
+    topY: 0,
+    planFit: 1,
+    planVer: -1,
+    /** The block sits left of the monument */
+    left: false,
+    /** The anchor and plan as shown: they glide to a new anchor rather than jump */
+    viewPos: new THREE.Vector3(),
+    viewQuat: new THREE.Quaternion(),
+    vRegionX: 0,
+    vTopY: 0,
   });
 
   useFrame(({ clock }, delta) => {
@@ -399,18 +417,27 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
       setOpen(true);
     }
 
-    // anchor the layout to where the viewer stands; re-anchor only after walking
-    if (s.active && (!s.anchored || s.anchorPos.distanceTo(cam) > REANCHOR)) {
+    /*
+     * The block is planned once per anchor: where the viewer stood when the
+     * screens opened, and again only after they walk REANCHOR away. The column
+     * arrangement is chosen when the screens open (and once more when their
+     * real sizes come in) and then kept, so walking never reshuffles them; on
+     * a new anchor the whole block glides there as one piece, facing that
+     * spot, so small steps move nothing.
+     */
+    const first = s.active && !s.anchored;
+    const moved = s.active && s.anchored && s.anchorPos.distanceTo(cam) > REANCHOR;
+    if (first || moved) {
       s.anchorPos.copy(cam);
       s.anchorQuat.copy(camera.quaternion);
       s.anchored = true;
     }
-
-    let lay: ReturnType<typeof layout> | null = null;
-    let regionX = 0;
-    let topY = 0;
-    let leftSide = false;
-    if (s.active) {
+    const resized = s.active && s.planVer !== sizeVer.current;
+    if (first || moved || resized) {
+      s.planVer = sizeVer.current;
+      // the column count is free when the screens open or their sizes arrive, kept on a new anchor
+      const keep = moved && !resized && s.lay ? s.lay.cols : 0;
+      let leftSide = false;
       const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
       const halfH = PLANE_D * tanV;
       const halfW = halfH * camera.aspect;
@@ -421,30 +448,48 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
       const px = (mid.x * PLANE_D) / depth;
       // clear the monument's footprint (plinth and widest arches) as seen on the layout plane
       const margin = (0.95 * PLANE_D) / depth + 0.08;
-      let x0 = px + margin;
-      let x1 = halfW * SCREEN_SIDE;
-      if (x1 - x0 < halfW * 0.7) {
-        leftSide = true;
-        x0 = -halfW * SCREEN_SIDE;
-        x1 = px - margin;
-      }
+      const rightRoom = halfW * SCREEN_SIDE - (px + margin);
+      const leftRoom = px - margin + halfW * SCREEN_SIDE;
+      // the side with room, chosen when the screens open; walking keeps it unless it runs out
+      leftSide = moved && !resized ? (s.left ? leftRoom > halfW * 0.35 || rightRoom < leftRoom : rightRoom < halfW * 0.35 && leftRoom > rightRoom) : rightRoom < halfW * 0.7;
+      s.left = leftSide;
+      const x0 = leftSide ? -halfW * SCREEN_SIDE : px + margin;
+      const x1 = leftSide ? px - margin : halfW * SCREEN_SIDE;
       const availW = Math.max(0.5, x1 - x0);
       // the screens live in a band: no higher than SCREEN_TOP of the way up the view (higher
       // ones are hard to read), no lower than the ground or SCREEN_BOTTOM down. A stack too
       // tall for the band wraps into more columns instead of climbing
       const floor = Math.max(groundFloor(x0, x1, s.anchorQuat, s.anchorPos, base, ground), -halfH * SCREEN_BOTTOM);
       const ceiling = Math.max(halfH * SCREEN_TOP, floor + halfH * 0.5);
-      lay = layout(
+      const lay = layout(
         panels.map((p) => p.size),
         availW,
         ceiling - floor,
+        keep,
       );
-      regionX = leftSide ? x1 - lay.w * lay.s : x0;
-      s.fit = lay.s;
+      s.lay = lay;
+      s.regionX = leftSide ? x1 - lay.w * lay.s : x0;
+      s.planFit = lay.s;
       // centred on the eye line where it fits, otherwise kept inside the band (the ground wins)
       const h = lay.h * lay.s;
-      topY = Math.max(Math.min(h / 2 - halfH * 0.04, ceiling), floor + h);
+      s.topY = Math.max(Math.min(h / 2 - halfH * 0.04, ceiling), floor + h);
+      if (first) {
+        s.viewPos.copy(s.anchorPos);
+        s.viewQuat.copy(s.anchorQuat);
+        s.vRegionX = s.regionX;
+        s.vTopY = s.topY;
+        s.fit = s.planFit;
+      }
     }
+    if (s.active) {
+      const k = damp(reducedMotion ? 30 : GLIDE_RATE, dt);
+      s.viewPos.lerp(s.anchorPos, k);
+      s.viewQuat.slerp(s.anchorQuat, k);
+      s.vRegionX += (s.regionX - s.vRegionX) * k;
+      s.vTopY += (s.topY - s.vTopY) * k;
+      s.fit += (s.planFit - s.fit) * k;
+    }
+    const lay = s.active ? s.lay : null;
 
     let anyOut = false;
     const spin = reducedMotion ? 0 : 0.22 * (index % 2 ? -1 : 1);
@@ -469,19 +514,14 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
       const orbitQuat = _oq.copy(_o.quaternion);
 
       if (lay && s.active) {
-        // the screen slot, re-anchored gently when the viewer walks
+        // the screen slot in the block as shown, facing the spot it was laid out for
         const [lx, ly] = lay.pos[i];
-        _tp.set(regionX + lx * lay.s, topY - ly * lay.s, -PLANE_D).applyQuaternion(s.anchorQuat).add(s.anchorPos);
+        _tp.set(s.vRegionX + lx * s.fit, s.vTopY - ly * s.fit, -PLANE_D).applyQuaternion(s.viewQuat).add(s.viewPos);
         _o.position.copy(_tp);
-        _o.lookAt(cam);
-        if (!p.hasTarget) {
-          p.target.copy(_tp);
-          p.face.copy(_o.quaternion);
-          p.hasTarget = true;
-        } else {
-          p.target.lerp(_tp, damp(reducedMotion ? 30 : 2.2, dt));
-          p.face.slerp(_o.quaternion, damp(reducedMotion ? 30 : 2.2, dt));
-        }
+        _o.lookAt(s.viewPos);
+        p.target.copy(_tp);
+        p.face.copy(_o.quaternion);
+        p.hasTarget = true;
       }
       if (p.prog <= 0) p.hasTarget = false;
 
