@@ -9,6 +9,8 @@ import {
   BEAM_LIFT_AT,
   BEAM_LOOK_MS,
   CHAIN_TOTAL,
+  DIVE_PUSH_AT,
+  DIVE_TURN_MS,
   ENTER_TOTAL,
   EXIT_CHAIN_TOTAL,
   EXIT_TOTAL,
@@ -17,13 +19,14 @@ import {
 import { responsiveFov, surfaceFov } from '@/scenes/overworld/TelescopeCamera';
 import { loadSurface, surfaceScene } from '@/scenes/planet/loadSurface';
 
-/** The lock-on before the beam takes the viewer narrows the lens this much */
-const LOCK_ZOOM = 6;
+/** The lock-on narrows the lens this much, and the plunge widens it this much again */
+const LOCK_ZOOM = 4;
+const DIVE_WIDEN = 9;
+/** The plunge stops this many planet radii from its centre, just outside the atmosphere */
+const DIVE_STOP = 1.4;
 const LAUNCH_FOV = 78;
 /** Eye height above the beam's foot */
 const EYE = 1.6;
-/** The view swings onto the planet this fast */
-const LOOK_SETTLE = 280;
 
 const UP = new THREE.Vector3(0, 1, 0);
 const _orb: Vec3 = [0, 0, 0];
@@ -34,6 +37,7 @@ const _m = new THREE.Matrix4();
 
 const clamp01 = (x: number) => Math.min(Math.max(x, 0), 1);
 const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const easeInOutSine = (t: number) => 0.5 - 0.5 * Math.cos(Math.PI * t);
 const smoothstep = (a: number, b: number, x: number) => {
   const t = clamp01((x - a) / (b - a));
   return t * t * (3 - 2 * t);
@@ -169,16 +173,27 @@ const TransitionController = () => {
     }
 
     if (r.kind === 'in') {
-      // lock onto the planet while the beam's light comes up over the view
+      // ease round onto the planet, then plunge at it until it fills the window; the view
+      // crossfades into its sky under the veil (same timeline in TransitionVeil)
       const p = r.planet;
       if (!p) return finish();
       getOrbitalPosition(p, clock.elapsedTime, _orb);
       _target.set(_orb[0], _orb[1], _orb[2]);
+      // the push: from the eyepiece toward the planet, accelerating, stopping just above its air
+      const push = Math.pow(clamp01((elapsed - DIVE_PUSH_AT) / (r.total - DIVE_PUSH_AT)), 1.8);
+      _dir.copy(_target).sub(r.pos);
+      const reach = Math.max(0, _dir.length() - p.radius * DIVE_STOP);
+      camera.position.copy(r.pos).addScaledVector(_dir.normalize(), reach * push);
+      // the turn: a gentle ease both ends, tracking the planet as it orbits
       _m.lookAt(camera.position, _target, UP);
       _q.setFromRotationMatrix(_m);
-      camera.quaternion.copy(r.quat).slerp(_q, easeInOutCubic(clamp01(elapsed / LOOK_SETTLE)));
-      const z = easeInOutCubic(clamp01(elapsed / r.total));
-      setFov(camera, r.fov - LOCK_ZOOM * z);
+      camera.quaternion.copy(r.quat).slerp(_q, easeInOutSine(clamp01(elapsed / DIVE_TURN_MS)));
+      // the lens narrows a touch as it locks on, then opens out with the speed
+      const lock = easeInOutSine(clamp01(elapsed / DIVE_TURN_MS));
+      setFov(camera, r.fov - LOCK_ZOOM * lock + DIVE_WIDEN * push);
+      // a faint glow of its air on the canopy rim as the planet fills the view
+      flight.heat = 0.28 * smoothstep(0.55, 1, push);
+      flight.heatColor = p.surface.atmosphere;
       if (elapsed >= r.total) finish();
       return;
     }

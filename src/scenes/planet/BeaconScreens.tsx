@@ -9,6 +9,7 @@ import { panelFocusIntent } from '@/ui/navigation';
 import { usePanelView } from '@/ui/primitives';
 import { mulberry, seedOf } from './rng';
 import { hologramMaterial, holoLook } from './hologram';
+import type { HeightFn } from './Terrain';
 
 /* ---------- tuning ---------- */
 
@@ -165,6 +166,44 @@ const layout = (boxes: Box[], availW: number, availH: number) => {
   return best!;
 };
 
+/** Deployed screens keep at least this much air under them (world units) */
+const GROUND_CLEAR = 0.18;
+const FLOOR_SAMPLES = 7;
+const _fp = new THREE.Vector3();
+const _fu = new THREE.Vector3();
+
+/**
+ * The lowest height on the layout plane (camera-anchored, y up) that stays
+ * GROUND_CLEAR above the ground everywhere between x0 and x1. The plane is
+ * tilted with the anchored view, so each sample walks the plane's own up
+ * direction to the height where it clears the ground under it.
+ */
+const groundFloor = (
+  x0: number,
+  x1: number,
+  quat: THREE.Quaternion,
+  anchor: THREE.Vector3,
+  base: THREE.Vector3,
+  ground: HeightFn,
+) => {
+  const up = _fu.set(0, 1, 0).applyQuaternion(quat);
+  if (up.y < 0.2) return -Infinity;
+  let floor = -Infinity;
+  for (let k = 0; k < FLOOR_SAMPLES; k += 1) {
+    const x = x0 + ((x1 - x0) * k) / (FLOOR_SAMPLES - 1);
+    // the plane point at height 0, then the ground under where the screen's foot would be
+    const p = _fp.set(x, 0, -PLANE_D).applyQuaternion(quat).add(anchor).add(base);
+    let y = 0;
+    for (let i = 0; i < 2; i += 1) {
+      const gx = p.x + up.x * y;
+      const gz = p.z + up.z * y;
+      y = (ground(gx, gz) + GROUND_CLEAR - p.y) / up.y;
+    }
+    floor = Math.max(floor, y);
+  }
+  return floor;
+};
+
 interface Panel {
   kind: ShapeKind;
   orbit: [number, number][];
@@ -195,6 +234,8 @@ interface Props {
   height: number;
   index: number;
   reducedMotion?: boolean;
+  /** Walkable height (world x, z): deployed screens stay above it */
+  ground: HeightFn;
 }
 
 const _v = new THREE.Vector3();
@@ -227,7 +268,7 @@ const wholePart = (b: Beacon): ScreenPart => {
   };
 };
 
-const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion }: Props) => {
+const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, ground }: Props) => {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const panelView = usePanelView();
   const parts = useMemo(() => (group ? group.map(wholePart) : screenParts(beacon)), [beacon, group]);
@@ -377,15 +418,21 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion }: 
         x1 = px - margin;
       }
       const availW = Math.max(0.5, x1 - x0);
-      const availH = halfH * 1.5;
-      lay = layout(
-        panels.map((p) => p.size),
-        availW,
-        availH,
-      );
+      // the ground across the region, as the lowest plane height a screen may reach
+      const floor = groundFloor(x0, x1, s.anchorQuat, s.anchorPos, base, ground);
+      const sizes = panels.map((p) => p.size);
+      const centred = (h: number) => h / 2 - halfH * 0.04;
+      lay = layout(sizes, availW, halfH * 1.5);
+      if (centred(lay.h * lay.s) - lay.h * lay.s < floor) {
+        // the block would reach the ground: give it only the room above it, so the screens
+        // that would sink wrap into more columns beside the others instead
+        const top = Math.max(centred(lay.h * lay.s), halfH * 0.75);
+        lay = layout(sizes, availW, Math.max(halfH * 0.5, top - floor));
+      }
       regionX = leftSide ? x1 - lay.w * lay.s : x0;
       s.fit = lay.s;
-      topY = (lay.h * lay.s) / 2 - halfH * 0.04;
+      // and never below it, whatever the fit
+      topY = Math.max(centred(lay.h * lay.s), floor + lay.h * lay.s);
     }
 
     let anyOut = false;

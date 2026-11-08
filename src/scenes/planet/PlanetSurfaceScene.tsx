@@ -110,6 +110,7 @@ const Surface = ({ planet }: { planet: Planet }) => {
           rim={sky.rim}
           rimColor={sky.rimColor}
           reducedMotion={reducedMotion}
+          ground={ground}
         />
       ))}
 

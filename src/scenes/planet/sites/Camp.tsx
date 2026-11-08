@@ -4,6 +4,16 @@ import * as THREE from 'three';
 import type { Planet } from '@/types/content';
 import { useAppStore } from '@/state/useAppStore';
 import { addRim, noRaycast } from './common';
+import { faceZ, frameGeometry, hairGeometry, headGeometry, headHalfWidth, lensGeometry } from './figure';
+
+/** Warm medium brown, from the photos */
+const SKIN = '#9e6b4f';
+/** Rectangular lenses */
+const LENS_W = 0.037;
+const LENS_H = 0.024;
+/** Face landmarks, head-local height */
+const EYE_Y = 0.006;
+const EYE_X = 0.03;
 
 /*
  * The about planet's camp, where I sit: a log by the fire, me on it with a
@@ -49,6 +59,22 @@ const Limb = ({ a, b, r, material }: { a: V3; b: V3; r: number; material: THREE.
   );
 };
 
+/** A tapered rod from a (radius r0) to b (radius r1). */
+const Taper = ({ a, b, r0, r1, material }: { a: V3; b: V3; r0: number; r1: number; material: THREE.Material }) => {
+  const t = useMemo(() => {
+    _a.set(...a);
+    _b.set(...b);
+    const dir = _b.clone().sub(_a);
+    const len = dir.length();
+    return { len, q: new THREE.Quaternion().setFromUnitVectors(UP, dir.normalize()), mid: _a.clone().add(_b).multiplyScalar(0.5) };
+  }, [a, b]);
+  return (
+    <mesh material={material} position={t.mid} quaternion={t.q} raycast={noRaycast}>
+      <cylinderGeometry args={[r1, r0, t.len, 12]} />
+    </mesh>
+  );
+};
+
 const Mirror = ({ children }: { children: (s: 1 | -1) => JSX.Element }) => (
   <>
     {children(1)}
@@ -80,24 +106,34 @@ export const Camp = ({
     const rc = rimColor ?? new THREE.Color(planet.accent);
     const std = (color: string, roughness: number, metalness = 0, edge = 0.1) =>
       addRim(new THREE.MeshStandardMaterial({ color, roughness, metalness }), rc, rim * edge);
+    const face = std(SKIN, 0.62, 0, 0.12);
+    face.vertexColors = true;
     return {
-      skin: std('#8a5638', 0.55, 0, 0.14),
-      hair: std('#121010', 0.7),
-      hoodie: std('#2b3245', 0.85, 0, 0.16),
-      jeans: std('#34445e', 0.9),
+      skin: std(SKIN, 0.62, 0, 0.12),
+      face,
+      lip: std('#9a5a4c', 0.5, 0, 0.08),
+      hair: Object.assign(std('#0c0a0a', 0.62, 0, 0.14), { side: THREE.DoubleSide }),
+      brow: std('#0e0b0a', 0.8),
+      tee: std('#283c62', 0.9, 0, 0.16),
+      collar: std('#22345a', 0.9, 0, 0.12),
+      band: std('#2f8fe0', 0.45, 0, 0.1),
+      jeans: std('#2f3b52', 0.9),
       shoe: std('#e8e6e1', 0.6),
       sole: std('#2a2a2a', 0.8),
-      frame: new THREE.MeshStandardMaterial({ color: '#141414', roughness: 0.35, metalness: 0.4 }),
+      // matte dark navy acetate
+      frame: new THREE.MeshStandardMaterial({ color: '#161c2a', roughness: 0.55, metalness: 0.05 }),
       lens: new THREE.MeshStandardMaterial({
         color: '#a9c6ff',
         roughness: 0.05,
         metalness: 0.2,
         transparent: true,
-        opacity: 0.12,
+        opacity: 0.1,
+        depthWrite: false,
         emissive: new THREE.Color('#5f86c8'),
-        emissiveIntensity: 0.08,
+        emissiveIntensity: 0.06,
       }),
-      eye: new THREE.MeshStandardMaterial({ color: '#1a110b', roughness: 0.3 }),
+      white: new THREE.MeshStandardMaterial({ color: '#c2b4a6', roughness: 0.35 }),
+      eye: new THREE.MeshStandardMaterial({ color: '#1a110b', roughness: 0.25 }),
       wood: new THREE.MeshStandardMaterial({ color: '#5a3b24', roughness: 0.9, flatShading: true }),
       bark: new THREE.MeshStandardMaterial({ color: '#3d2716', roughness: 1, flatShading: true }),
       laptop: new THREE.MeshStandardMaterial({ color: '#b7bac0', roughness: 0.35, metalness: 0.75 }),
@@ -106,6 +142,16 @@ export const Camp = ({
     };
   }, [planet, rim, rimColor]);
   useEffect(() => () => Object.values(m).forEach((x) => x.dispose()), [m]);
+  const geo = useMemo(
+    () => ({
+      head: headGeometry(),
+      hair: hairGeometry(),
+      frame: frameGeometry(LENS_W, LENS_H, 0.0042, 0.004),
+      lens: lensGeometry(LENS_W, LENS_H),
+    }),
+    [],
+  );
+  useEffect(() => () => Object.values(geo).forEach((g) => g.dispose()), [geo]);
 
   useFrame(({ clock }, delta) => {
     const dt = Math.min(delta, 0.05);
@@ -161,100 +207,126 @@ export const Camp = ({
         <Mirror>
           {(s) => (
             <group key={s}>
-              <Limb a={[s * 0.1, 0.5, 0]} b={[s * 0.12, 0.54, 0.47]} r={0.078} material={m.jeans} />
-              <Limb a={[s * 0.12, 0.53, 0.48]} b={[s * 0.14, 0.11, 0.53]} r={0.063} material={m.jeans} />
-              <mesh material={m.shoe} position={[s * 0.14, 0.06, 0.6]} castShadow raycast={noRaycast}>
-                <boxGeometry args={[0.11, 0.08, 0.27]} />
+              <Limb a={[s * 0.1, 0.5, 0]} b={[s * 0.12, 0.54, 0.47]} r={0.07} material={m.jeans} />
+              <Limb a={[s * 0.12, 0.53, 0.48]} b={[s * 0.14, 0.11, 0.53]} r={0.058} material={m.jeans} />
+              <mesh material={m.shoe} position={[s * 0.14, 0.058, 0.6]} rotation={[Math.PI / 2, 0, 0]} scale={[1.05, 1, 0.72]} castShadow raycast={noRaycast}>
+                <capsuleGeometry args={[0.052, 0.16, 4, 12]} />
               </mesh>
-              <mesh material={m.sole} position={[s * 0.14, 0.012, 0.6]} raycast={noRaycast}>
-                <boxGeometry args={[0.115, 0.025, 0.28]} />
+              <mesh material={m.sole} position={[s * 0.14, 0.014, 0.6]} raycast={noRaycast}>
+                <boxGeometry args={[0.112, 0.024, 0.262]} />
               </mesh>
             </group>
           )}
         </Mirror>
 
-        {/* torso in a hoodie, leaning a little toward the laptop */}
+        {/* torso in a fitted crew-neck tee, slim, leaning a little toward the laptop */}
         <group ref={chest} position={[0, 0.58, 0]} rotation={[0.16, 0, 0]}>
-          <mesh material={m.hoodie} position={[0, 0.27, 0]} scale={[1.28, 1, 0.82]} castShadow raycast={noRaycast}>
-            <capsuleGeometry args={[0.17, 0.3, 6, 14]} />
+          <mesh material={m.tee} position={[0, 0.27, 0]} scale={[1.18, 1, 0.72]} castShadow raycast={noRaycast}>
+            <capsuleGeometry args={[0.15, 0.3, 6, 16]} />
           </mesh>
-          {/* hood bunched behind the neck */}
-          <mesh material={m.hoodie} position={[0, 0.5, -0.1]} scale={[1.2, 0.6, 0.9]} castShadow raycast={noRaycast}>
-            <torusGeometry args={[0.1, 0.045, 8, 16]} />
+          {/* the rib collar and a long neck */}
+          <mesh material={m.collar} position={[0, 0.49, 0.012]} rotation={[Math.PI / 2 - 0.16, 0, 0]} scale={[1.1, 1, 1]} raycast={noRaycast}>
+            <torusGeometry args={[0.054, 0.011, 8, 24]} />
           </mesh>
-          <mesh material={m.skin} position={[0, 0.56, 0.03]} castShadow raycast={noRaycast}>
-            <cylinderGeometry args={[0.052, 0.058, 0.12, 12]} />
+          <mesh material={m.skin} position={[0, 0.555, 0.02]} castShadow raycast={noRaycast}>
+            <cylinderGeometry args={[0.036, 0.043, 0.14, 14]} />
           </mesh>
 
-          {/* arms down to the keyboard */}
+          {/* arms: short sleeves, bare forearms down to the keyboard, the event wristband on the left */}
           <Mirror>
             {(s) => (
               <group key={s}>
-                <mesh material={m.hoodie} position={[s * 0.22, 0.44, 0]} castShadow raycast={noRaycast}>
-                  <sphereGeometry args={[0.075, 12, 10]} />
+                <mesh material={m.tee} position={[s * 0.178, 0.425, 0]} castShadow raycast={noRaycast}>
+                  <sphereGeometry args={[0.05, 14, 12]} />
                 </mesh>
-                <Limb a={[s * 0.23, 0.43, 0]} b={[s * 0.25, 0.17, 0.15]} r={0.056} material={m.hoodie} />
-                <Limb a={[s * 0.25, 0.17, 0.15]} b={[s * 0.1, 0.12, 0.36]} r={0.048} material={m.hoodie} />
+                <Limb a={[s * 0.2, 0.42, 0]} b={[s * 0.222, 0.31, 0.066]} r={0.049} material={m.tee} />
+                <Limb a={[s * 0.2, 0.42, 0]} b={[s * 0.24, 0.17, 0.15]} r={0.04} material={m.skin} />
+                <Limb a={[s * 0.24, 0.17, 0.15]} b={[s * 0.1, 0.12, 0.36]} r={0.034} material={m.skin} />
+                {s === 1 && <Limb a={[0.124, 0.128, 0.323]} b={[0.116, 0.126, 0.336]} r={0.037} material={m.band} />}
               </group>
             )}
           </Mirror>
 
-          {/* the head: turns on the neck, glasses on */}
+          {/* the head: turns on the neck */}
           <group ref={head} position={[0, 0.6, 0.04]} rotation={[REST_PITCH, 0, 0]}>
             <group position={[0, 0.12, 0.01]}>
-              <mesh material={m.skin} scale={[0.88, 1.1, 0.98]} castShadow raycast={noRaycast}>
-                <sphereGeometry args={[0.112, 24, 18]} />
-              </mesh>
-              {/* jaw */}
-              <mesh material={m.skin} position={[0, -0.06, 0.03]} scale={[0.85, 0.6, 0.85]} raycast={noRaycast}>
-                <sphereGeometry args={[0.09, 18, 12]} />
-              </mesh>
-              {/* short black hair, fuller on top */}
-              <mesh material={m.hair} position={[0, 0.035, -0.012]} scale={[0.93, 0.95, 1.02]} castShadow raycast={noRaycast}>
-                <sphereGeometry args={[0.118, 22, 14, 0, Math.PI * 2, 0, Math.PI * 0.55]} />
-              </mesh>
-              <mesh material={m.hair} position={[0, 0.085, 0.02]} scale={[1, 0.45, 1]} raycast={noRaycast}>
-                <sphereGeometry args={[0.1, 18, 10]} />
-              </mesh>
-              {/* ears and nose */}
+              <mesh geometry={geo.head} material={m.face} castShadow raycast={noRaycast} />
+              <mesh geometry={geo.hair} material={m.hair} castShadow raycast={noRaycast} />
+              {/* ears, the tops under the hair */}
               <Mirror>
                 {(s) => (
-                  <mesh key={s} material={m.skin} position={[s * 0.1, 0, -0.005]} scale={[0.4, 1, 0.7]} raycast={noRaycast}>
-                    <sphereGeometry args={[0.03, 10, 8]} />
+                  <mesh key={s} material={m.skin} position={[s * (headHalfWidth(-0.006) - 0.001), -0.006, -0.012]} rotation={[0, s * 0.2, 0]} scale={[0.28, 1, 0.6]} raycast={noRaycast}>
+                    <sphereGeometry args={[0.026, 12, 10]} />
                   </mesh>
                 )}
               </Mirror>
-              <mesh material={m.skin} position={[0, -0.015, 0.11]} rotation={[Math.PI / 2 - 0.25, 0, 0]} raycast={noRaycast}>
-                <coneGeometry args={[0.018, 0.05, 10]} />
+              {/* eyes: whites, dark irises, a heavy upper lid; thick straight brows over them */}
+              <Mirror>
+                {(s) => {
+                  const ez = faceZ(EYE_X, EYE_Y) - 0.0085;
+                  const bz = faceZ(0.031, EYE_Y + 0.0245) + 0.002;
+                  return (
+                    <group key={s}>
+                      <mesh material={m.white} position={[s * EYE_X, EYE_Y, ez]} raycast={noRaycast}>
+                        <sphereGeometry args={[0.0115, 14, 12]} />
+                      </mesh>
+                      <mesh material={m.eye} position={[s * EYE_X, EYE_Y + 0.0006, ez + 0.0105]} scale={[1, 1, 0.35]} raycast={noRaycast}>
+                        <sphereGeometry args={[0.0076, 12, 10]} />
+                      </mesh>
+                      <mesh material={m.skin} position={[s * EYE_X, EYE_Y + 0.0006, ez]} rotation={[0.26, 0, 0]} raycast={noRaycast}>
+                        <sphereGeometry args={[0.0125, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.5]} />
+                      </mesh>
+                      <mesh material={m.skin} position={[s * EYE_X, EYE_Y - 0.0004, ez]} rotation={[-0.1, 0, 0]} raycast={noRaycast}>
+                        <sphereGeometry args={[0.0122, 14, 6, 0, Math.PI * 2, Math.PI * 0.66, Math.PI * 0.34]} />
+                      </mesh>
+                      <mesh material={m.brow} position={[s * 0.031, EYE_Y + 0.0245, bz]} rotation={[0.1, s * 0.28, Math.PI / 2 + s * -0.06]} scale={[1, 1, 0.55]} raycast={noRaycast}>
+                        <capsuleGeometry args={[0.0046, 0.029, 4, 8]} />
+                      </mesh>
+                    </group>
+                  );
+                }}
+              </Mirror>
+              {/* a straight, prominent nose */}
+              <Taper a={[0, EYE_Y - 0.002, faceZ(0, EYE_Y) - 0.004]} b={[0, -0.034, faceZ(0, -0.034) + 0.0105]} r0={0.0042} r1={0.0086} material={m.skin} />
+              <mesh material={m.skin} position={[0, -0.037, faceZ(0, -0.037) + 0.011]} raycast={noRaycast}>
+                <sphereGeometry args={[0.0096, 14, 12]} />
               </mesh>
-              {/* eyes, brows, and the glasses over them */}
               <Mirror>
                 {(s) => (
-                  <group key={s}>
-                    <mesh material={m.eye} position={[s * 0.038, 0.02, 0.094]} raycast={noRaycast}>
-                      <sphereGeometry args={[0.012, 10, 8]} />
-                    </mesh>
-                    <mesh material={m.hair} position={[s * 0.04, 0.052, 0.098]} rotation={[0, 0, s * -0.12]} raycast={noRaycast}>
-                      <boxGeometry args={[0.04, 0.008, 0.01]} />
-                    </mesh>
-                    <mesh material={m.frame} position={[s * 0.039, 0.018, 0.112]} scale={[1.15, 0.85, 1]} raycast={noRaycast}>
-                      <torusGeometry args={[0.027, 0.0045, 6, 20]} />
-                    </mesh>
-                    <mesh material={m.lens} position={[s * 0.039, 0.018, 0.111]} scale={[1.15, 0.85, 1]} raycast={noRaycast}>
-                      <circleGeometry args={[0.026, 18]} />
-                    </mesh>
-                    <mesh material={m.frame} position={[s * 0.084, 0.022, 0.06]} rotation={[0, s * 0.12, 0]} raycast={noRaycast}>
-                      <boxGeometry args={[0.005, 0.006, 0.1]} />
-                    </mesh>
-                  </group>
+                  <mesh key={s} material={m.skin} position={[s * 0.0102, -0.038, faceZ(0.0102, -0.038) - 0.0002]} raycast={noRaycast}>
+                    <sphereGeometry args={[0.0058, 10, 8]} />
+                  </mesh>
                 )}
               </Mirror>
-              <mesh material={m.frame} position={[0, 0.024, 0.114]} raycast={noRaycast}>
-                <boxGeometry args={[0.022, 0.005, 0.005]} />
+              {/* full lips, the line between them in shadow */}
+              <mesh material={m.eye} position={[0, -0.0693, faceZ(0, -0.0693) + 0.0004]} raycast={noRaycast}>
+                <boxGeometry args={[0.03, 0.0014, 0.002]} />
               </mesh>
-              {/* mouth */}
-              <mesh material={m.eye} position={[0, -0.058, 0.098]} raycast={noRaycast}>
-                <boxGeometry args={[0.032, 0.004, 0.004]} />
+              <mesh material={m.lip} position={[0, -0.0655, faceZ(0, -0.0655) + 0.001]} rotation={[0, 0, Math.PI / 2]} scale={[0.62, 1, 0.5]} raycast={noRaycast}>
+                <capsuleGeometry args={[0.0042, 0.028, 4, 10]} />
+              </mesh>
+              <mesh material={m.lip} position={[0, -0.0732, faceZ(0, -0.0732) - 0.0022]} scale={[1.6, 0.48, 0.55]} raycast={noRaycast}>
+                <sphereGeometry args={[0.012, 16, 10]} />
+              </mesh>
+              {/* rectangular dark navy frames */}
+              <Mirror>
+                {(s) => {
+                  const fx = s * 0.031;
+                  const fz = faceZ(0.031, EYE_Y) + 0.012;
+                  const edge = s * (0.031 + LENS_W / 2 + 0.004);
+                  return (
+                    <group key={s}>
+                      <group position={[fx, EYE_Y + 0.001, fz]} rotation={[0, s * 0.12, 0]}>
+                        <mesh geometry={geo.frame} material={m.frame} raycast={noRaycast} />
+                        <mesh geometry={geo.lens} material={m.lens} raycast={noRaycast} />
+                      </group>
+                      <Limb a={[edge, EYE_Y + 0.009, fz - 0.004]} b={[s * (headHalfWidth(EYE_Y) + 0.004), EYE_Y + 0.006, -0.014]} r={0.0021} material={m.frame} />
+                    </group>
+                  );
+                }}
+              </Mirror>
+              <mesh material={m.frame} position={[0, EYE_Y + 0.008, faceZ(0, EYE_Y) + 0.012]} raycast={noRaycast}>
+                <boxGeometry args={[0.016, 0.0042, 0.0045]} />
               </mesh>
             </group>
           </group>
@@ -280,9 +352,18 @@ export const Camp = ({
           <group ref={hands}>
             <Mirror>
               {(s) => (
-                <mesh key={s} material={m.skin} position={[s * 0.07, 0.03, -0.02]} scale={[0.8, 0.45, 1.1]} castShadow raycast={noRaycast}>
-                  <sphereGeometry args={[0.045, 12, 10]} />
-                </mesh>
+                // hands over the keys: a flat palm, the fingers curled down onto them, a thumb under
+                <group key={s} position={[s * 0.07, 0.026, -0.02]} rotation={[0, s * -0.25, 0]}>
+                  <mesh material={m.skin} scale={[1, 0.36, 1]} castShadow raycast={noRaycast}>
+                    <capsuleGeometry args={[0.03, 0.03, 4, 10]} />
+                  </mesh>
+                  <mesh material={m.skin} position={[0, -0.006, 0.042]} rotation={[0, 0, Math.PI / 2]} scale={[0.55, 1, 0.8]} raycast={noRaycast}>
+                    <capsuleGeometry args={[0.014, 0.034, 4, 8]} />
+                  </mesh>
+                  <mesh material={m.skin} position={[s * -0.03, -0.006, 0.012]} rotation={[0.3, s * 0.7, 0]} scale={[0.7, 0.7, 1]} raycast={noRaycast}>
+                    <capsuleGeometry args={[0.009, 0.026, 4, 8]} />
+                  </mesh>
+                </group>
               )}
             </Mirror>
           </group>

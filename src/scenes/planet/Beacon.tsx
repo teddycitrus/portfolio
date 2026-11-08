@@ -12,6 +12,7 @@ import { getBeaconFacing } from '@/data/content';
 import { addRim } from './sites/common';
 import { STATUE_HEIGHT, TempleStatue } from './sites/Temple';
 import { CAMP_HEIGHT, Camp } from './sites/Camp';
+import type { HeightFn } from './Terrain';
 
 /* ---------- meaning: award tiers, project glyphs, skill counts ---------- */
 
@@ -215,9 +216,11 @@ interface BeaconProps {
   rim?: number;
   rimColor?: THREE.Color;
   reducedMotion?: boolean;
+  /** Walkable height of the site (world x, z), which the deployed screens keep above */
+  ground: HeightFn;
 }
 
-const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedMotion }: BeaconProps) => {
+const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedMotion, ground }: BeaconProps) => {
   const kind = beacon.kind;
   const spec = useMemo(() => buildSpec(planet.architecture, beacon, index), [planet.architecture, beacon, index]);
   const height = spec.height;
@@ -1154,6 +1157,7 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
         height={height}
         index={index}
         reducedMotion={reducedMotion}
+        ground={ground}
       />
 
       {/* generous invisible hit volume */}

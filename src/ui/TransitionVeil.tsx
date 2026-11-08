@@ -33,9 +33,9 @@ interface VeilState {
 }
 
 /**
- * Full-screen cover for scene swaps. Beaming down or up washes out into the
- * tractor beam's light; with reduced motion it crossfades through the
- * destination sky or deep space. The camera
+ * Full-screen cover for scene swaps. The plunge at a planet crossfades into
+ * its sky; beaming up washes out into the tractor beam's light (with reduced
+ * motion, deep space). The camera
  * controller reads the same timing constants so the cut lands under cover.
  */
 const TransitionVeil = () => {
@@ -59,8 +59,9 @@ const TransitionVeil = () => {
         // chained straight from a beam up: stay in the light, then lift as usual
         setV((s) => ({ ...s, cover: 1, coverMs: 0, planetId }));
       } else {
-        // reduced motion crossfades through the destination sky; otherwise the beam's light
-        setV({ cover: 0, coverMs: 0, tint: reduced ? 1 : 0, tintMs: 0, planetId, flash: !reduced });
+        // the plunge ends in the destination's sky, so the cut lands on the colours the
+        // viewer is lowered through (reduced motion gets the same crossfade, sooner)
+        setV({ cover: 0, coverMs: 0, tint: 1, tintMs: 0, planetId, flash: false });
         later(reduced ? Math.max(0, REDUCED_TOTAL - REDUCED_FADE - 50) : ENTER_VEIL_START, () => {
           covered.current = true;
           setV((s) => ({ ...s, cover: 1, coverMs: reduced ? fadeIn : ENTER_VEIL_FADE }));

@@ -64,6 +64,8 @@ interface Rig {
   lastPos: THREE.Vector3;
   hasLast: boolean;
   ship: THREE.Quaternion;
+  /** The deck's pose relative to the eye when a dive leaves orbit, kept through the turn */
+  rel: THREE.Quaternion;
   deploy: number;
   aspect: number;
 }
@@ -279,6 +281,7 @@ const Cockpit = () => {
     lastPos: new THREE.Vector3(),
     hasLast: false,
     ship: new THREE.Quaternion(),
+    rel: new THREE.Quaternion(),
     deploy: useAppStore.getState().mode === 'planet' ? 0 : 1,
     aspect: size.width / Math.max(1, size.height),
   });
@@ -305,6 +308,10 @@ const Cockpit = () => {
         r.mode = s.mode;
         if (s.mode === 'transitioning-in') {
           r.diveAt = now;
+          // in orbit the deck is fixed and the eye looks about inside it: keep that offset, so
+          // the ship turning onto the planet carries the deck with the eye instead of snapping it
+          if (p.mode === 'overworld') r.rel.copy(r.baseQuat).invert().multiply(r.ship);
+          else r.rel.identity();
           if (!r.chained && !s.reducedMotion) shipSound('lock');
         } else if (s.mode === 'planet') {
           r.arriveAt = -1;
@@ -387,8 +394,8 @@ const Cockpit = () => {
       flight.arrivalMs = reduced ? ARRIVAL_DONE : r.arriveAt;
     }
     if (mode === 'transitioning-in' && !reduced && !r.chained) {
-      // the beam's hum building as it takes hold
-      shake = 0.0025 * clamp01((now - r.diveAt) / 600);
+      // the drive's hum as the ship comes round, then the rumble of the plunge growing with speed
+      shake = 0.0015 * clamp01((now - r.diveAt) / 600) + 0.003 * THREE.MathUtils.smoothstep(flight.speed, 20, 110);
     } else if (mode === 'transitioning-out' && !reduced) {
       // the beam's hum in the bones
       shake = 0.0025 * clamp01((now - r.launchAt) / 600);
@@ -425,7 +432,10 @@ const Cockpit = () => {
 
     // the ship's orientation before shake: fixed in orbit, swinging after the camera otherwise
     if (mode === 'overworld' || reduced) r.ship.copy(mode === 'overworld' ? ID : camera.quaternion);
-    else r.ship.slerp(camera.quaternion, damp(mode === 'transitioning-in' ? 7 : 16, dt));
+    // turning onto a planet the deck keeps its place around the eye, with just enough lag to feel
+    // the ship's weight
+    else if (mode === 'transitioning-in') r.ship.slerp(_q.copy(camera.quaternion).multiply(r.rel), damp(22, dt));
+    else r.ship.slerp(camera.quaternion, damp(16, dt));
 
     // shake moves ship and eye together; the head adds a little of its own
     _qShip.identity();

@@ -375,13 +375,26 @@ const sync = () => {
       advance(current ? KEY_XFADE_S : 3);
     }
   }
+  // the music fades out while the page reader is open, and back in when it closes
+  const playing = enabled && !reading();
+  const tc = playing ? 1.2 : enabled ? READER_FADE_S / 3 : 0.25;
   master.gain.cancelScheduledValues(now);
-  master.gain.setTargetAtTime(enabled ? desiredLevel() : 0, now, enabled ? 1.2 : 0.25);
-  const tl = enabled ? desiredLevel() * TRACK_GAIN : 0;
-  trackBus?.gain.setTargetAtTime(tl, now, enabled ? 1.2 : 0.25);
-  trackVerb?.gain.setTargetAtTime(tl * 0.6, now, enabled ? 1.2 : 0.25);
+  master.gain.setTargetAtTime(playing ? desiredLevel() : 0, now, tc);
+  const tl = playing ? desiredLevel() * TRACK_GAIN : 0;
+  trackBus?.gain.setTargetAtTime(tl, now, tc);
+  trackVerb?.gain.setTargetAtTime(tl * 0.6, now, tc);
   sfx.gain.setTargetAtTime(enabled ? 1 : 0, now, 0.1);
 };
+
+const reading = () => useAppStore.getState().readerOpen;
+/** The music's fade into and out of the reader, seconds */
+const READER_FADE_S = 1.2;
+
+/** Silent (sound off or reading): once the fade is done, stop the clock so the synth costs nothing. */
+const suspendWhenQuiet = () =>
+  window.setTimeout(() => {
+    if ((!enabled || reading()) && ctx?.state === 'running') void ctx.suspend();
+  }, 1500);
 
 let started = false;
 
@@ -389,11 +402,17 @@ let started = false;
 const start = () => {
   if (!enabled) return;
   if (!ctx && !build()) return;
-  if (ctx!.state === 'suspended') void ctx!.resume();
+  // reading the page keeps it asleep; closing the reader wakes it (below)
+  if (ctx!.state === 'suspended' && !reading()) void ctx!.resume();
   if (!started) {
     started = true;
     useAppStore.subscribe((s, p) => {
-      if (s.mode !== p.mode || s.activePlanetId !== p.activePlanetId || s.lockedPlanetId !== p.lockedPlanetId) sync();
+      if (s.readerOpen !== p.readerOpen) {
+        // back from the page: wake the clock first so the fade in is heard
+        if (!s.readerOpen && enabled && !document.hidden && ctx?.state === 'suspended') void ctx.resume();
+        sync();
+        if (s.readerOpen) suspendWhenQuiet();
+      } else if (s.mode !== p.mode || s.activePlanetId !== p.activePlanetId || s.lockedPlanetId !== p.lockedPlanetId) sync();
     });
   }
   sync();
@@ -426,7 +445,7 @@ export const initDrone = () => {
   document.addEventListener('visibilitychange', () => {
     if (!ctx) return;
     if (document.hidden) void ctx.suspend();
-    else if (enabled) void ctx.resume();
+    else if (enabled && !reading()) void ctx.resume();
   });
 };
 
@@ -441,9 +460,7 @@ export const setSoundEnabled = (on: boolean) => {
   else {
     sync();
     // let the fade finish, then stop the clock so the synth costs nothing while off
-    window.setTimeout(() => {
-      if (!enabled && ctx?.state === 'running') void ctx.suspend();
-    }, 1500);
+    suspendWhenQuiet();
   }
   emit();
 };
@@ -640,11 +657,11 @@ export const shipSound = (kind: ShipSound, touchdown = 0.54) => {
       air(t0 + 0.6, 1.4, 220, 2600, 0.8, 0.12, 1.0);
       break;
     case 'lock':
-      // the beam takes hold: a thrum, a quick rising hum and shimmer swelling into the light
+      // the ship comes round and plunges: a thrum, a rising hum and the rush of air swelling into the sky
       body(t0, 0.5, 70, 45, 0.22);
-      tone(t0 + 0.05, 1.0, 120, 420, 0.08, 0.6, 'triangle');
-      tone(t0 + 0.08, 0.95, 241, 842, 0.03, 0.6, 'sine');
-      air(t0 + 0.1, 0.95, 1200, 6000, 2.5, 0.06, 0.75);
+      tone(t0 + 0.05, 1.35, 120, 420, 0.08, 0.85, 'triangle');
+      tone(t0 + 0.08, 1.3, 241, 842, 0.03, 0.85, 'sine');
+      air(t0 + 0.1, 1.3, 1200, 6000, 2.5, 0.06, 1.05);
       break;
     case 'dropout':
       // the drive spools up in a rising whine, then the drop: a deep boom and the rush of normal space falling away
