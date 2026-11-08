@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type MutableRefObject } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import type { Beacon, Planet } from '@/types/content';
 import { useAppStore } from '@/state/useAppStore';
@@ -10,13 +10,12 @@ import { usePanelView } from '@/ui/primitives';
 import { mulberry, seedOf } from './rng';
 import { hologramMaterial, holoLook } from './hologram';
 import type { HeightFn } from './Terrain';
+import { projectQuad, quadMatrix } from './screenPlacement';
 
 /* ---------- tuning ---------- */
 
 /** CSS px per world unit on a deployed screen */
 const PX = 240;
-/** drei Html maps 400 / distanceFactor px to one unit in transform mode */
-const DISTANCE_FACTOR = 400 / PX;
 /** Orbiting panel radius (world units) */
 const ORBIT_SIZE = 0.24;
 /** Screens are laid out on a plane this far in front of the camera */
@@ -26,6 +25,8 @@ const DEPLOY_NEAR = 7.5;
 const DEPLOY_FOLD = 8.5;
 /** Camera drift that re-anchors the layout */
 const REANCHOR = 2.2;
+/** Open screens re-measure their content this often (frames), in case the ResizeObserver missed it */
+const MEASURE_EVERY = 20;
 /** How quickly the whole block glides to a new anchor (per second) */
 const GLIDE_RATE = 2.4;
 const GAP = 0.08;
@@ -289,14 +290,26 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
   const ids = useMemo(() => (group ? group.map((b) => b.id) : [beacon.id]), [beacon, group]);
   const root = useRef<THREE.Group>(null);
   const groups = useRef<(THREE.Group | null)[]>([]);
-  const htmlGroups = useRef<(THREE.Group | null)[]>([]);
   const contents = useRef<(HTMLDivElement | null)[]>([]);
   const [open, setOpen] = useState(false);
   const openRef = useRef(false);
-  const layer = useMemo(
-    () => ({ current: document.getElementById('screen-layer') ?? document.body }) as MutableRefObject<HTMLElement>,
-    [],
-  );
+  const size = useThree((st) => st.size);
+  // the screens' DOM lives in its own React root inside #screen-layer (above the canvas, below the HUD)
+  const host = useRef<{ el: HTMLDivElement; root: Root } | null>(null);
+  useLayoutEffect(() => {
+    const el = document.createElement('div');
+    (document.getElementById('screen-layer') ?? document.body).appendChild(el);
+    const root = createRoot(el);
+    host.current = { el, root };
+    return () => {
+      host.current = null;
+      // unmounting a root while React renders warns: let this render finish first
+      window.setTimeout(() => {
+        root.unmount();
+        el.remove();
+      }, 0);
+    };
+  }, []);
 
   const panels = useMemo<Panel[]>(() => {
     const rnd = mulberry(seedOf(`${beacon.id}:screens`));
@@ -340,18 +353,27 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
     [panels],
   );
 
-  // content sizes (world units) come from a ResizeObserver, so the frame loop never reads layout
+  // content sizes (world units) come from a ResizeObserver, so the frame loop rarely reads layout.
+  // Safari does not always report these transformed elements, so open screens
+  // are also measured every MEASURE_EVERY frames; the layout is redone only when a size changes
   const ro = useRef<ResizeObserver | null>(null);
   const sizeVer = useRef(0);
+  const measure = useRef((el: HTMLElement) => {
+    void el;
+  });
+  measure.current = (el: HTMLElement) => {
+    const i = contents.current.indexOf(el as HTMLDivElement);
+    if (i < 0 || !panels[i] || !el.offsetWidth) return;
+    const w = el.offsetWidth / PX;
+    const h = el.offsetHeight / PX;
+    const size = panels[i].size;
+    if (Math.abs(size.w - w) < 1e-4 && Math.abs(size.h - h) < 1e-4) return;
+    size.w = w;
+    size.h = h;
+    sizeVer.current += 1;
+  };
   useEffect(() => {
-    const measure = (el: HTMLElement) => {
-      const i = contents.current.indexOf(el as HTMLDivElement);
-      if (i < 0 || !panels[i] || !el.offsetWidth) return;
-      panels[i].size.w = el.offsetWidth / PX;
-      panels[i].size.h = el.offsetHeight / PX;
-      sizeVer.current += 1;
-    };
-    const obs = new ResizeObserver((entries) => entries.forEach((e) => measure(e.target as HTMLElement)));
+    const obs = new ResizeObserver((entries) => entries.forEach((e) => measure.current(e.target as HTMLElement)));
     ro.current = obs;
     contents.current.forEach((el) => el && obs.observe(el));
     return () => {
@@ -382,6 +404,8 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
     topY: 0,
     planFit: 1,
     planVer: -1,
+    /** Frame counter for the periodic size check */
+    frame: 0,
     /** The block sits left of the monument */
     left: false,
     /** The anchor and plan as shown: they glide to a new anchor rather than jump */
@@ -432,6 +456,9 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
       s.anchorQuat.copy(camera.quaternion);
       s.anchored = true;
     }
+    // the fallback for browsers whose ResizeObserver misses these elements (Safari)
+    if (openRef.current && (s.frame = (s.frame + 1) % MEASURE_EVERY) === 0)
+      contents.current.forEach((el) => el && measure.current(el));
     const resized = s.active && s.planVer !== sizeVer.current;
     if (first || moved || resized) {
       s.planVer = sizeVer.current;
@@ -545,7 +572,6 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
         grp.rotateY(Math.sin(t * 0.55 + i * 2.2) * SWAY * k);
         grp.rotateZ(Math.sin(t * 0.8 + i * 0.9) * SWAY * 0.4 * k);
       }
-      htmlGroups.current[i]?.scale.setScalar(s.fit);
       if (p.prog > 0) anyOut = true;
 
       // morph the outline from orbiting polygon to screen
@@ -600,6 +626,58 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
     }
   });
 
+  useEffect(() => {
+    host.current?.root.render(
+      open ? (
+        <>
+          {parts.map((part, i) => (
+            <div
+              key={part.key}
+              ref={bindContent(i)}
+              data-beacon-panel
+              data-beacon-screen
+              role="group"
+              aria-label={group ? `${group[i].label} details` : i === 0 ? `${beacon.label} details` : undefined}
+              className="absolute left-0 top-0 select-text px-7 py-6 text-ink"
+              style={
+                {
+                  width: part.width,
+                  opacity: 0,
+                  visibility: 'hidden',
+                  transformOrigin: '0 0',
+                  '--accent': planet.accent,
+                } as CSSProperties
+              }
+            >
+              {part.node}
+            </div>
+          ))}
+        </>
+      ) : null,
+    );
+  }, [open, parts, group, beacon.label, planet.accent]);
+
+  // after the camera and the cockpit rig have moved this frame, before the composer renders it:
+  // each readable screen's DOM is mapped straight onto its panel's four corners on screen
+  const placed = useRef<string[]>([]);
+  useFrame(() => {
+    if (!openRef.current) return;
+    camera.updateMatrixWorld();
+    const fit = st.current.fit;
+    panels.forEach((p, i) => {
+      const el = contents.current[i];
+      const grp = groups.current[i];
+      if (!el || !grp || el.style.visibility === 'hidden') return;
+      grp.updateWorldMatrix(true, false);
+      const q = projectQuad(grp, (p.size.w * fit) / 2, (p.size.h * fit) / 2, camera, size.width, size.height);
+      const tf = q ? quadMatrix(p.size.w * PX, p.size.h * PX, q) : 'scale(0)';
+      if (placed.current[i] !== tf) {
+        placed.current[i] = tf;
+        el.style.transform = tf;
+      }
+    });
+  }, 0.95);
+
   return (
     <group ref={root}>
       {panels.map((p, i) => (
@@ -610,34 +688,6 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
           }}
         >
           <mesh geometry={p.geo} material={p.mat} renderOrder={5} />
-          {open && (
-            <group
-              ref={(el) => {
-                htmlGroups.current[i] = el;
-              }}
-            >
-              <Html transform distanceFactor={DISTANCE_FACTOR} portal={layer} zIndexRange={[4, 0]} pointerEvents="auto">
-                <div
-                  ref={bindContent(i)}
-                  data-beacon-panel
-                  data-beacon-screen
-                  role="group"
-                  aria-label={group ? `${group[i].label} details` : i === 0 ? `${beacon.label} details` : undefined}
-                  className="relative select-text px-7 py-6 text-ink"
-                  style={
-                    {
-                      width: parts[i].width,
-                      opacity: 0,
-                      visibility: 'hidden',
-                      '--accent': planet.accent,
-                    } as CSSProperties
-                  }
-                >
-                  {parts[i].node}
-                </div>
-              </Html>
-            </group>
-          )}
         </group>
       ))}
     </group>
