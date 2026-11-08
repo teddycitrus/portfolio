@@ -1,13 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
-    <radialGradient id="p" cx="38%" cy="34%" r="70%">
-      <stop offset="0" stop-color="#efb7c3"/>
-      <stop offset="0.55" stop-color="#a8405f"/>
-      <stop offset="1" stop-color="#260a14"/>
+    <radialGradient id="glow" cx="50%" cy="46%" r="62%">
+      <stop offset="0" stop-color="#12203a"/>
+      <stop offset="1" stop-color="#05070d"/>
     </radialGradient>
   </defs>
-  <rect width="64" height="64" rx="14" fill="#05070d"/>
-  <ellipse cx="32" cy="34" rx="26" ry="7" fill="none" stroke="#c98a9a" stroke-width="2.5" transform="rotate(-18 32 34)" opacity="0.55"/>
-  <circle cx="32" cy="32" r="14" fill="url(#p)"/>
-  <path d="M7.6 41.6c4.2 5 26.7-.4 44.2-10.6" fill="none" stroke="#f3a6b8" stroke-width="2.5" stroke-linecap="round" transform="rotate(-6 32 34)"/>
+  <rect width="64" height="64" rx="14" fill="url(#glow)"/>
+  <g transform="rotate(-18 32 32)">
+    <!-- the far side of the orbit, behind the letters -->
+    <path d="M5 32A27 8.5 0 0 1 59 32" fill="none" stroke="#7cc0ff" stroke-width="2" stroke-linecap="round" opacity="0.45"/>
+  </g>
+  <!-- JM -->
+  <g fill="none" stroke="#eef3fb" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M13.5 19.5H26M21.5 19.5v17a6 6 0 0 1-12 0"/>
+    <path d="M35.5 44.5V19.5l8 12L51.5 19.5v25"/>
+  </g>
+  <g transform="rotate(-18 32 32)">
+    <!-- the near side, crossing in front, cut clear of the letters by a dark edge -->
+    <path d="M5 32A27 8.5 0 0 0 59 32" fill="none" stroke="#05070d" stroke-width="4.4" stroke-linecap="round"/>
+    <path d="M5 32A27 8.5 0 0 0 59 32" fill="none" stroke="#7cc0ff" stroke-width="1.9" stroke-linecap="round"/>
+    <!-- a moon on the ring -->
+    <circle cx="51.5" cy="38" r="2.9" fill="#bfe1ff"/>
+  </g>
+  <!-- a star -->
+  <path d="M52 9.5l1 2.6 2.6 1-2.6 1-1 2.6-1-2.6-2.6-1 2.6-1z" fill="#bfe1ff"/>
 </svg>
