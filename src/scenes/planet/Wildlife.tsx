@@ -1340,21 +1340,161 @@ const Gliders = ({ planet, cfg, reducedMotion }: { planet: Planet; cfg: GliderCf
 };
 
 /*
- * ---------- the colossus: a thin basalt giant on the horizon ----------
- * It strides slowly round the far edge of the molten world, lava glowing in
- * its seams and its eye slit. The easter egg: look at it and hold still for a
+ * ---------- the colossus: a magma golem on the horizon ----------
+ * A squat, hunched giant of clumped basalt boulders, wider than it is tall,
+ * veined with lava cracks: uneven shoulders, fists hanging to the knees, a head
+ * sunk into the chest, stumpy legs. It lumbers slowly round the far edge of the
+ * molten world. The easter egg: look at it and hold still for a
  * few seconds (or click it) and it stops, turns its head to you, raises an arm
  * and waves with a deep rumble, then walks on.
  */
 const COLOSSUS_R = 62;
-/** Built 10 units tall, scaled to this */
-const COLOSSUS_H = 30;
+/** Built 8 units tall, scaled to this */
+const COLOSSUS_H = 16;
 const COLOSSUS_SPEED = 1.1;
 const COLOSSUS_GAZE_S = 2.5;
 const COLOSSUS_WAVE_S = 7;
 const COLOSSUS_COOL_S = 35;
 const COLOSSUS_GLOW = new THREE.Color('#ff6a1a').multiplyScalar(2.2);
 const COLOSSUS_GAZE_COS = Math.cos(0.2);
+/** The lava between the rocks burns deeper than the cracks and eyes */
+const COLOSSUS_CORE_TINT = new THREE.Color(0.32, 0.05, 0.03);
+
+/** A hash of a vertex position, so the vertices a non-indexed mesh duplicates all move together */
+const vhash = (x: number, y: number, z: number, seed: number) => {
+  const h = Math.sin(x * 127.1 + y * 311.7 + z * 74.7 + seed * 17.3) * 43758.5453;
+  return h - Math.floor(h);
+};
+
+/**
+ * A clump of n irregular boulders (knocked-about icosahedra) filling an
+ * ellipsoid of half sizes r about c, each between size[0] and size[1] across.
+ */
+const boulders = (rnd: () => number, n: number, c: [number, number, number], r: [number, number, number], size: [number, number]) => {
+  const parts: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < n; i += 1) {
+    const g = new THREE.IcosahedronGeometry(1, 1);
+    const pos = g.getAttribute('position') as THREE.BufferAttribute;
+    const seed = rnd() * 100;
+    for (let k = 0; k < pos.count; k += 1) {
+      const x = pos.getX(k);
+      const y = pos.getY(k);
+      const z = pos.getZ(k);
+      const d = 0.72 + 0.5 * vhash(Math.round(x * 50), Math.round(y * 50), Math.round(z * 50), seed);
+      pos.setXYZ(k, x * d, y * d, z * d);
+    }
+    const s0 = (size[0] + rnd() * (size[1] - size[0])) / 2;
+    g.scale(s0 * (0.75 + rnd() * 0.5), s0 * (0.7 + rnd() * 0.45), s0 * (0.75 + rnd() * 0.5));
+    g.rotateX(rnd() * Math.PI);
+    g.rotateY(rnd() * Math.PI);
+    g.rotateZ(rnd() * Math.PI);
+    g.translate(c[0] + (rnd() * 2 - 1) * r[0] * 0.75, c[1] + (rnd() * 2 - 1) * r[1] * 0.75, c[2] + (rnd() * 2 - 1) * r[2] * 0.75);
+    g.computeVertexNormals();
+    parts.push(g);
+  }
+  const m = mergeGeometries(parts);
+  parts.forEach((p) => p.dispose());
+  return m!;
+};
+
+/** Merges clumps into one geometry and frees the pieces */
+const mergeClumps = (clumps: THREE.BufferGeometry[]) => {
+  const m = mergeGeometries(clumps);
+  clumps.forEach((p) => p.dispose());
+  return m!;
+};
+
+/** The golem's left side runs bigger than its right, so it never reads as mirrored */
+const GOLEM_SIDE = [1.14, 1];
+/** Shoulder centres, per side */
+const GOLEM_SHOULDER: [number, number, number][] = [
+  [-3.5, 6.6, 0.1],
+  [3.25, 6.25, 0.2],
+];
+
+/** The golem's parts: rock clumps for each limb (one per side), and the lava cores between the rocks */
+const golemParts = (seedKey: string) => {
+  const rnd = mulberry(seedOf(seedKey));
+  const sides = (f: (k: number) => THREE.BufferGeometry) => GOLEM_SIDE.map(f);
+  return {
+    hips: boulders(rnd, 7, [0, 3.3, 0], [1.9, 0.6, 1.2], [1.1, 1.6]),
+    torso: mergeClumps([
+      // a vast hunched chest with a rough hump of rock across the back
+      boulders(rnd, 16, [0, 5.35, 0.2], [2.3, 1.45, 1.8], [1.4, 2.1]),
+      boulders(rnd, 6, [0.3, 6.6, -0.9], [1.8, 0.5, 0.8], [1.0, 1.6]),
+      ...GOLEM_SHOULDER.map((c, i) =>
+        boulders(rnd, 6, c, [1.1 * GOLEM_SIDE[i], 0.9 * GOLEM_SIDE[i], 1.1], [1.4 * GOLEM_SIDE[i], 2.0 * GOLEM_SIDE[i]]),
+      ),
+    ]),
+    thigh: sides(() => boulders(rnd, 5, [0, -0.65, 0], [0.7, 0.75, 0.7], [1.1, 1.45])),
+    shin: sides(() =>
+      mergeClumps([
+        boulders(rnd, 5, [0, -0.6, 0.05], [0.7, 0.65, 0.7], [1.1, 1.45]),
+        boulders(rnd, 4, [0, -1.45, 0.45], [0.85, 0.2, 0.9], [0.8, 1.1]),
+      ]),
+    ),
+    upper: sides((k) => boulders(rnd, 5, [0, -0.85, 0], [0.8 * k, 0.75, 0.8 * k], [1.1 * k, 1.6 * k])),
+    fore: sides((k) =>
+      mergeClumps([
+        boulders(rnd, 6, [0, -0.9, 0.1], [0.9 * k, 0.8, 0.9 * k], [1.2 * k, 1.7 * k]),
+        boulders(rnd, 6, [0, -2.3, 0.2], [0.95 * k, 0.65 * k, 0.95 * k], [1.3 * k, 1.9 * k]),
+      ]),
+    ),
+    head: boulders(rnd, 5, [0, 0.3, 0], [0.7, 0.5, 0.6], [1.0, 1.35]),
+    core: new THREE.SphereGeometry(1, 12, 9),
+  };
+};
+
+/**
+ * Dark rock veined with lava: the distance to the nearest Voronoi cell border
+ * draws a crack network in model space, widening over hot patches. The cracks
+ * go on after the fog so they still burn through the haze.
+ */
+const golemStone = (glow: THREE.Color) => {
+  const m = new THREE.MeshStandardMaterial({ color: '#33211c', roughness: 0.95, flatShading: true });
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uGlow = { value: glow };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vGolem;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGolem = position;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        varying vec3 vGolem;
+        uniform vec3 uGlow;
+        vec3 golemHash(vec3 p) {
+          p = vec3(dot(p, vec3(127.1, 311.7, 74.7)), dot(p, vec3(269.5, 183.3, 246.1)), dot(p, vec3(113.5, 271.9, 124.6)));
+          return fract(sin(p) * 43758.5453);
+        }
+        float golemEdge(vec3 p) {
+          vec3 i = floor(p);
+          vec3 f = fract(p);
+          float a = 8.0;
+          float b = 8.0;
+          for (int z = -1; z <= 1; z++) for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+            vec3 g = vec3(float(x), float(y), float(z));
+            vec3 r = g + golemHash(i + g) - f;
+            float d = dot(r, r);
+            if (d < a) { b = a; a = d; } else if (d < b) { b = d; }
+          }
+          return sqrt(b) - sqrt(a);
+        }`,
+      )
+      .replace(
+        '#include <fog_fragment>',
+        `#include <fog_fragment>
+        vec3 gp = vGolem * 1.25 + 0.3 * sin(vGolem.yzx * 2.3);
+        float hot = 0.5 + 0.5 * sin(vGolem.x * 1.3 + sin(vGolem.y * 1.7) * 1.5 + vGolem.z * 1.1);
+        float width = mix(0.05, 0.15, hot * hot);
+        float edge = golemEdge(gp);
+        float crack = smoothstep(width, width * 0.35, edge);
+        float heart = smoothstep(width * 0.45, 0.0, edge);
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, uGlow * mix(vec3(0.5, 0.1, 0.06), vec3(0.8, 0.5, 0.35), heart), crack);`,
+      );
+  };
+  return m;
+};
 
 const Colossus = ({ planet, ground, reducedMotion }: { planet: Planet; ground: HeightFn; reducedMotion?: boolean }) => {
   const camera = useThree((s) => s.camera);
@@ -1364,15 +1504,14 @@ const Colossus = ({ planet, ground, reducedMotion }: { planet: Planet; ground: H
   const arms = useRef<(THREE.Group | null)[]>([]);
   const fores = useRef<(THREE.Group | null)[]>([]);
   const head = useRef<THREE.Group>(null);
-  const mats = useMemo(
-    () => ({
-      stone: new THREE.MeshStandardMaterial({ color: '#2a2220', roughness: 0.95, flatShading: true }),
-      // the glow shows through the haze, so the giant reads as a silhouette with burning seams
-      glow: new THREE.MeshBasicMaterial({ color: COLOSSUS_GLOW.clone(), fog: false }),
-    }),
-    [],
-  );
+  const mats = useMemo(() => {
+    // the glow shows through the haze, so the giant reads as a silhouette with burning seams
+    const glow = new THREE.MeshBasicMaterial({ color: COLOSSUS_GLOW.clone(), fog: false });
+    return { stone: golemStone(glow.color), glow, core: new THREE.MeshBasicMaterial({ fog: false }) };
+  }, []);
   useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats]);
+  const geo = useMemo(() => golemParts(`${planet.id}:golem`), [planet.id]);
+  useEffect(() => () => Object.values(geo).flat().forEach((g) => g.dispose()), [geo]);
   const rnd = useMemo(() => mulberry(seedOf(`${planet.id}:colossus`)), [planet.id]);
   const st = useRef({ a: -Math.PI / 2 - 0.55, gaze: 0, wave: 0, cool: 6, k: 0, stride: rnd() * 10 });
   const _fwd = useMemo(() => new THREE.Vector3(), []);
@@ -1401,10 +1540,12 @@ const Colossus = ({ planet, ground, reducedMotion }: { planet: Planet; ground: H
     s.stride += COLOSSUS_SPEED * dt * walk;
     const x = Math.cos(s.a) * COLOSSUS_R;
     const z = Math.sin(s.a) * COLOSSUS_R;
-    // a long slow stride: one full cycle every 7 units walked
-    const ph = (s.stride / 7) * Math.PI * 2;
+    // a heavy stride: one full cycle every 5 units walked
+    const ph = (s.stride / 5) * Math.PI * 2;
     const yaw = Math.atan2(-Math.sin(s.a), Math.cos(s.a));
-    g.position.set(x, ground(x, z) - 0.4 + Math.abs(Math.sin(ph)) * 0.35 * walk, z);
+    g.position.set(x, ground(x, z) - 0.3 + Math.abs(Math.sin(ph)) * 0.25 * walk, z);
+    // lurching side to side onto each foot
+    g.rotation.z = Math.sin(ph) * 0.05 * walk;
     // turning a little toward the viewer while it waves
     const toYaw = Math.atan2(camera.position.x - x, camera.position.z - z);
     g.rotation.y = yaw + wrapAngle(toYaw - yaw) * 0.35 * k;
@@ -1415,7 +1556,7 @@ const Colossus = ({ planet, ground, reducedMotion }: { planet: Planet; ground: H
       if (leg) leg.rotation.x = Math.sin(ph) * 0.32 * sgn * walk;
       if (shin) shin.rotation.x = Math.max(0, Math.sin(ph + (i ? Math.PI : 0) + 0.6)) * 0.45 * walk;
       const arm = arms.current[i];
-      if (arm) arm.rotation.x = -Math.sin(ph) * 0.18 * sgn * walk;
+      if (arm) arm.rotation.x = -Math.sin(ph) * 0.28 * sgn * walk;
     }
     // the wave: the right arm swings up and out, the forearm waving overhead
     const armR = arms.current[1];
@@ -1428,6 +1569,7 @@ const Colossus = ({ planet, ground, reducedMotion }: { planet: Planet; ground: H
       h.rotation.x = 0.18 * k;
     }
     mats.glow.color.copy(COLOSSUS_GLOW).multiplyScalar(1 + 0.9 * k + 0.12 * Math.sin(t * 1.3));
+    mats.core.color.copy(mats.glow.color).multiply(COLOSSUS_CORE_TINT);
 
     // look at it and hold still: it answers
     _fwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
@@ -1443,68 +1585,55 @@ const Colossus = ({ planet, ground, reducedMotion }: { planet: Planet; ground: H
   };
 
   const S = COLOSSUS_H / 10;
+  /** A lava core inside a clump: an ellipsoid that shows through the gaps between the rocks */
+  const Core = ({ p, r }: { p: [number, number, number]; r: [number, number, number] }) => (
+    <mesh geometry={geo.core} material={mats.core} position={p} scale={r} />
+  );
   return (
     <group ref={root} scale={S}>
-      {/* hips and long thin legs */}
-      <mesh material={mats.stone} position={[0, 4.6, 0]}>
-        <boxGeometry args={[1.4, 0.6, 0.8]} />
-      </mesh>
+      <mesh geometry={geo.hips} material={mats.stone} />
+      <Core p={[0, 3.3, 0]} r={[1.3, 0.45, 0.8]} />
+      {/* stumpy legs, planted wide */}
       {[-1, 1].map((sx, i) => (
-        <group key={sx} position={[sx * 0.45, 4.5, 0]} ref={(el) => (legs.current[i] = el)}>
-          <mesh material={mats.stone} position={[0, -1.2, 0]}>
-            <boxGeometry args={[0.45, 2.4, 0.5]} />
-          </mesh>
-          <mesh material={mats.glow} position={[sx * 0.05, -1.2, 0.26]}>
-            <boxGeometry args={[0.04, 1.6, 0.02]} />
-          </mesh>
-          <group position={[0, -2.4, 0]} ref={(el) => (shins.current[i] = el)}>
-            <mesh material={mats.stone} position={[0, -1.05, 0]}>
-              <boxGeometry args={[0.36, 2.1, 0.4]} />
-            </mesh>
-            <mesh material={mats.stone} position={[0, -2.15, 0.2]}>
-              <boxGeometry args={[0.6, 0.25, 1]} />
-            </mesh>
+        <group key={sx} position={[sx * 1.75, 3.0, 0]} ref={(el) => (legs.current[i] = el)}>
+          <mesh geometry={geo.thigh[i]} material={mats.stone} />
+          <Core p={[0, -0.65, 0]} r={[0.5, 0.6, 0.5]} />
+          <group position={[0, -1.45, 0]} ref={(el) => (shins.current[i] = el)}>
+            <mesh geometry={geo.shin[i]} material={mats.stone} />
+            <Core p={[0, -0.6, 0.05]} r={[0.5, 0.55, 0.5]} />
           </group>
         </group>
       ))}
-      {/* a tall tapered torso with a burning seam down the chest */}
-      <mesh material={mats.stone} position={[0, 6.55, 0]} rotation={[0, Math.PI / 4, 0]}>
-        <cylinderGeometry args={[0.95, 0.55, 3.4, 4]} />
-      </mesh>
-      <mesh material={mats.glow} position={[0, 6.6, 0.47]} rotation={[-0.12, 0, 0]}>
-        <boxGeometry args={[0.05, 2.6, 0.03]} />
-      </mesh>
-      {/* arms hanging long, almost to the knees */}
-      {[-1, 1].map((sx, i) => (
-        <group key={sx} position={[sx * 1.05, 8.1, 0]} ref={(el) => (arms.current[i] = el)}>
-          <mesh material={mats.stone} position={[0, -1.3, 0]}>
-            <boxGeometry args={[0.3, 2.6, 0.3]} />
-          </mesh>
-          <group position={[0, -2.6, 0]} ref={(el) => (fores.current[i] = el)}>
-            <mesh material={mats.stone} position={[0, -1.2, 0]}>
-              <boxGeometry args={[0.26, 2.4, 0.26]} />
-            </mesh>
-            <mesh material={mats.stone} position={[0, -2.55, 0]}>
-              <boxGeometry args={[0.42, 0.5, 0.26]} />
-            </mesh>
+      {/* the torso hunches forward over the hips */}
+      <group rotation={[0.26, 0, 0]}>
+        <mesh geometry={geo.torso} material={mats.stone} />
+        <Core p={[0, 5.35, 0.2]} r={[1.7, 1.1, 1.25]} />
+        {GOLEM_SHOULDER.map((c, i) => (
+          <Core key={i} p={c} r={[0.7 * GOLEM_SIDE[i], 0.6 * GOLEM_SIDE[i], 0.7]} />
+        ))}
+        {/* massive arms, the fists hanging to the knees */}
+        {GOLEM_SHOULDER.map((c, i) => (
+          <group key={i} position={[c[0] * 1.2, c[1] - 0.2, c[2]]} ref={(el) => (arms.current[i] = el)}>
+            <mesh geometry={geo.upper[i]} material={mats.stone} />
+            <Core p={[0, -0.85, 0]} r={[0.5 * GOLEM_SIDE[i], 0.65, 0.5 * GOLEM_SIDE[i]]} />
+            <group position={[0, -1.7, 0]} ref={(el) => (fores.current[i] = el)}>
+              <mesh geometry={geo.fore[i]} material={mats.stone} />
+              <Core p={[0, -1.5, 0.15]} r={[0.6 * GOLEM_SIDE[i], 1.3, 0.6 * GOLEM_SIDE[i]]} />
+            </group>
           </group>
+        ))}
+        {/* a lump of a head sunk into the chest, eyes burning */}
+        <group position={[0, 6.95, 1.75]} ref={head}>
+          <mesh geometry={geo.head} material={mats.stone} />
+          <Core p={[0, 0.3, 0]} r={[0.4, 0.3, 0.35]} />
+          {[-1, 1].map((sx) => (
+            <mesh key={sx} geometry={geo.core} material={mats.glow} position={[sx * 0.36, 0.42, 1.15]} scale={[0.17, 0.1, 0.14]} />
+          ))}
         </group>
-      ))}
-      {/* a small head with a glowing eye slit */}
-      <mesh material={mats.stone} position={[0, 8.45, 0]}>
-        <cylinderGeometry args={[0.2, 0.28, 0.5, 6]} />
-      </mesh>
-      <group position={[0, 8.7, 0]} ref={head}>
-        <mesh material={mats.stone} position={[0, 0.4, 0]}>
-          <boxGeometry args={[0.7, 0.8, 0.62]} />
-        </mesh>
-        <mesh material={mats.glow} position={[0, 0.48, 0.32]}>
-          <boxGeometry args={[0.46, 0.07, 0.04]} />
-        </mesh>
       </group>
       {/* a generous invisible target for the click */}
-      <mesh position={[0, 5, 0]} visible={false} onClick={poke}>
-        <boxGeometry args={[3, 10, 2]} />
+      <mesh position={[0, 4, 0.5]} visible={false} onClick={poke}>
+        <boxGeometry args={[11.5, 8.4, 5]} />
       </mesh>
     </group>
   );
