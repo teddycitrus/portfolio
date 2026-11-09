@@ -76,11 +76,13 @@ export const useInputBridge = (): void => {
       if (mouseLook.locked) {
         if (e.button !== 0) return;
         // a link or button on an in-world screen under the crosshair takes the click
-        const hit = document
+        const under = document
           .elementsFromPoint(window.innerWidth / 2, window.innerHeight / 2)
-          .find((el) => el.closest('[data-beacon-screen]'))
-          ?.closest<HTMLElement>('a[href], button');
-        if (hit) hit.click();
+          .find((el) => el.closest('[data-beacon-screen]'));
+        const hit = under?.closest<HTMLElement>('a[href], button');
+        // a video player takes clicks only from a real cursor: hand it back over the player
+        if (under instanceof HTMLIFrameElement) document.exitPointerLock();
+        else if (hit) hit.click();
         else if (mouseLook.aimId) openBeacon(mouseLook.aimId, false);
         return;
       }

@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { duckMusic } from "@/audio/drone";
 import type {
   AwardContent,
   Beacon,
@@ -214,7 +215,12 @@ export const LinkButtons = ({
   </div>
 );
 
-/** Poster first; the iframe only loads after a click. */
+const YT_ORIGIN = "https://www.youtube-nocookie.com";
+
+/**
+ * Poster first; the iframe only loads after a click. While the video plays the
+ * music ducks, and it comes back on pause, at the end, or when the embed goes away.
+ */
 export const VideoEmbed = ({
   videoId,
   title,
@@ -225,6 +231,36 @@ export const VideoEmbed = ({
   poster?: string;
 }) => {
   const [play, setPlay] = useState(false);
+  const frame = useRef<HTMLIFrameElement>(null);
+  const duckId = useId();
+  useEffect(() => {
+    if (!play) return;
+    duckMusic(duckId, true);
+    // the player reports its state over postMessage once told someone is listening
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== YT_ORIGIN || e.source !== frame.current?.contentWindow) return;
+      let data: { event?: string; info?: unknown } | null = null;
+      try {
+        data = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
+      } catch {
+        return;
+      }
+      const info = data?.info as { playerState?: number } | number | undefined;
+      const state =
+        data?.event === "onStateChange" ? info : data?.event === "infoDelivery" && typeof info === "object" ? info?.playerState : undefined;
+      if (typeof state !== "number") return;
+      // 1 playing, 3 buffering; 2 paused, 0 ended
+      if (state === 1 || state === 3) duckMusic(duckId, true);
+      else if (state === 0 || state === 2) duckMusic(duckId, false);
+    };
+    window.addEventListener("message", onMessage);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      duckMusic(duckId, false);
+    };
+  }, [play, duckId]);
+  const listen = () =>
+    frame.current?.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: duckId, channel: "widget" }), YT_ORIGIN);
   // custom poster, then YouTube's max-res frame, then the always-present hq frame
   const sources = [
     poster,
@@ -236,8 +272,10 @@ export const VideoEmbed = ({
     <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-line bg-space-800">
       {play ? (
         <iframe
+          ref={frame}
+          onLoad={listen}
           className="absolute inset-0 h-full w-full"
-          src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`}
+          src={`${YT_ORIGIN}/embed/${videoId}?autoplay=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
           title={`${title} demo video`}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
@@ -245,7 +283,11 @@ export const VideoEmbed = ({
       ) : (
         <button
           type="button"
-          onClick={() => setPlay(true)}
+          onClick={() => {
+            setPlay(true);
+            // mouse look holds the cursor; give it back so the player's own controls can be used
+            if (document.pointerLockElement) document.exitPointerLock();
+          }}
           className="group absolute inset-0 h-full w-full"
           aria-label={`Play ${title} demo video`}
         >

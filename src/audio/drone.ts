@@ -377,13 +377,29 @@ const sync = () => {
   }
   // the music fades out while the page reader is open, and back in when it closes
   const playing = enabled && !reading();
-  const tc = playing ? 1.2 : enabled ? READER_FADE_S / 3 : 0.25;
+  const tc = playing ? (ducks.size ? DUCK_FADE_S / 3 : 1.2) : enabled ? READER_FADE_S / 3 : 0.25;
+  // a playing video pulls the music down to a faint bed
+  const level = desiredLevel() * (ducks.size ? DUCK_LEVEL : 1);
   master.gain.cancelScheduledValues(now);
-  master.gain.setTargetAtTime(playing ? desiredLevel() : 0, now, tc);
-  const tl = playing ? desiredLevel() * TRACK_GAIN : 0;
+  master.gain.setTargetAtTime(playing ? level : 0, now, tc);
+  const tl = playing ? level * TRACK_GAIN : 0;
   trackBus?.gain.setTargetAtTime(tl, now, tc);
   trackVerb?.gain.setTargetAtTime(tl * 0.6, now, tc);
   sfx.gain.setTargetAtTime(enabled ? 1 : 0, now, 0.1);
+};
+
+/** Sources (playing videos) holding the music down */
+const ducks = new Set<string>();
+/** Music level while ducked, as a fraction of normal, and how fast it dips */
+const DUCK_LEVEL = 0.12;
+const DUCK_FADE_S = 0.8;
+
+/** Lowers the music while `on` for this source; it comes back once no source holds it. */
+export const duckMusic = (source: string, on: boolean) => {
+  if (on === ducks.has(source)) return;
+  if (on) ducks.add(source);
+  else ducks.delete(source);
+  sync();
 };
 
 const reading = () => useAppStore.getState().readerOpen;
