@@ -22,6 +22,17 @@ export const ENTER_VEIL_FADE = 380;
 export const ENTER_TOTAL = 1350;
 export const ENTER_VEIL_LIFT = 700;
 export const BEAM_DOWN_MS = 1500;
+
+/**
+ * Landing through the clouds: from ENTER_VEIL_START the plunge flies into the
+ * planet's cloud banks, which keep streaming past while the surface loads and
+ * draws its first frames. Once CLOUD_LIFT_AFTER of the descent has played,
+ * the sky haze thins over CLOUD_HAZE_LIFT and the banks part over CLOUD_LIFT,
+ * showing the ground coming up below.
+ */
+export const CLOUD_LIFT_AFTER = 180;
+export const CLOUD_HAZE_LIFT = 450;
+export const CLOUD_LIFT = 1100;
 export const ARRIVAL_MS = BEAM_DOWN_MS + 700;
 
 /** Exit: the look up to the ship, then the beam lifts the viewer from BEAM_LIFT_AT */
