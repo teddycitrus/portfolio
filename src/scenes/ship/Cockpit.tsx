@@ -79,10 +79,9 @@ const _qHead = new THREE.Quaternion();
 const _toShip = new THREE.Vector3();
 const _shipPos = new THREE.Vector3();
 const _qLook = new THREE.Quaternion();
+const _m4 = new THREE.Matrix4();
 const _yUp = new THREE.Vector3(0, 1, 0);
-const _xAxis = new THREE.Vector3(1, 0, 0);
-/** At the top of the drop the eye looks this far below the view ahead (radians) */
-const BEAM_LOOK_DOWN = 1.15;
+const _zAxis = new THREE.Vector3(0, 0, 1);
 const _target = new THREE.Quaternion();
 const ID = new THREE.Quaternion();
 const _corner = new THREE.Vector3();
@@ -421,13 +420,10 @@ const Cockpit = () => {
       const pull = 0.8 * sLeft + 7 * sLeft * sLeft + 20 * sLeft * sLeft * sLeft;
       camera.position.addScaledVector(_toShip, pull);
       camera.position.y += BEAM_FLOAT * (1 - THREE.MathUtils.smoothstep(ms, BEAM_DOWN_MS - 350, BEAM_DOWN_MS + 300));
-      // looking down at the ground coming up through the clouds, turning slowly about the beam,
-      // then levelling out to the view ahead as the feet touch
-      _qLook
-        .copy(camera.quaternion)
-        .multiply(_q.setFromAxisAngle(_xAxis, -BEAM_LOOK_DOWN))
-        .premultiply(_q.setFromAxisAngle(_yUp, BEAM_ROLL * sLeft * sLeft));
-      const k = easeInOutCubic(clamp01((ms - (BEAM_DOWN_MS - 850)) / 1100));
+      // looking up at the ship being left behind, then down to the ground ahead as the feet touch
+      _m4.lookAt(camera.position, _shipPos, _yUp);
+      _qLook.setFromRotationMatrix(_m4).multiply(_q.setFromAxisAngle(_zAxis, BEAM_ROLL * sLeft * sLeft));
+      const k = easeInOutCubic(clamp01((ms - (BEAM_DOWN_MS - 650)) / 950));
       _qLook.slerp(camera.quaternion, k);
       camera.quaternion.copy(_qLook);
       flight.beam = 1 - THREE.MathUtils.smoothstep(ms, BEAM_DOWN_MS + 100, BEAM_DOWN_MS + 700);
