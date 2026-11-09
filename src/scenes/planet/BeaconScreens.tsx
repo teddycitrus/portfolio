@@ -8,7 +8,8 @@ import { screenParts, type ScreenPart } from '@/ui/screenParts';
 import { panelFocusIntent } from '@/ui/navigation';
 import { usePanelView } from '@/ui/primitives';
 import { mulberry, seedOf } from './rng';
-import { hologramMaterial, holoLook, SMOKE_PAD } from './hologram';
+import { hologramMaterial, holoLook } from './hologram';
+import { disposeSparks, holoSparks, updateSparks, type HoloSparks } from './holoSparks';
 import type { HeightFn } from './Terrain';
 import { projectQuad, quadMatrix } from './screenPlacement';
 
@@ -226,6 +227,9 @@ interface Panel {
   orbit: [number, number][];
   geo: THREE.BufferGeometry;
   mat: THREE.ShaderMaterial;
+  sparks: HoloSparks;
+  /** Eroded border width when deployed, world units */
+  edge: number;
   /** Linear flight progress 0..1; m is its eased value */
   prog: number;
   m: number;
@@ -287,6 +291,7 @@ const wholePart = (b: Beacon): ScreenPart => {
 
 const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, ground }: Props) => {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
+  const gl = useThree((s) => s.gl);
   const panelView = usePanelView();
   const parts = useMemo(() => (group ? group.map(wholePart) : screenParts(beacon)), [beacon, group]);
   const ids = useMemo(() => (group ? group.map((b) => b.id) : [beacon.id]), [beacon, group]);
@@ -321,17 +326,21 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
       const kind = SHAPES[(start + i) % SHAPES.length];
       const n = VERTS[kind];
       const r = ORBIT_SIZE * (0.85 + rnd() * 0.3);
-      // a quad around the outline plus SMOKE_PAD; the shader cuts the outline and draws the smoke
       const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(4 * 3), 3));
-      geo.setIndex([0, 1, 2, 0, 2, 3]);
-      const mat = hologramMaterial(accent, holoLook(rnd), rnd() * 10);
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((n + 1) * 3), 3));
+      const idx: number[] = [];
+      for (let k = 0; k < n; k += 1) idx.push(0, 1 + k, 1 + ((k + 1) % n));
+      geo.setIndex(idx);
+      const look = holoLook(rnd);
+      const mat = hologramMaterial(accent, look, rnd() * 10);
       mat.uniforms.uN.value = n;
       return {
         kind,
         orbit: orbitShape(kind, r),
         geo,
         mat,
+        sparks: holoSparks(accent.clone().lerp(new THREE.Color(1, 1, 1), look.tint)),
+        edge: look.edge,
         prog: 0,
         m: -1,
         pos: new THREE.Vector3(NaN, 0, 0),
@@ -349,6 +358,7 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
       panels.forEach((p) => {
         p.geo.dispose();
         p.mat.dispose();
+        disposeSparks(p.sparks);
       });
     },
     [panels],
@@ -598,27 +608,13 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
         const scr = screenShape(p.kind, w, h);
         const pa = p.geo.getAttribute('position') as THREE.BufferAttribute;
         const poly = p.mat.uniforms.uPoly.value as THREE.Vector2[];
-        let x0 = Infinity;
-        let x1 = -Infinity;
-        let y0 = Infinity;
-        let y1 = -Infinity;
+        pa.setXYZ(0, 0, 0, 0);
         for (let k = 0; k < p.orbit.length; k += 1) {
           const x = p.orbit[k][0] + (scr[k][0] - p.orbit[k][0]) * p.m;
           const y = p.orbit[k][1] + (scr[k][1] - p.orbit[k][1]) * p.m;
+          pa.setXYZ(k + 1, x, y, 0);
           poly[k].set(x, y);
-          x0 = Math.min(x0, x);
-          x1 = Math.max(x1, x);
-          y0 = Math.min(y0, y);
-          y1 = Math.max(y1, y);
         }
-        x0 -= SMOKE_PAD;
-        x1 += SMOKE_PAD;
-        y0 -= SMOKE_PAD;
-        y1 += SMOKE_PAD;
-        pa.setXYZ(0, x1, y1, 0);
-        pa.setXYZ(1, x0, y1, 0);
-        pa.setXYZ(2, x0, y0, 0);
-        pa.setXYZ(3, x1, y0, 0);
         pa.needsUpdate = true;
         p.geo.computeBoundingSphere();
       }
@@ -626,6 +622,22 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
       (p.mat.uniforms.uHalf.value as THREE.Vector2).set(w / 2, h / 2);
       p.mat.uniforms.uRad.value = Math.min(CORNER * s.fit, w * 0.25, h * 0.25);
       p.mat.uniforms.uTime.value = t;
+
+      p.sparks.points.visible = !reducedMotion;
+      if (!reducedMotion)
+        updateSparks(
+          p.sparks,
+          {
+            poly: p.mat.uniforms.uPoly.value as THREE.Vector2[],
+            n: p.orbit.length,
+            m: p.m,
+            half: p.mat.uniforms.uHalf.value as THREE.Vector2,
+            rad: p.mat.uniforms.uRad.value as number,
+            edge: 0.012 + (p.edge - 0.012) * p.m,
+          },
+          dt,
+          gl.domElement.height / 2,
+        );
 
       const el = contents.current[i];
       if (el) {
@@ -719,6 +731,7 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
           }}
         >
           <mesh geometry={p.geo} material={p.mat} renderOrder={5} />
+          <primitive object={p.sparks.points} />
         </group>
       ))}
     </group>
