@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 /** Specks per panel */
-const COUNT = 60;
+const COUNT = 220;
 
 /**
  * Specks that crackle off a hologram panel's eroded border: each is born on the
@@ -27,7 +27,7 @@ const vert = /* glsl */ `
   void main() {
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
     gl_Position = projectionMatrix * mv;
-    gl_PointSize = max(2.0, aSize * projectionMatrix[1][1] * uViewH / max(-mv.z, 0.01));
+    gl_PointSize = clamp(aSize * projectionMatrix[1][1] * uViewH / max(-mv.z, 0.01), 1.5, 4.0);
     vA = aAlpha;
   }
 `;
@@ -36,9 +36,9 @@ const frag = /* glsl */ `
   uniform vec3 uColor;
   varying float vA;
   void main() {
-    float a = vA * (1.0 - smoothstep(0.25, 0.5, length(gl_PointCoord - 0.5)));
-    if (a < 0.003) discard;
-    gl_FragColor = vec4(uColor, a);
+    // crisp square specks, like single pixels of static
+    if (vA < 0.003) discard;
+    gl_FragColor = vec4(uColor, vA);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }
@@ -49,7 +49,7 @@ export const holoSparks = (color: THREE.Color): HoloSparks => {
   geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(COUNT * 3), 3));
   geo.setAttribute('aAlpha', new THREE.BufferAttribute(new Float32Array(COUNT), 1));
   const size = new Float32Array(COUNT);
-  for (let i = 0; i < COUNT; i += 1) size[i] = 0.004 + Math.random() * Math.random() * 0.009;
+  for (let i = 0; i < COUNT; i += 1) size[i] = 0.0045 + Math.random() * 0.002;
   geo.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
   const mat = new THREE.ShaderMaterial({
     vertexShader: vert,
@@ -122,12 +122,12 @@ const spawn = (s: HoloSparks, i: number, sh: SparkShape) => {
   const depth = Math.random() * sh.edge * 0.8;
   pa.setXYZ(i, px - nx * depth, py - ny * depth, 0);
   // mostly slow, a few fast: the distance each one covers before it fades varies widely
-  const speed = 0.015 + Math.pow(Math.random(), 2) * 0.11;
+  const speed = 0.008 + Math.pow(Math.random(), 2) * 0.05;
   const side = (Math.random() - 0.5) * 0.6 * speed;
   s.vel[i * 2] = nx * speed - ny * side;
-  s.vel[i * 2 + 1] = ny * speed + nx * side + Math.random() * 0.012;
+  s.vel[i * 2 + 1] = ny * speed + nx * side + Math.random() * 0.006;
   s.age[i] = 0;
-  s.life[i] = 0.45 + Math.random() * Math.random() * 2.2;
+  s.life[i] = 0.3 + Math.random() * Math.random() * 1.4;
 };
 
 const fade = (x: number) => Math.min(1, x / 0.08) * Math.pow(1 - x, 1.6);
@@ -148,11 +148,12 @@ export const updateSparks = (s: HoloSparks, sh: SparkShape, dt: number, viewH: n
     if (s.age[i] >= s.life[i]) spawn(s, i, sh);
     // a little drag, a little wander, a slight lift
     const drag = 1 - 0.6 * dt;
-    s.vel[i * 2] = s.vel[i * 2] * drag + (Math.random() - 0.5) * 0.25 * dt;
-    s.vel[i * 2 + 1] = s.vel[i * 2 + 1] * drag + (Math.random() - 0.5) * 0.25 * dt + 0.012 * dt;
+    s.vel[i * 2] = s.vel[i * 2] * drag + (Math.random() - 0.5) * 0.1 * dt;
+    s.vel[i * 2 + 1] = s.vel[i * 2 + 1] * drag + (Math.random() - 0.5) * 0.1 * dt + 0.006 * dt;
     pa.setXY(i, pa.getX(i) + s.vel[i * 2] * dt, pa.getY(i) + s.vel[i * 2 + 1] * dt);
-    const flicker = Math.random() < 0.12 ? 0.35 : 1;
-    al.setX(i, fade(Math.min(1, s.age[i] / s.life[i])) * 0.9 * flicker);
+    // static-like crackle: specks blink off and on as they go
+    const flicker = Math.random() < 0.25 ? 0.15 : 1;
+    al.setX(i, fade(Math.min(1, s.age[i] / s.life[i])) * 0.85 * flicker);
   }
   s.started = true;
   pa.needsUpdate = true;
