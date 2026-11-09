@@ -9,6 +9,7 @@ import SpaceBackdrop from './SpaceBackdrop';
 import Sun, { SUN_DIRECTION } from './Sun';
 import Constellations from './Constellations';
 import Warp from './Warp';
+import LaunchBeam from './LaunchBeam';
 import { planets, getOrbitalPosition } from '@/data/content';
 import { useAppStore } from '@/state/useAppStore';
 import { planetScreen } from '@/state/runtime';
@@ -99,6 +100,7 @@ const OverworldScene = () => {
       <TelescopeCamera />
       <ScreenProjector />
       <Warp />
+      {mode === 'transitioning-in' && <LaunchBeam />}
     </>
   );
 };

@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { useAppStore, type SceneMode } from '@/state/useAppStore';
 import { dashPanel, flight, warpFx } from '@/state/runtime';
 import { profile } from '@/data/content';
-import { ARRIVAL_MS, BEAM_DOWN_MS } from '@/state/timing';
+import { ARRIVAL_MS, BEAM_DOWN_MS, PULL_AT } from '@/state/timing';
 import { responsiveFov } from '@/scenes/overworld/TelescopeCamera';
 import { shipSound } from '@/audio/drone';
 import { cockpitShape, FRAME_DEPTH, HOLE, offsetPoly, type Pt } from './shape';
@@ -13,12 +13,14 @@ import ShipDetails from './ShipDetails';
 import { glassMaterial, instrumentMaterial } from './materials';
 
 /*
- * The ship around the viewer. In orbit it is an observation deck: a bulkhead
- * with a wide canopy window, a dashboard below it and a couple of instruments.
- * Heading for a planet, the view locks on and the tractor beam's light takes
- * it (the transition controller and the veil). After the cut the rig lowers
- * the viewer down the beam from the mothership, looking up at it, onto the
- * ground; the cockpit is not seen again until the lobby.
+ * The ship around the viewer. In orbit it is the beam deck: a bulkhead with a
+ * wide beam aperture ringed by emitter cells, a dashboard below it and a
+ * couple of instruments. Picking a planet charges the emitters and fires the
+ * tractor beam out through the aperture to it; the viewer is pulled along the
+ * beam, the deck falling away, into its light (the transition controller,
+ * LaunchBeam and the veil). After the cut the rig lowers the viewer down the
+ * beam from the mothership, looking up at it, onto the ground; the deck is not
+ * seen again until the lobby.
  *
  * Geometry lives in "frame units": the bulkhead sits FRAME_DEPTH in front of
  * the eye and the frame group is scaled by the resting lens, so x and y of
@@ -69,6 +71,8 @@ interface Rig {
   rel: THREE.Quaternion;
   deploy: number;
   aspect: number;
+  /** Phase of the light chasing round the aperture */
+  chase: number;
 }
 
 const _fwd = new THREE.Vector3();
@@ -314,7 +318,7 @@ const outlineTube = (pts: Pt[], z: number, radius: number) => {
   return new THREE.TubeGeometry(curve, 400, radius, 6, true);
 };
 
-/** Points every `step` along a closed outline (for rivets). */
+/** Points every `step` along a closed outline (for the emitter cells). */
 const along = (pts: Pt[], step: number): Pt[] => {
   const out: Pt[] = [];
   for (let i = 0; i < pts.length; i += 1) {
@@ -374,10 +378,14 @@ const useCockpitParts = () =>
 
     const lightStrip = outlineTube(offsetPoly(HOLE, 0.006), -D + 0.019, 0.0013);
 
-    const rivetGeo = new THREE.SphereGeometry(0.0034, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);
-    rivetGeo.rotateX(Math.PI / 2);
-    rivetGeo.scale(1, 1, 0.5);
-    const rivetPts = along(offsetPoly(HOLE, 0.031), 0.04);
+    // emitter cells set into the aperture ring, each lying along the rim
+    const rivetGeo = new THREE.BoxGeometry(EMITTER_LEN, 0.0042, 0.003);
+    const rimPts = offsetPoly(HOLE, 0.031);
+    const rivetPts = along(rimPts, EMITTER_STEP).map(([x, y], i, all) => {
+      const [nx, ny] = all[(i + 1) % all.length];
+      const [px, py] = all[(i - 1 + all.length) % all.length];
+      return [x, y, Math.atan2(ny - py, nx - px)] as [number, number, number];
+    });
 
     // dashboard: a slab rising toward the viewer below the window
     const dash = new THREE.BoxGeometry(5, 0.03, 0.36);
@@ -421,6 +429,7 @@ const Cockpit = () => {
     rel: new THREE.Quaternion(),
     deploy: useAppStore.getState().mode === 'planet' ? 0 : 1,
     aspect: size.width / Math.max(1, size.height),
+    chase: 0,
   });
 
   useEffect(
@@ -450,7 +459,7 @@ const Cockpit = () => {
           // the ship turning onto the planet carries the deck with the eye instead of snapping it
           if (p.mode === 'overworld') r.rel.copy(r.baseQuat).invert().multiply(r.ship);
           else r.rel.identity();
-          if (!r.chained && !s.reducedMotion) shipSound('lock');
+          if (!r.chained && !s.reducedMotion) shipSound('beam');
         } else if (s.mode === 'planet') {
           r.arriveAt = -1;
           r.arriveTick = false;
@@ -471,12 +480,15 @@ const Cockpit = () => {
     const m = rivets.current;
     if (!m) return;
     const o = new THREE.Object3D();
-    parts.rivetPts.forEach(([x, y], i) => {
+    parts.rivetPts.forEach(([x, y, a], i) => {
       o.position.set(x, y, -FRAME_DEPTH + 0.026);
+      o.rotation.set(0, 0, a);
       o.updateMatrix();
       m.setMatrixAt(i, o.matrix);
+      m.setColorAt(i, EMIT_IDLE);
     });
     m.instanceMatrix.needsUpdate = true;
+    EMIT_MAT.needsUpdate = true;
     if (leds.current) {
       placeLeds(leds.current);
       for (let i = 0; i < LED_COUNT; i += 1) leds.current.setColorAt(i, LED_BLUE);
@@ -593,8 +605,14 @@ const Cockpit = () => {
     r.applied = true;
 
     /* deploy: 1 = the frame around the view, 0 = cleared away past the screen edges */
-    // beamed down or up, there is no deck around the viewer
-    const deploy = mode === 'planet' || mode === 'transitioning-out' ? 0 : 1;
+    // beamed down or up, there is no deck around the viewer; launching, the beam pulls the viewer
+    // out through the aperture and the deck falls away past the edges of the view
+    const deploy =
+      mode === 'planet' || mode === 'transitioning-out'
+        ? 0
+        : mode === 'transitioning-in' && !r.chained && !reduced
+          ? 1 - THREE.MathUtils.smoothstep(now - r.diveAt, PULL_AT - 60, PULL_AT + 420)
+          : 1;
     r.deploy = deploy;
 
     const aspect = size.width / Math.max(1, size.height);
@@ -668,6 +686,24 @@ const Cockpit = () => {
         });
       }
     }
+    const em = rivets.current;
+    if (em) {
+      // light chasing round the aperture; picking a planet charges the whole ring for the beam
+      const n = parts.rivetPts.length;
+      const charge = flight.launch;
+      const speed = 0.9 + charge * 5;
+      r.chase += dt * speed;
+      for (let i = 0; i < n; i += 1) {
+        // two pulses running round in opposite halves, cells along the bottom (the beam's throat) brighter
+        const ph = (i / n) * Math.PI * 4 - r.chase * 2;
+        const pulse = reduced ? 0 : Math.pow(Math.max(0, Math.cos(ph)), 10);
+        const throat = clamp01((-parts.rivetPts[i][1] - 0.3) / 0.12);
+        const lvl = 0.22 + 0.9 * pulse + 0.35 * throat + charge * (1.1 + 0.6 * pulse);
+        _c.copy(EMIT_IDLE).lerp(EMIT_HOT, Math.min(1, charge * 0.8 + pulse * 0.3)).multiplyScalar(lvl);
+        em.setColorAt(i, _c);
+      }
+      if (em.instanceColor) em.instanceColor.needsUpdate = true;
+    }
     const l = leds.current;
     if (l && !reduced) {
       for (let i = 0; i < LED_COUNT; i += 1) {
@@ -698,7 +734,7 @@ const Cockpit = () => {
         <mesh geometry={parts.lightStrip} material={parts.strip} raycast={noRaycast} renderOrder={31} />
         <instancedMesh
           ref={rivets}
-          args={[parts.rivetGeo, parts.trim, parts.rivetPts.length]}
+          args={[parts.rivetGeo, EMIT_MAT, parts.rivetPts.length]}
           raycast={noRaycast}
           renderOrder={31}
         />
@@ -737,6 +773,13 @@ const Cockpit = () => {
 };
 
 /* ---------- status lights along the dash ---------- */
+
+/** Emitter cells round the aperture: length of each and spacing along the rim (frame units) */
+const EMITTER_LEN = 0.022;
+const EMITTER_STEP = 0.034;
+const EMIT_MAT = new THREE.MeshBasicMaterial({ color: '#ffffff', fog: false, transparent: true, toneMapped: false });
+const EMIT_IDLE = new THREE.Color('#5fb8ff');
+const EMIT_HOT = new THREE.Color('#d4ecff');
 
 const LED_COUNT = 18;
 const LED_GEO = new THREE.BoxGeometry(0.009, 0.0035, 0.004);

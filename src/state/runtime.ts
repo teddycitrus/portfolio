@@ -99,6 +99,12 @@ export const flight = {
   beamFoot: { x: 0, y: 0, z: 0 },
   /** 0..1 strength of the tractor beam during the exit */
   beam: 0,
+  /** 0..1 charge of the deck's beam aperture while launching at a planet */
+  launch: 0,
+  /** The launch beam: where it leaves the aperture, how far out to the planet it reaches (0..1), its strength */
+  launchFrom: { x: 0, y: 0, z: 0 },
+  launchReach: 0,
+  launchBeam: 0,
 };
 
 /**

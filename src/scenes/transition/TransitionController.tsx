@@ -8,22 +8,31 @@ import { flight } from '@/state/runtime';
 import {
   BEAM_LIFT_AT,
   BEAM_LOOK_MS,
+  BEAM_OUT_AT,
+  BEAM_OUT_MS,
   CHAIN_TOTAL,
-  DIVE_PUSH_AT,
   DIVE_TURN_MS,
+  PULL_AT,
   ENTER_TOTAL,
   EXIT_CHAIN_TOTAL,
   EXIT_TOTAL,
   REDUCED_TOTAL,
 } from '@/state/timing';
 import { responsiveFov, surfaceFov } from '@/scenes/overworld/TelescopeCamera';
+import { FRAME_DEPTH } from '@/scenes/ship/shape';
 import { loadSurface, surfaceScene } from '@/scenes/planet/loadSurface';
 
-/** The lock-on narrows the lens this much, and the plunge widens it this much again */
+/** The lock-on narrows the lens this much */
 const LOCK_ZOOM = 4;
-const DIVE_WIDEN = 9;
-/** The plunge stops this many planet radii from its centre, just outside the atmosphere */
+/** The pull stops this many planet radii from its centre, just outside the atmosphere */
 const DIVE_STOP = 1.4;
+/** The beam leaves the aperture at the bottom of the view (screen y, -1 = bottom edge), just past the wall */
+const MOUTH_Y = -0.72;
+const MOUTH_Z = FRAME_DEPTH + 0.08;
+/** Turn about the beam by the end of the pull, radians */
+const PULL_ROLL = 0.5;
+/** How long the beam takes to swing up from the aperture onto the viewer once the pull starts */
+const PULL_GATHER_MS = 320;
 const LAUNCH_FOV = 78;
 /** Eye height above the beam's foot */
 const EYE = 1.6;
@@ -34,6 +43,8 @@ const _target = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _m = new THREE.Matrix4();
+const _mouth = new THREE.Vector3();
+const _roll = new THREE.Vector3(0, 0, 1);
 
 const clamp01 = (x: number) => Math.min(Math.max(x, 0), 1);
 const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -59,6 +70,8 @@ interface Run {
   quat: THREE.Quaternion;
   endQuat: THREE.Quaternion;
   fov: number;
+  /** Where the launch beam left the aperture when the pull started */
+  mouth: THREE.Vector3;
 }
 
 const setFov = (cam: THREE.PerspectiveCamera, fov: number) => {
@@ -91,11 +104,13 @@ const TransitionController = () => {
     quat: new THREE.Quaternion(),
     endQuat: new THREE.Quaternion(),
     fov: 60,
+    mouth: new THREE.Vector3(),
   });
 
   useEffect(() => {
     const r = run.current;
     if (mode !== 'transitioning-out') flight.beam = 0;
+    if (mode !== 'transitioning-in') flight.launch = flight.launchBeam = flight.launchReach = 0;
     if (mode !== 'transitioning-in' && mode !== 'transitioning-out') {
       r.kind = null;
       r.chain = false;
@@ -173,27 +188,44 @@ const TransitionController = () => {
     }
 
     if (r.kind === 'in') {
-      // ease round onto the planet, then plunge at it until it fills the window; the view
-      // crossfades into its sky under the veil (same timeline in TransitionVeil)
+      // turn onto the planet while the aperture charges, fire the beam out to it, then get pulled
+      // along it until the light takes the view (same timeline in TransitionVeil): the beam up
+      // from a planet, run the other way
       const p = r.planet;
       if (!p) return finish();
       getOrbitalPosition(p, clock.elapsedTime, _orb);
       _target.set(_orb[0], _orb[1], _orb[2]);
-      // the push: from the eyepiece toward the planet, accelerating, stopping just above its air
-      const push = Math.pow(clamp01((elapsed - DIVE_PUSH_AT) / (r.total - DIVE_PUSH_AT)), 1.8);
+      const turn = easeInOutSine(clamp01(elapsed / DIVE_TURN_MS));
+      const pull = clamp01((elapsed - PULL_AT) / (r.total - PULL_AT));
+      // accelerating the whole way, like the pull up the beam from the ground
+      const travel = Math.pow(pull, 2.2);
       _dir.copy(_target).sub(r.pos);
       const reach = Math.max(0, _dir.length() - p.radius * DIVE_STOP);
-      camera.position.copy(r.pos).addScaledVector(_dir.normalize(), reach * push);
-      // the turn: a gentle ease both ends, tracking the planet as it orbits
+      camera.position.copy(r.pos).addScaledVector(_dir.normalize(), reach * travel);
       _m.lookAt(camera.position, _target, UP);
       _q.setFromRotationMatrix(_m);
-      camera.quaternion.copy(r.quat).slerp(_q, easeInOutSine(clamp01(elapsed / DIVE_TURN_MS)));
-      // the lens narrows a touch as it locks on, then opens out with the speed
-      const lock = easeInOutSine(clamp01(elapsed / DIVE_TURN_MS));
-      setFov(camera, r.fov - LOCK_ZOOM * lock + DIVE_WIDEN * push);
-      // a faint glow of its air on the canopy rim as the planet fills the view
-      flight.heat = 0.28 * smoothstep(0.55, 1, push);
-      flight.heatColor = p.surface.atmosphere;
+      camera.quaternion.copy(r.quat).slerp(_q, turn);
+      // a slow turn about the beam as it takes hold
+      camera.quaternion.multiply(_q.setFromAxisAngle(_roll, PULL_ROLL * travel));
+      // the lens narrows as it locks on, then opens wide with the speed
+      setFov(camera, r.fov - LOCK_ZOOM * turn + (LAUNCH_FOV - r.fov + LOCK_ZOOM) * pull * pull);
+
+      flight.launch = smoothstep(0, BEAM_OUT_AT + 120, elapsed);
+      flight.launchReach = easeInOutCubic(clamp01((elapsed - BEAM_OUT_AT) / BEAM_OUT_MS));
+      flight.launchBeam = smoothstep(BEAM_OUT_AT, BEAM_OUT_AT + 160, elapsed);
+      if (elapsed < PULL_AT) {
+        // the mouth sits at the bottom of the aperture, which turns with the deck
+        const tv = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+        _mouth.set(0, MOUTH_Y * tv * MOUTH_Z, -MOUTH_Z).applyQuaternion(camera.quaternion).add(camera.position);
+        r.mouth.copy(_mouth);
+      } else {
+        // as the pull takes hold the beam swings up onto the viewer, who is carried along inside it
+        const k = easeInOutSine(clamp01((elapsed - PULL_AT) / PULL_GATHER_MS));
+        _mouth.copy(r.pos).addScaledVector(_dir, -0.4).lerp(r.mouth, 1 - k);
+      }
+      flight.launchFrom.x = _mouth.x;
+      flight.launchFrom.y = _mouth.y;
+      flight.launchFrom.z = _mouth.z;
       if (elapsed >= r.total) finish();
       return;
     }

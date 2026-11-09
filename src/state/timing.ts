@@ -2,11 +2,13 @@
  * Shared transition timeline (milliseconds). The camera controller and the
  * DOM veil both read these so the cut always lands under full cover.
  *
- * Enter: in the lobby the ship eases round onto the planet over DIVE_TURN_MS,
- * then plunges at it from DIVE_PUSH_AT, accelerating until it fills the
- * window, and the view crossfades into that planet's sky from
- * ENTER_VEIL_START over ENTER_VEIL_FADE; the mode switches at ENTER_TOTAL.
- * On the planet the sky clears over ENTER_VEIL_LIFT while the viewer is
+ * Enter: in the lobby the deck turns onto the planet over DIVE_TURN_MS while
+ * the aperture's emitters charge; the tractor beam fires out to the planet
+ * from BEAM_OUT_AT over BEAM_OUT_MS; from PULL_AT the viewer is pulled along
+ * it, faster and faster, the deck falling away; the view whites out into the
+ * beam's light from ENTER_VEIL_START over ENTER_VEIL_FADE and the mode
+ * switches at ENTER_TOTAL (the beam up from a planet, run the other way).
+ * On the planet the light clears over ENTER_VEIL_LIFT while the viewer is
  * lowered down the beam from the mothership for BEAM_DOWN_MS, looking up at
  * it, slowing all the way; the feet touch, the view comes down to the ground
  * ahead and the beam fades. Walking at ARRIVAL_MS.
@@ -16,10 +18,12 @@
  * beam's light from EXIT_VEIL_START and the lobby is back at EXIT_TOTAL.
  */
 export const DIVE_TURN_MS = 650;
-export const DIVE_PUSH_AT = 150;
-export const ENTER_VEIL_START = 930;
-export const ENTER_VEIL_FADE = 380;
-export const ENTER_TOTAL = 1350;
+export const BEAM_OUT_AT = 420;
+export const BEAM_OUT_MS = 480;
+export const PULL_AT = 1000;
+export const ENTER_VEIL_START = 1520;
+export const ENTER_VEIL_FADE = 300;
+export const ENTER_TOTAL = 1850;
 export const ENTER_VEIL_LIFT = 700;
 export const BEAM_DOWN_MS = 1500;
 export const ARRIVAL_MS = BEAM_DOWN_MS + 700;
