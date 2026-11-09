@@ -92,10 +92,6 @@ const frag = /* glsl */ `
     float erode = (n * 0.7 + n2 * 0.3) * ew;
     float body = smoothstep(0.0, ew * 0.6, d - erode);
 
-    // specks that crackle off just outside the eroded line
-    vec2 cell = floor(vP * 190.0);
-    float spark = step(0.965, hash(cell + floor(t * 12.0) + uSeed)) * (1.0 - smoothstep(0.0, ew * 1.6, d)) * (1.0 - body) * step(-ew, d);
-
     // soft rim light hugging the eroded edge
     float rim = exp(-max(d - erode, 0.0) / max(ew * 0.35, 0.002)) * body;
 
@@ -118,11 +114,10 @@ const frag = /* glsl */ `
     vec3 base = mix(uCore * 0.6 + uAccent * 0.05, uCore, uM);
     vec3 col = base
       + uAccent * (scan * 0.007 + band * 0.012 + dots * 0.014) * uM
-      + rimCol * rim * mix(1.1, 0.42, uM)
-      + rimCol * spark * 0.8;
+      + rimCol * rim * mix(1.1, 0.42, uM);
 
     float a = body * build * mix(0.94, 0.9, uM) * (0.95 + scan * 0.05);
-    a += rim * mix(0.6, 0.25, uM) + spark * 0.75;
+    a += rim * mix(0.6, 0.25, uM);
     a *= flick * uOpacity;
     if (a < 0.003) discard;
     gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
