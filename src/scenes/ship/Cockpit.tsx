@@ -9,6 +9,7 @@ import { responsiveFov } from '@/scenes/overworld/TelescopeCamera';
 import { shipSound } from '@/audio/drone';
 import { cockpitShape, FRAME_DEPTH, HOLE, offsetPoly, type Pt } from './shape';
 import SpeedLines from './SpeedLines';
+import ShipDetails from './ShipDetails';
 import { glassMaterial, instrumentMaterial } from './materials';
 
 /*
@@ -160,10 +161,145 @@ const panelTexture = () => {
       g.arc(x, y, 1.8, 0, Math.PI * 2);
       g.fill();
     }
+  // wear: edges rubbed bright along the seams, fine scratches, grime settling under the rivets
+  for (let i = 0; i < 90; i += 1) {
+    const x = Math.random() * 512;
+    const y = Math.random() * 512;
+    const a = Math.random() * Math.PI;
+    const l = 8 + Math.random() * 46;
+    g.strokeStyle = `rgba(255,255,255,${0.05 + Math.random() * 0.09})`;
+    g.lineWidth = 0.6;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l);
+    g.stroke();
+  }
+  for (const y of [2, 172, 342])
+    for (let x = 0; x < 512; x += 18 + Math.random() * 40) {
+      const w = 6 + Math.random() * 26;
+      g.fillStyle = `rgba(255,255,255,${0.05 + Math.random() * 0.1})`;
+      g.fillRect(x, y + 3.5, w, 1);
+      g.fillStyle = `rgba(8,10,14,${0.1 + Math.random() * 0.14})`;
+      g.fillRect(x + w * 0.2, y + 6, w * 0.7, 5 + Math.random() * 10);
+    }
+  // screws at the corners of an access plate, and a stencilled block with its rule
+  g.strokeStyle = 'rgba(10,12,18,0.55)';
+  g.lineWidth = 1.5;
+  g.strokeRect(392, 226, 88, 62);
+  for (const [x, y] of [[398, 232], [474, 232], [398, 282], [474, 282]] as const) {
+    g.fillStyle = 'rgba(0,0,0,0.5)';
+    g.beginPath();
+    g.arc(x, y, 3, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = 'rgba(255,255,255,0.28)';
+    g.fillRect(x - 2.2, y - 0.5, 4.4, 1);
+  }
+  for (let i = 0; i < 7; i += 1) {
+    g.fillStyle = `rgba(245,240,225,${i % 3 === 2 ? 0.08 : 0.16})`;
+    g.fillRect(84 + i * 9, 402, 6, 12);
+  }
+  g.fillStyle = 'rgba(245,240,225,0.12)';
+  g.fillRect(84, 418, 60, 1.5);
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
+  return t;
+};
+
+/**
+ * The dash skin: a 1.2 unit wide tile centred on the console (more than the
+ * view ever shows). Vent slots, seams, bolts, a ruled edge and the wear of hands
+ * where the switches and the mug live.
+ */
+const dashTexture = () => {
+  const W = 1024;
+  const H = 256;
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#5b6370';
+  g.fillRect(0, 0, W, H);
+  for (let i = 0; i < 900; i += 1) {
+    g.fillStyle = `rgba(${Math.random() < 0.5 ? '255,255,255' : '0,0,0'},${0.02 + Math.random() * 0.03})`;
+    g.fillRect(Math.random() * W, Math.random() * H, 8 + Math.random() * 60, 1);
+  }
+  // hands: rubbed lighter in front of the toggles and at the two work areas
+  for (const [x, y, rx, ry, a] of [
+    [512, 196, 170, 34, 0.09],
+    [132, 150, 86, 62, 0.07],
+    [892, 148, 92, 66, 0.07],
+  ] as const) {
+    const r = g.createRadialGradient(x, y, 2, x, y, rx);
+    r.addColorStop(0, `rgba(255,255,255,${a})`);
+    r.addColorStop(1, 'rgba(255,255,255,0)');
+    g.save();
+    g.translate(x, y);
+    g.scale(1, ry / rx);
+    g.translate(-x, -y);
+    g.fillStyle = r;
+    g.fillRect(x - rx, y - rx, rx * 2, rx * 2);
+    g.restore();
+  }
+  // panel seams
+  const groove = (x0: number, y0: number, x1: number, y1: number) => {
+    g.strokeStyle = 'rgba(8,10,14,0.8)';
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(x0, y0);
+    g.lineTo(x1, y1);
+    g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,0.14)';
+    g.lineWidth = 1;
+    g.beginPath();
+    g.moveTo(x0 + 1, y0 + 1.5);
+    g.lineTo(x1 + 1, y1 + 1.5);
+    g.stroke();
+  };
+  groove(0, 66, W, 66);
+  groove(0, 228, W, 228);
+  for (const x of [190, 834]) groove(x, 66, x, 228);
+  // vent slots either side of the console footing
+  for (const x0 of [212, 680])
+    for (let i = 0; i < 16; i += 1) {
+      const x = x0 + i * 8.5;
+      g.fillStyle = 'rgba(4,5,8,0.85)';
+      g.fillRect(x, 78, 4, 34);
+      g.fillStyle = 'rgba(255,255,255,0.12)';
+      g.fillRect(x + 4, 78, 1, 34);
+    }
+  // bolts along the seams
+  for (let x = 16; x < W; x += 64)
+    for (const y of [74, 220]) {
+      g.fillStyle = 'rgba(0,0,0,0.55)';
+      g.beginPath();
+      g.arc(x, y, 3.2, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = 'rgba(255,255,255,0.3)';
+      g.fillRect(x - 2.4, y - 0.6, 4.8, 1.2);
+    }
+  // a ruled scale along the front edge
+  for (let i = 0; i <= 200; i += 1) {
+    g.fillStyle = 'rgba(245,240,225,0.2)';
+    g.fillRect(i * 5.12, 240, 1, i % 10 === 0 ? 11 : 5);
+  }
+  // a strip of tape over a repair
+  g.save();
+  g.translate(788, 180);
+  g.rotate(-0.03);
+  g.fillStyle = 'rgba(200,190,160,0.17)';
+  g.fillRect(-34, -8, 68, 16);
+  g.fillStyle = 'rgba(30,28,22,0.35)';
+  g.fillRect(-20, -1, 40, 1.5);
+  g.restore();
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  // the box's top runs 5 units: show one 1.2 unit tile centred on the console
+  t.repeat.set(5 / 1.2, 1);
+  t.offset.set(0.5 - 0.5 * (5 / 1.2), 0);
   return t;
 };
 
@@ -207,7 +343,8 @@ const useCockpitParts = () =>
       fog: false,
       transparent: true,
     });
-    const dark = new THREE.MeshStandardMaterial({ color: '#141922', metalness: 0.3, roughness: 0.7, fog: false, transparent: true });
+    const dashTex = dashTexture();
+    const dark = new THREE.MeshStandardMaterial({ color: '#2b3340', map: dashTex, metalness: 0.3, roughness: 0.7, fog: false, transparent: true });
     const strip = new THREE.MeshBasicMaterial({ color: new THREE.Color('#9fc4ff').multiplyScalar(0.75), fog: false, transparent: true });
     const amber = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffb46a').multiplyScalar(1.15), fog: false, transparent: true });
 
@@ -247,7 +384,7 @@ const useCockpitParts = () =>
     // the top rises toward the pilot, like a dashboard under a windscreen
     const dashTilt = -Math.atan2(0.085, 0.32);
 
-    return { plate, trim, dark, strip, amber, bulkhead, ring, lightStrip, rivetGeo, rivetPts, dash, dashTilt, tex, trimTex };
+    return { plate, trim, dark, strip, amber, bulkhead, ring, lightStrip, rivetGeo, rivetPts, dash, dashTilt, tex, trimTex, dashTex };
   }, []);
 
 /* ---------- the rig: camera offsets, ship pose, sounds ---------- */
@@ -292,6 +429,7 @@ const Cockpit = () => {
       for (const g of [parts.bulkhead, parts.ring, parts.lightStrip, parts.rivetGeo, parts.dash]) g.dispose();
       parts.tex.dispose();
       parts.trimTex.dispose();
+      parts.dashTex.dispose();
       logos.current.tex?.dispose();
     },
     [parts, glass, screen],
@@ -531,9 +669,9 @@ const Cockpit = () => {
       }
     }
     const l = leds.current;
-    if (l) {
+    if (l && !reduced) {
       for (let i = 0; i < LED_COUNT; i += 1) {
-        const on = Math.sin(t * (1.3 + (i % 5) * 0.7) + i * 2.4) > 0.2 || i % 6 === 0;
+        const on = Math.sin(t * (0.09 + (i % 5) * 0.047) + i * 2.4) > -0.2 || i % 6 === 0;
         _c.copy(i % 7 === 3 ? LED_AMBER : LED_BLUE).multiplyScalar(on ? 1.4 : 0.12);
         l.setColorAt(i, _c);
       }
@@ -582,6 +720,7 @@ const Cockpit = () => {
           <boxGeometry args={[0.5, 0.0022, 0.003]} />
         </mesh>
         <instancedMesh ref={leds} args={[LED_GEO, LED_MAT, LED_COUNT]} raycast={noRaycast} renderOrder={31} />
+        <ShipDetails />
         {/* the console: one long display standing on the dash across the window, tilted toward the pilot */}
         <group position={[0, -0.372, -0.49]} rotation={[-0.32, 0, 0]}>
           <mesh material={parts.trim} raycast={noRaycast} renderOrder={30}>
