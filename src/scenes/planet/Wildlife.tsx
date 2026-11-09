@@ -70,7 +70,7 @@ const FAUNA: Record<PlanetStyle, Fauna> = {
     walkers: [{ kind: 'deer', count: 3, size: 1.15, speed: 0.8, colors: ['#9a8ac0', '#3e3456'] }],
     jellies: 7,
     skitter: { kind: 'crab', count: 9, color: '#2e2440', glow: '#b48cff' },
-    gliders: { kind: 'whale', count: 2, color: '#8f7fc0', glow: '#c8b6ff', glowK: 0.3, alt: [18, 25], radius: [24, 32] },
+    gliders: { kind: 'whale', count: 3, color: '#2c2552', glow: '#b79cff', glowK: 0, alt: [18, 25], radius: [24, 32] },
     colossus: false,
   },
   // Awards, the molten world: ember salamanders; magma tortoises; a basalt colossus on the horizon
@@ -1119,52 +1119,27 @@ const SWOOP_S = 16;
 const SWOOP_COOL_S = 40;
 const GAZE_COS = Math.cos(0.14);
 
-/** A wide ray (manta) or a long whale: a body with wings or fins; aWing rises toward the tips. */
-const gliderGeometry = (kind: GliderKind) => {
-  const manta = kind === 'manta';
-  const span = manta ? 4.2 : 2.2;
-  const len = manta ? 2.0 : 6.5;
+/** A wide ray: a flat body with swept wings and a long thin tail; aWing rises toward the tips. */
+const mantaGeometry = () => {
+  const span = 4.2;
+  const len = 2.0;
   const g = new THREE.PlaneGeometry(span * 2, len, 28, 14);
   g.rotateX(-Math.PI / 2);
   const pos = g.getAttribute('position') as THREE.BufferAttribute;
   const wing = new Float32Array(pos.count);
   for (let i = 0; i < pos.count; i += 1) {
-    const x = pos.getX(i);
-    const z = pos.getZ(i);
-    const u = Math.abs(x) / span; // 0 at the spine, 1 at the tip
-    const w = z / (len / 2); // -1 tail .. 1 nose
-    let chord: number;
-    let thick: number;
-    if (manta) {
-      // a ray's outline: the leading edge runs from a blunt head out to tips swept well back,
-      // the trailing edge curves in behind; a thick body ridge down the middle
-      const lead = (1 - u) ** 0.55 - 0.85 * u;
-      const trail = -0.6 * (1 - u) ** 1.5 - 0.85 * u;
-      pos.setZ(i, (len / 2) * (trail + ((w + 1) / 2) * (lead - trail)));
-      chord = 1;
-      thick = 0.34 * Math.max(0, 1 - u / 0.32) ** 2 * Math.sqrt(Math.max(0, 1 - w * w));
-      pos.setY(i, thick);
-      wing[i] = THREE.MathUtils.clamp((u - 0.12) / 0.8, 0, 1);
-      continue;
-    } else {
-      // a long round body, small rounded pectoral fins a third back, and a fluke at the tail
-      const body = Math.sqrt(Math.max(0, 1 - w * w)) * (0.42 + 0.08 * w);
-      const fin = Math.sqrt(Math.max(0, 1 - ((w - 0.28) / 0.22) ** 2)) * 0.95;
-      const fluke = Math.sqrt(Math.max(0, 1 - ((w + 0.9) / 0.1) ** 2)) * 0.85;
-      chord = 1;
-      // points outside the outline are pulled in onto it
-      const r = Math.min(1, Math.max(body, fin, fluke));
-      if (u > r) pos.setX(i, Math.sign(x) * r * span);
-      thick = body * 0.9 * Math.max(0, 1 - u * 2.2);
-    }
-    pos.setZ(i, z * Math.max(0.05, chord));
-    pos.setY(i, thick);
-    wing[i] = THREE.MathUtils.clamp((Math.abs(pos.getX(i)) / span - (manta ? 0.12 : 0.2)) / 0.8, 0, 1);
+    const u = Math.abs(pos.getX(i)) / span; // 0 at the spine, 1 at the tip
+    const w = pos.getZ(i) / (len / 2); // -1 tail .. 1 nose
+    // the leading edge runs from a blunt head out to tips swept well back,
+    // the trailing edge curves in behind; a thick body ridge down the middle
+    const lead = (1 - u) ** 0.55 - 0.85 * u;
+    const trail = -0.6 * (1 - u) ** 1.5 - 0.85 * u;
+    pos.setZ(i, (len / 2) * (trail + ((w + 1) / 2) * (lead - trail)));
+    pos.setY(i, 0.34 * Math.max(0, 1 - u / 0.32) ** 2 * Math.sqrt(Math.max(0, 1 - w * w)));
+    wing[i] = THREE.MathUtils.clamp((u - 0.12) / 0.8, 0, 1);
   }
   g.setAttribute('aWing', new THREE.BufferAttribute(wing, 1));
   g.computeVertexNormals();
-  if (!manta) return g;
-  // and a long thin tail trailing behind
   const tail = new THREE.ConeGeometry(0.06, 2.4, 6);
   tail.rotateX(-Math.PI / 2);
   tail.translate(0, 0.05, -(len / 2) * 0.6 - 1.2);
@@ -1173,6 +1148,236 @@ const gliderGeometry = (kind: GliderKind) => {
   g.dispose();
   tail.dispose();
   return merged!;
+};
+
+const WHALE_LEN = 12;
+const WHALE_ZOFF = WHALE_LEN / 2;
+/** Body radius at s (0 nose, 1 tail): a blunt head, a deep chest, a long taper to the tail stock */
+const whaleRadius = (s: number) => {
+  const taper = THREE.MathUtils.smoothstep(s, 0.3, 1);
+  return 1.35 * Math.min(1, Math.sqrt(s / 0.22)) * (1 - 0.93 * taper);
+};
+/** The spine rises a little toward the tail */
+const whaleSpine = (s: number) => s * s * 0.5;
+
+/**
+ * A leviathan in one mesh: a lofted body, scalloped pectoral fins, a dorsal
+ * fin, broad flukes and light streamers trailing from the belly.
+ * aBody: 0 nose to 1 tail, for the swim wave. aWing: fin flap amount.
+ * aSkin: (s, a, 0) on the body with a 0 along the back and 1 along the belly;
+ * (span, chord, 1) on fins; (seed, along, 2) on streamers.
+ */
+const whaleGeometry = () => {
+  const pos: number[] = [];
+  const body: number[] = [];
+  const wing: number[] = [];
+  const skin: number[] = [];
+  const index: number[] = [];
+  const vert = (x: number, y: number, z: number, b: number, w: number, s0: number, s1: number, kind: number) => {
+    pos.push(x, y, z);
+    body.push(b);
+    wing.push(w);
+    skin.push(s0, s1, kind);
+    return pos.length / 3 - 1;
+  };
+  const quad = (a: number, b: number, c: number, d: number) => index.push(a, b, c, b, d, c);
+
+  const RINGS = 32;
+  const SIDES = 16;
+  const first = pos.length / 3;
+  for (let i = 0; i <= RINGS; i += 1) {
+    const s = 0.002 + 0.998 * (i / RINGS) ** 1.4;
+    const r = whaleRadius(s);
+    for (let j = 0; j < SIDES; j += 1) {
+      const th = (j / SIDES) * Math.PI * 2;
+      const c = Math.cos(th);
+      // a flatter back over a deep belly and jaw
+      const y = whaleSpine(s) + r * c * (c > 0 ? 0.72 : 1);
+      vert(r * Math.sin(th), y, WHALE_ZOFF - s * WHALE_LEN, s, 0, s, 1 - Math.abs(1 - (2 * j) / SIDES), 0);
+    }
+  }
+  for (let i = 0; i < RINGS; i += 1) {
+    for (let j = 0; j < SIDES; j += 1) {
+      const n = (j + 1) % SIDES;
+      quad(first + i * SIDES + j, first + i * SIDES + n, first + (i + 1) * SIDES + j, first + (i + 1) * SIDES + n);
+    }
+  }
+
+  /** A fin sheet: leading edge from root toward tip, swept back along a curve, chord(u) behind it */
+  const fin = (
+    root: [number, number, number],
+    tip: [number, number, number],
+    chord: (u: number) => number,
+    bodyAt: number,
+    flap: number,
+  ) => {
+    const SPAN = 12;
+    const CHORD = 4;
+    const start = pos.length / 3;
+    for (let i = 0; i <= SPAN; i += 1) {
+      const u = i / SPAN;
+      for (let j = 0; j <= CHORD; j += 1) {
+        const v = j / CHORD;
+        vert(
+          root[0] + tip[0] * u,
+          root[1] + tip[1] * u,
+          root[2] + tip[2] * u * u - v * chord(u),
+          bodyAt + (root[2] < -WHALE_ZOFF * 0.8 ? 0.06 * u : 0),
+          flap * u,
+          u,
+          v,
+          1,
+        );
+      }
+    }
+    for (let i = 0; i < SPAN; i += 1) {
+      for (let j = 0; j < CHORD; j += 1) {
+        const k = start + i * (CHORD + 1) + j;
+        quad(k, k + CHORD + 1, k + 1, k + CHORD + 2);
+      }
+    }
+  };
+
+  const tailY = whaleSpine(1);
+  [-1, 1].forEach((sx) => {
+    // long pectorals with a knobbled leading edge
+    fin([sx * 1.1, -0.45, 2.5], [sx * 5.4, -0.7, -3.4], (u) => 2.1 * (1 - u) ** 0.6 * (1 + 0.07 * Math.sin(u * 24)), 0.3, 1);
+    // flukes: wide, swept, narrowing to the notch at the centre
+    fin([0, tailY, -WHALE_ZOFF + 0.3], [sx * 3.5, 0, -1.3], (u) => 1.7 * (1 - u) ** 0.7 * (0.55 + 0.45 * Math.min(1, u / 0.3)), 1, 0);
+  });
+  const dorsalS = 0.62;
+  fin([0, whaleSpine(dorsalS) + whaleRadius(dorsalS) * 0.68, WHALE_ZOFF - dorsalS * WHALE_LEN], [0, 0.95, -1.2], (u) => 1.1 * (1 - u), dorsalS, 0);
+
+  // streamers of light, in pairs down the belly
+  const rnd = mulberry(seedOf('whale-streamers'));
+  for (let p = 0; p < 5; p += 1) {
+    const s = 0.34 + p * 0.09;
+    [-1, 1].forEach((sx) => {
+      const r = whaleRadius(s);
+      const x0 = sx * r * 0.45;
+      const y0 = whaleSpine(s) - r * 0.85;
+      const z0 = WHALE_ZOFF - s * WHALE_LEN;
+      const len = 5 + rnd() * 5;
+      const seed = rnd() * 20;
+      const SEGS = 14;
+      const start = pos.length / 3;
+      for (let i = 0; i <= SEGS; i += 1) {
+        const t = i / SEGS;
+        const hw = 0.1 * (1 - t) + 0.012;
+        vert(x0 - hw, y0, z0 - t * len, s, 0, seed, t, 2);
+        vert(x0 + hw, y0, z0 - t * len, s, 0, seed, t, 2);
+      }
+      for (let i = 0; i < SEGS; i += 1) {
+        const k = start + i * 2;
+        quad(k, k + 1, k + 2, k + 3);
+      }
+    });
+  }
+
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('aBody', new THREE.Float32BufferAttribute(body, 1));
+  g.setAttribute('aWing', new THREE.Float32BufferAttribute(wing, 1));
+  g.setAttribute('aSkin', new THREE.Float32BufferAttribute(skin, 3));
+  g.setIndex(index);
+  g.computeVertexNormals();
+  return g;
+};
+
+/** The whale's second light, for pleats and fin edges */
+const WHALE_ALT = new THREE.Color('#6fe6ff');
+/** Each whale's size: a great old one, a grown one, and a calf */
+const WHALE_SCALE = [1.55, 1, 0.5];
+
+/** Dark hide lit by markings that pulse from nose to tail and flare when the whale sings */
+const whaleMaterial = (cfg: GliderCfg, time: { value: number }, phase: number) => {
+  const m = new THREE.MeshStandardMaterial({ color: cfg.color, roughness: 0.6, side: THREE.DoubleSide });
+  const sing = { value: 0 };
+  m.userData.sing = sing;
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = time;
+    shader.uniforms.uPhase = { value: phase };
+    shader.uniforms.uSing = sing;
+    shader.uniforms.uGlow = { value: new THREE.Color(cfg.glow) };
+    shader.uniforms.uAlt = { value: WHALE_ALT };
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        attribute float aBody;
+        attribute float aWing;
+        attribute vec3 aSkin;
+        uniform float uTime;
+        uniform float uPhase;
+        varying vec3 vSkin;
+        varying float vBody;`,
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        vSkin = aSkin;
+        vBody = aBody;
+        // a slow swim wave growing toward the flukes, and long lazy fin beats
+        transformed.y += sin(uTime * 0.75 + uPhase - aBody * 3.6) * (0.06 + aBody * aBody * 0.85);
+        transformed.y += sin(uTime * 0.7 + uPhase - aWing * 1.4) * aWing * aWing * 1.5;
+        if (aSkin.z > 1.5) {
+          transformed.x += sin(uTime * 1.1 + aSkin.x - aSkin.y * 4.0) * aSkin.y * 0.9;
+          transformed.y += cos(uTime * 0.8 + aSkin.x - aSkin.y * 3.0) * aSkin.y * 0.5 - aSkin.y * aSkin.y * 0.6;
+        }`,
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        uniform float uTime;
+        uniform float uPhase;
+        uniform float uSing;
+        uniform vec3 uGlow;
+        uniform vec3 uAlt;
+        varying vec3 vSkin;
+        varying float vBody;
+        float whaleHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }`,
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        // a paler belly under the dark back
+        if (vSkin.z < 0.5) diffuseColor.rgb *= mix(0.7, 2.4, smoothstep(0.5, 0.85, vSkin.y));`,
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        float wave = 0.5 + 0.5 * sin(uTime * 1.1 + uPhase - vBody * 9.0);
+        float pulse = 0.3 + 0.7 * wave * wave + uSing;
+        vec3 whaleGlow = vec3(0.0);
+        if (vSkin.z < 0.5) {
+          float s = vSkin.x;
+          float a = vSkin.y;
+          // beads along the flank
+          float flank = smoothstep(0.03, 0.008, abs(a - 0.52 + 0.04 * sin(s * 14.0))) * smoothstep(0.1, 0.8, sin(s * 150.0));
+          // a scatter of stars over the back
+          vec2 c = vec2(s * 46.0, a * 15.0);
+          vec2 id = floor(c);
+          float h = whaleHash(id);
+          float stars = step(h, 0.42) * smoothstep(0.24, 0.06, length(fract(c) - 0.5 - (vec2(whaleHash(id + 7.0), h) - 0.5) * 0.4));
+          stars *= smoothstep(0.5, 0.2, a);
+          // throat pleats
+          float pleats = smoothstep(0.55, 1.0, sin(a * 130.0)) * smoothstep(0.72, 0.8, a) * smoothstep(0.55, 0.35, s);
+          float eye = smoothstep(1.0, 0.5, length(vec2((s - 0.085) * 16.0, (a - 0.47) * 7.0)));
+          whaleGlow = uGlow * (flank * 2.2 + stars * 1.8) * pulse + uAlt * pleats * 0.8 * pulse + vec3(2.6, 2.9, 3.2) * eye;
+        } else if (vSkin.z < 1.5) {
+          float rim = smoothstep(0.78, 1.0, vSkin.y);
+          float veins = smoothstep(0.8, 1.0, sin(vSkin.x * 70.0)) * smoothstep(0.1, 0.7, vSkin.y) * 0.45;
+          whaleGlow = uAlt * (rim * 1.5 + veins) * pulse;
+        } else {
+          float t = vSkin.y;
+          whaleGlow = mix(uGlow, uAlt, t) * (0.5 + 1.8 * (1.0 - t)) * (0.7 + 0.5 * sin(t * 20.0 - uTime * 3.0 + vSkin.x)) * (1.0 + uSing);
+        }
+        totalEmissiveRadiance += whaleGlow;`,
+      );
+  };
+  m.customProgramCacheKey = () => 'glider-whale-v2';
+  return m;
 };
 
 const gliderMaterial = (cfg: GliderCfg, time: { value: number }, phase: number) => {
@@ -1193,8 +1398,8 @@ const gliderMaterial = (cfg: GliderCfg, time: { value: number }, phase: number) 
         `#include <begin_vertex>
         // slow strokes rolling out along the wings, and a wave down the body from nose to tail
         float stroke = sin(uTime * 0.9 + uPhase - aWing * 1.6);
-        transformed.y += stroke * aWing * aWing * ${cfg.kind === 'manta' ? '0.65' : '0.45'};
-        transformed.y += sin(uTime * 0.8 + uPhase + position.z * 0.7) * ${cfg.kind === 'manta' ? '0.08' : '0.28'} * (1.0 - aWing);`,
+        transformed.y += stroke * aWing * aWing * 0.65;
+        transformed.y += sin(uTime * 0.8 + uPhase + position.z * 0.7) * 0.08 * (1.0 - aWing);`,
       );
   };
   m.customProgramCacheKey = () => `glider-${cfg.kind}`;
@@ -1223,7 +1428,7 @@ const Gliders = ({ planet, cfg, reducedMotion }: { planet: Planet; cfg: GliderCf
   const refs = useRef<(THREE.Mesh | null)[]>([]);
   const time = useMemo(() => ({ value: 0 }), []);
   const rnd = useMemo(() => mulberry(seedOf(`${planet.id}:gliders`)), [planet.id]);
-  const geo = useMemo(() => gliderGeometry(cfg.kind), [cfg.kind]);
+  const geo = useMemo(() => (cfg.kind === 'manta' ? mantaGeometry() : whaleGeometry()), [cfg.kind]);
   const states = useMemo<GliderState[]>(
     () =>
       Array.from({ length: cfg.count }, (_, i) => ({
@@ -1243,7 +1448,10 @@ const Gliders = ({ planet, cfg, reducedMotion }: { planet: Planet; cfg: GliderCf
       })),
     [cfg, rnd],
   );
-  const mats = useMemo(() => states.map((s) => gliderMaterial(cfg, time, s.ph)), [states, cfg, time]);
+  const mats = useMemo(
+    () => states.map((s) => (cfg.kind === 'manta' ? gliderMaterial : whaleMaterial)(cfg, time, s.ph)),
+    [states, cfg, time],
+  );
   useEffect(
     () => () => {
       geo.dispose();
@@ -1282,6 +1490,7 @@ const Gliders = ({ planet, cfg, reducedMotion }: { planet: Planet; cfg: GliderCf
       s.th += s.w * dt * (1 + s.k * 0.6);
       // its loop eases over to a broad circle low over the viewer during a swoop
       const k = smooth01(s.k);
+      if (mats[i].userData.sing) mats[i].userData.sing.value = k * 1.2;
       const cx = s.cx + (cam.x - s.cx) * k;
       const cz = s.cz + (cam.z - s.cz) * k;
       const r = s.r + (11 - s.r) * k;
@@ -1330,7 +1539,7 @@ const Gliders = ({ planet, cfg, reducedMotion }: { planet: Planet; cfg: GliderCf
           ref={(el) => (refs.current[i] = el)}
           geometry={geo}
           material={mats[i]}
-          scale={cfg.kind === 'manta' ? 1.1 : 1}
+          scale={cfg.kind === 'manta' ? 1.1 : WHALE_SCALE[i % WHALE_SCALE.length]}
           frustumCulled={false}
           onClick={(e) => poke(e, i)}
         />
