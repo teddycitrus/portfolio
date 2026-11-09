@@ -2,6 +2,8 @@ import * as THREE from 'three';
 
 /** Largest outline the shader accepts (the octagon). */
 export const HOLO_MAX_VERTS = 8;
+/** Room around the outline the mesh leaves for smoke, world units. The longest wisp stays inside it. */
+export const SMOKE_PAD = 0.16;
 
 /** Per-screen look, seeded so neighbouring screens never match. */
 export interface HoloLook {
@@ -38,6 +40,7 @@ const vert = /* glsl */ `
 
 const frag = /* glsl */ `
   #define MAXV ${HOLO_MAX_VERTS}
+  #define SMOKE_PAD ${SMOKE_PAD.toFixed(3)}
   uniform vec2 uPoly[MAXV];
   uniform int uN;
   uniform float uM;
@@ -60,9 +63,21 @@ const frag = /* glsl */ `
     return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
   }
 
-  // distance from the fragment to the nearest outline edge (fragments are always inside)
+  float fbm(vec2 p) {
+    float v = 0.0;
+    float a = 0.5;
+    for (int i = 0; i < 4; i++) {
+      v += a * noise(p);
+      p = mat2(1.6, 1.2, -1.2, 1.6) * p;
+      a *= 0.5;
+    }
+    return v;
+  }
+
+  // signed distance to the outline: positive inside, negative in the smoke margin outside it
   float edgeDist(vec2 p) {
     float d = 1e5;
+    bool inside = false;
     for (int k = 0; k < MAXV; k++) {
       if (k >= uN) break;
       vec2 a = uPoly[k];
@@ -70,8 +85,9 @@ const frag = /* glsl */ `
       vec2 ab = b - a;
       float h = clamp(dot(p - a, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0);
       d = min(d, length(p - a - ab * h));
+      if ((a.y > p.y) != (b.y > p.y) && p.x < a.x + (p.y - a.y) * ab.x / ab.y) inside = !inside;
     }
-    return d;
+    return inside ? d : -d;
   }
 
   // inside distance to a rounded rectangle (negative outside it)
@@ -94,6 +110,17 @@ const frag = /* glsl */ `
 
     // soft rim light hugging the eroded edge
     float rim = exp(-max(d - erode, 0.0) / max(ew * 0.35, 0.002)) * body;
+
+    // smoke curling off the eroded line: drifting tendrils that rise and blow outward, each
+    // reaching its own distance before it thins away, so no two leave the edge alike
+    float out_ = max(erode - d, 0.0);
+    vec2 away = vP / max(length(vP), 1e-3);
+    vec2 sp = (vP - (away * 0.55 + vec2(0.0, 0.85)) * t * 0.045) * uLook2.x * 0.32 + uSeed * 5.0;
+    sp += vec2(noise(sp * 0.45 + t * 0.12), noise(sp * 0.45 + 4.7 - t * 0.1)) * 1.8;
+    float f = fbm(sp);
+    float reach = SMOKE_PAD * mix(0.35, 0.9, uM) * mix(0.2, 1.0, noise(vP * 4.5 + uSeed * 9.0 + t * 0.18));
+    float smoke = smoothstep(0.02, 0.4, f - out_ / max(reach, 1e-3)) * smoothstep(0.38, 0.62, f);
+    smoke *= 1.0 - body;
 
     // scanlines, a slow refresh band and a faint dot grid
     vec2 dir = vec2(-sin(uLook.y), cos(uLook.y));
@@ -118,6 +145,9 @@ const frag = /* glsl */ `
 
     float a = body * build * mix(0.94, 0.9, uM) * (0.95 + scan * 0.05);
     a += rim * mix(0.6, 0.25, uM);
+    float sa = smoke * mix(0.55, 0.4, uM);
+    col = mix(col, rimCol, sa / max(a + sa, 1e-3));
+    a += sa;
     a *= flick * uOpacity;
     if (a < 0.003) discard;
     gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));

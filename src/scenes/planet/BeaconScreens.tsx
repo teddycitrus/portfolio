@@ -8,7 +8,7 @@ import { screenParts, type ScreenPart } from '@/ui/screenParts';
 import { panelFocusIntent } from '@/ui/navigation';
 import { usePanelView } from '@/ui/primitives';
 import { mulberry, seedOf } from './rng';
-import { hologramMaterial, holoLook } from './hologram';
+import { hologramMaterial, holoLook, SMOKE_PAD } from './hologram';
 import type { HeightFn } from './Terrain';
 import { projectQuad, quadMatrix } from './screenPlacement';
 
@@ -321,11 +321,10 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
       const kind = SHAPES[(start + i) % SHAPES.length];
       const n = VERTS[kind];
       const r = ORBIT_SIZE * (0.85 + rnd() * 0.3);
+      // a quad around the outline plus SMOKE_PAD; the shader cuts the outline and draws the smoke
       const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((n + 1) * 3), 3));
-      const idx: number[] = [];
-      for (let k = 0; k < n; k += 1) idx.push(0, 1 + k, 1 + ((k + 1) % n));
-      geo.setIndex(idx);
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(4 * 3), 3));
+      geo.setIndex([0, 1, 2, 0, 2, 3]);
       const mat = hologramMaterial(accent, holoLook(rnd), rnd() * 10);
       mat.uniforms.uN.value = n;
       return {
@@ -599,13 +598,27 @@ const BeaconScreens = ({ beacon, group, planet, height, index, reducedMotion, gr
         const scr = screenShape(p.kind, w, h);
         const pa = p.geo.getAttribute('position') as THREE.BufferAttribute;
         const poly = p.mat.uniforms.uPoly.value as THREE.Vector2[];
-        pa.setXYZ(0, 0, 0, 0);
+        let x0 = Infinity;
+        let x1 = -Infinity;
+        let y0 = Infinity;
+        let y1 = -Infinity;
         for (let k = 0; k < p.orbit.length; k += 1) {
           const x = p.orbit[k][0] + (scr[k][0] - p.orbit[k][0]) * p.m;
           const y = p.orbit[k][1] + (scr[k][1] - p.orbit[k][1]) * p.m;
-          pa.setXYZ(k + 1, x, y, 0);
           poly[k].set(x, y);
+          x0 = Math.min(x0, x);
+          x1 = Math.max(x1, x);
+          y0 = Math.min(y0, y);
+          y1 = Math.max(y1, y);
         }
+        x0 -= SMOKE_PAD;
+        x1 += SMOKE_PAD;
+        y0 -= SMOKE_PAD;
+        y1 += SMOKE_PAD;
+        pa.setXYZ(0, x1, y1, 0);
+        pa.setXYZ(1, x0, y1, 0);
+        pa.setXYZ(2, x0, y0, 0);
+        pa.setXYZ(3, x1, y0, 0);
         pa.needsUpdate = true;
         p.geo.computeBoundingSphere();
       }
