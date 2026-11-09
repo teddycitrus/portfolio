@@ -10,9 +10,11 @@ import { dragLook, mouseLook } from '@/state/runtime';
 
 /* ---------- which creatures live where ---------- */
 
+type WalkerKind = 'deer' | 'hopper' | 'tortoise';
+
 /** A herd of walkers: medium ones that follow and greet, or big ones that roam slower */
 interface Herd {
-  kind: 'deer' | 'hopper';
+  kind: WalkerKind;
   count: number;
   size?: number;
   speed?: number;
@@ -21,9 +23,9 @@ interface Herd {
 }
 
 /**
- * Every planet has something in each part of its sky and on its ground: small
- * fliers, big slow gliders high up, small quick things underfoot, and herds of
- * medium and big walkers.
+ * Each planet has its own creatures, none shared with another: something very
+ * small (a flier or a critter underfoot), something medium on the ground, and
+ * one giant far off in the sky or on the horizon.
  */
 interface Fauna {
   birds: { count: number; color: string; alt: [number, number]; radius: [number, number] } | null;
@@ -31,6 +33,7 @@ interface Fauna {
   jellies: number;
   skitter: SkitterCfg | null;
   gliders: GliderCfg | null;
+  colossus: boolean;
 }
 
 const FAUNA: Record<PlanetStyle, Fauna> = {
@@ -39,49 +42,45 @@ const FAUNA: Record<PlanetStyle, Fauna> = {
     birds: { count: 9, color: '#f2f0ea', alt: [6, 10], radius: [12, 24] },
     walkers: [],
     jellies: 0,
-    skitter: { kind: 'crab', count: 8, color: '#b4563a' },
+    skitter: null,
     gliders: null,
+    colossus: false,
   },
   // dark songbirds and grazing deer under the canopy
   forested: {
     birds: { count: 8, color: '#1a1714', alt: [6, 10], radius: [14, 26] },
     walkers: [{ kind: 'deer', count: 4 }],
     jellies: 0,
-    skitter: { kind: 'lizard', count: 8, color: '#4f5a35' },
+    skitter: null,
     gliders: null,
+    colossus: false,
   },
-  // About, dunes at dusk: birds, sky rays, hoppers and tall dune striders, lizards
+  // About, dunes at dusk: dune lizards and birds; the bouncing hoppers; sky rays far overhead
   rocky: {
     birds: { count: 5, color: '#241a16', alt: [7, 11], radius: [14, 28] },
-    walkers: [
-      { kind: 'hopper', count: 6 },
-      { kind: 'deer', count: 2, size: 1.7, speed: 0.6, colors: ['#a9784e', '#4a3324'] },
-    ],
+    walkers: [{ kind: 'hopper', count: 6 }],
     jellies: 0,
     skitter: { kind: 'lizard', count: 10, color: '#6b4a33' },
-    gliders: { kind: 'manta', count: 2, color: '#3d2c3f', glow: '#ffb48a', glowK: 0.12, alt: [20, 27], radius: [26, 36] },
+    gliders: { kind: 'manta', count: 2, color: '#3d2c3f', glow: '#ffb48a', glowK: 0.12, alt: [22, 30], radius: [30, 40] },
+    colossus: false,
   },
-  // Projects, night over the cloud deck: pale swifts, glowing drifters, sky whales, mesa grazers, glowing crabs
+  // Projects, night over the cloud deck: glowing crabs and drifters; long-legged grazers; sky whales
   'gas-giant': {
-    birds: { count: 8, color: '#e6dcff', alt: [5, 9], radius: [9, 18] },
-    walkers: [
-      { kind: 'deer', count: 3, size: 1.1, speed: 0.85, colors: ['#9a8ac0', '#3e3456'] },
-      { kind: 'deer', count: 1, size: 1.9, speed: 0.5, colors: ['#7a6aa6', '#2e2644'] },
-    ],
+    birds: null,
+    walkers: [{ kind: 'deer', count: 3, size: 1.15, speed: 0.8, colors: ['#9a8ac0', '#3e3456'] }],
     jellies: 7,
     skitter: { kind: 'crab', count: 9, color: '#2e2440', glow: '#b48cff' },
     gliders: { kind: 'whale', count: 2, color: '#8f7fc0', glow: '#c8b6ff', glowK: 0.3, alt: [18, 25], radius: [24, 32] },
+    colossus: false,
   },
-  // Awards, the molten world: ember bats, lava-lit sky rays, hoppers and basalt beasts, ember salamanders
+  // Awards, the molten world: ember salamanders; magma tortoises; a basalt colossus on the horizon
   molten: {
-    birds: { count: 7, color: '#1b1110', alt: [5, 9], radius: [12, 22] },
-    walkers: [
-      { kind: 'hopper', count: 4 },
-      { kind: 'deer', count: 2, size: 1.7, speed: 0.55, colors: ['#3a2a22', '#1a120e'] },
-    ],
+    birds: null,
+    walkers: [{ kind: 'tortoise', count: 4 }],
     jellies: 0,
     skitter: { kind: 'ember', count: 10, color: '#2a140b', glow: '#ff6a1a' },
-    gliders: { kind: 'manta', count: 2, color: '#2a1610', glow: '#ff7a3a', glowK: 0.45, alt: [20, 27], radius: [26, 36] },
+    gliders: null,
+    colossus: true,
   },
 };
 
@@ -385,7 +384,7 @@ const Walkers = ({
   reducedMotion,
 }: {
   planet: Planet;
-  kind: 'deer' | 'hopper';
+  kind: WalkerKind;
   count: number;
   /** Big walkers are scaled up and move slower */
   size?: number;
@@ -464,6 +463,14 @@ const Walkers = ({
         glow: null,
       };
     }
+    if (kind === 'tortoise') {
+      // a basalt shell with lava glowing through its seams
+      return {
+        body: new THREE.MeshStandardMaterial({ color: '#2b211c', roughness: 0.9, flatShading: true }),
+        dark: new THREE.MeshStandardMaterial({ color: '#120c09', roughness: 0.95, flatShading: true }),
+        glow: new THREE.MeshBasicMaterial({ color: new THREE.Color('#ff6a1a').multiplyScalar(1.6) }),
+      };
+    }
     const accent = new THREE.Color(planet.accent);
     return {
       body: new THREE.MeshStandardMaterial({
@@ -478,7 +485,8 @@ const Walkers = ({
   }, [kind, planet.accent, colors?.[0], colors?.[1]]);
   useEffect(() => () => Object.values(mats).forEach((m) => m?.dispose()), [mats]);
 
-  const speak = (w: Walker) => callFrom(camera, kind === 'deer' ? 'mew' : 'squeak', w.x, ground(w.x, w.z) + 0.6, w.z);
+  const speak = (w: Walker) =>
+    callFrom(camera, kind === 'deer' ? 'mew' : kind === 'tortoise' ? 'boop' : 'squeak', w.x, ground(w.x, w.z) + 0.6, w.z);
   const greet = (w: Walker) => {
     w.greet = GREET_S;
     w.greetCool = 7 + rnd() * 6;
@@ -568,7 +576,7 @@ const Walkers = ({
       const dz = w.tz - w.z;
       const d = Math.hypot(dx, dz);
       const hurry = w.mode === 'shy' ? 2.6 : w.mode === 'curious' && d > 5 ? 2.3 : 1;
-      const speed = (kind === 'deer' ? 0.9 : 1.1) * hurry * speedK;
+      const speed = (kind === 'deer' ? 0.9 : kind === 'tortoise' ? 0.45 : 1.1) * hurry * speedK;
       if (w.moving && w.greet <= 0 && w.rest < 0.15) {
         if (d < (w.mode === 'wander' ? 0.15 : 0.4)) {
           w.moving = false;
@@ -585,7 +593,7 @@ const Walkers = ({
           const step = Math.min(d, speed * dt * facing);
           w.x += Math.sin(w.yaw) * step;
           w.z += Math.cos(w.yaw) * step;
-          w.phase += (step * (kind === 'deer' ? 5.5 : 4.2)) / size;
+          w.phase += (step * (kind === 'deer' ? 5.5 : kind === 'tortoise' ? 7 : 4.2)) / size;
         }
       } else if (w.mode !== 'wander' && !w.moving) {
         // stopped near you: turn to face you
@@ -650,6 +658,25 @@ const Walkers = ({
         }
         // a hello is two little prancing hops
         if (gp > 0) g.position.y += Math.abs(Math.sin(gp * Math.PI * 2)) * 0.16;
+      } else if (kind === 'tortoise') {
+        // stubby legs paddle when it plods; resting, it pulls them and its head into the shell
+        const swing = w.moving ? Math.sin(w.phase) * 0.55 : 0;
+        legs.current[i]?.forEach((leg, k) => {
+          if (!leg) return;
+          leg.rotation.x = (k === 0 || k === 3 ? 1 : -1) * swing * (1 - lie);
+          leg.scale.y = 1 - 0.75 * lie;
+        });
+        g.position.y -= 0.1 * lie * size;
+        const grazing = w.mode === 'wander' && !w.moving && w.act === 'graze' && w.watch <= 0;
+        w.head += ((grazing ? 1 : 0) - w.head) * damp(1.6, dt);
+        const neck = necks.current[i];
+        if (neck) {
+          neck.position.z = 0.42 - 0.2 * lie;
+          neck.rotation.x = w.head * (0.45 + Math.max(0, Math.sin(t * 1.4 + i)) * 0.12);
+          neck.rotation.y = lookYaw;
+        }
+        // a hello is a slow happy rock from side to side
+        g.rotation.z = gp > 0 ? Math.sin(gp * Math.PI * 3) * 0.16 * (1 - gp) : 0;
       } else {
         // hoppers bounce along with a squash on landing; near you they bounce in place
         const excited = w.mode === 'curious' && !w.moving && cd < 5;
@@ -699,6 +726,52 @@ const Walkers = ({
     <>
       {walkers.map((_, i) => {
         if (!legs.current[i]) legs.current[i] = [];
+        if (kind === 'tortoise')
+          return (
+            <group key={i} ref={(el) => (refs.current[i] = el)} scale={size} onClick={(e) => poke(e, i)}>
+              {/* the domed shell, lava showing at its rim and through cracks on top */}
+              <mesh material={mats.body} position={[0, 0.2, 0]} scale={[1, 0.62, 1.2]} castShadow>
+                <sphereGeometry args={[0.45, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
+              </mesh>
+              <mesh material={mats.glow ?? mats.body} position={[0, 0.205, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[1, 1.2, 1]}>
+                <torusGeometry args={[0.44, 0.022, 6, 28]} />
+              </mesh>
+              {[
+                [0, 0.39, 0.05, 0.3],
+                [0.12, 0.36, -0.15, -0.9],
+                [-0.14, 0.35, 0.18, 1.2],
+              ].map(([x, y, z, ry], k) => (
+                <mesh key={k} material={mats.glow ?? mats.body} position={[x, y, z]} rotation={[0, ry, 0]}>
+                  <boxGeometry args={[0.36, 0.012, 0.025]} />
+                </mesh>
+              ))}
+              <mesh material={mats.dark} position={[0, 0.17, 0]} scale={[1, 1, 1.2]}>
+                <cylinderGeometry args={[0.43, 0.4, 0.06, 14]} />
+              </mesh>
+              {[
+                [-0.3, 0.32],
+                [0.3, 0.32],
+                [-0.3, -0.32],
+                [0.3, -0.32],
+              ].map(([x, z], k) => (
+                <group key={k} position={[x, 0.2, z]} ref={(el) => (legs.current[i][k] = el)}>
+                  <mesh material={mats.dark} position={[0, -0.1, 0]} castShadow>
+                    <cylinderGeometry args={[0.08, 0.09, 0.22, 7]} />
+                  </mesh>
+                </group>
+              ))}
+              <group position={[0, 0.22, 0.42]} ref={(el) => (necks.current[i] = el)}>
+                <mesh material={mats.body} position={[0, 0, 0.08]} castShadow>
+                  <boxGeometry args={[0.18, 0.14, 0.2]} />
+                </mesh>
+                {[-1, 1].map((sx) => (
+                  <mesh key={sx} material={mats.glow ?? mats.body} position={[sx * 0.055, 0.03, 0.18]}>
+                    <sphereGeometry args={[0.018, 6, 5]} />
+                  </mesh>
+                ))}
+              </group>
+            </group>
+          );
         return kind === 'deer' ? (
           <group key={i} ref={(el) => (refs.current[i] = el)} scale={size} onClick={(e) => poke(e, i)}>
             {/* body and legs; the model faces +z */}
@@ -823,8 +896,17 @@ const skitterGeometry = (kind: SkitterKind) => {
       // claws held up in front
       box(0.05, 0.05, 0.08, s * 0.1, 0.09, 0.12, s * 0.4);
     }
+  } else if (kind === 'ember') {
+    // a long low salamander: a ridge of spines down its back, a frilled head, a long curled tail
+    box(0.1, 0.05, 0.3, 0, 0.045, 0);
+    box(0.08, 0.045, 0.1, 0, 0.05, 0.19);
+    box(0.2, 0.012, 0.05, 0, 0.07, 0.15, 0, -0.5);
+    for (let k = 0; k < 5; k += 1) box(0.015, 0.05 - k * 0.006, 0.025, 0, 0.085, 0.1 - k * 0.07);
+    box(0.04, 0.025, 0.2, 0.03, 0.035, -0.24, 0.35);
+    box(0.03, 0.02, 0.16, 0.1, 0.03, -0.4, 1.0);
+    for (const s of [-1, 1]) for (const z of [0.08, -0.08]) box(0.1, 0.02, 0.025, s * 0.09, 0.02, z, s * (z > 0 ? -0.7 : 0.7));
   } else {
-    const slim = kind === 'ember' ? 0.8 : 1;
+    const slim = 1;
     box(0.12 * slim, 0.055, 0.26, 0, 0.05, 0);
     box(0.09 * slim, 0.05, 0.1, 0, 0.055, 0.17);
     box(0.045 * slim, 0.03, 0.26, 0, 0.04, -0.24);
@@ -1257,6 +1339,177 @@ const Gliders = ({ planet, cfg, reducedMotion }: { planet: Planet; cfg: GliderCf
   );
 };
 
+/*
+ * ---------- the colossus: a thin basalt giant on the horizon ----------
+ * It strides slowly round the far edge of the molten world, lava glowing in
+ * its seams and its eye slit. The easter egg: look at it and hold still for a
+ * few seconds (or click it) and it stops, turns its head to you, raises an arm
+ * and waves with a deep rumble, then walks on.
+ */
+const COLOSSUS_R = 62;
+/** Built 10 units tall, scaled to this */
+const COLOSSUS_H = 30;
+const COLOSSUS_SPEED = 1.1;
+const COLOSSUS_GAZE_S = 2.5;
+const COLOSSUS_WAVE_S = 7;
+const COLOSSUS_COOL_S = 35;
+const COLOSSUS_GLOW = new THREE.Color('#ff6a1a').multiplyScalar(2.2);
+const COLOSSUS_GAZE_COS = Math.cos(0.2);
+
+const Colossus = ({ planet, ground, reducedMotion }: { planet: Planet; ground: HeightFn; reducedMotion?: boolean }) => {
+  const camera = useThree((s) => s.camera);
+  const root = useRef<THREE.Group>(null);
+  const legs = useRef<(THREE.Group | null)[]>([]);
+  const shins = useRef<(THREE.Group | null)[]>([]);
+  const arms = useRef<(THREE.Group | null)[]>([]);
+  const fores = useRef<(THREE.Group | null)[]>([]);
+  const head = useRef<THREE.Group>(null);
+  const mats = useMemo(
+    () => ({
+      stone: new THREE.MeshStandardMaterial({ color: '#2a2220', roughness: 0.95, flatShading: true }),
+      // the glow shows through the haze, so the giant reads as a silhouette with burning seams
+      glow: new THREE.MeshBasicMaterial({ color: COLOSSUS_GLOW.clone(), fog: false }),
+    }),
+    [],
+  );
+  useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats]);
+  const rnd = useMemo(() => mulberry(seedOf(`${planet.id}:colossus`)), [planet.id]);
+  const st = useRef({ a: -Math.PI / 2 - 0.55, gaze: 0, wave: 0, cool: 6, k: 0, stride: rnd() * 10 });
+  const _fwd = useMemo(() => new THREE.Vector3(), []);
+  const _to = useMemo(() => new THREE.Vector3(), []);
+
+  const hail = () => {
+    const s = st.current;
+    s.wave = COLOSSUS_WAVE_S;
+    s.cool = COLOSSUS_COOL_S;
+    const g = root.current;
+    if (g) callFrom(camera, 'rumble', g.position.x, g.position.y + COLOSSUS_H * 0.8, g.position.z);
+  };
+
+  useFrame(({ clock }, delta) => {
+    const g = root.current;
+    if (!g) return;
+    const dt = reducedMotion ? 0 : Math.min(delta, 0.05);
+    const t = clock.elapsedTime;
+    const s = st.current;
+    s.cool -= dt;
+    s.wave = Math.max(0, s.wave - dt);
+    s.k += ((s.wave > 0.8 ? 1 : 0) - s.k) * damp(1.1, dt);
+    const k = smooth01(s.k);
+    const walk = 1 - k;
+    s.a += (COLOSSUS_SPEED / COLOSSUS_R) * dt * walk;
+    s.stride += COLOSSUS_SPEED * dt * walk;
+    const x = Math.cos(s.a) * COLOSSUS_R;
+    const z = Math.sin(s.a) * COLOSSUS_R;
+    // a long slow stride: one full cycle every 7 units walked
+    const ph = (s.stride / 7) * Math.PI * 2;
+    const yaw = Math.atan2(-Math.sin(s.a), Math.cos(s.a));
+    g.position.set(x, ground(x, z) - 0.4 + Math.abs(Math.sin(ph)) * 0.35 * walk, z);
+    // turning a little toward the viewer while it waves
+    const toYaw = Math.atan2(camera.position.x - x, camera.position.z - z);
+    g.rotation.y = yaw + wrapAngle(toYaw - yaw) * 0.35 * k;
+    for (let i = 0; i < 2; i += 1) {
+      const sgn = i ? -1 : 1;
+      const leg = legs.current[i];
+      const shin = shins.current[i];
+      if (leg) leg.rotation.x = Math.sin(ph) * 0.32 * sgn * walk;
+      if (shin) shin.rotation.x = Math.max(0, Math.sin(ph + (i ? Math.PI : 0) + 0.6)) * 0.45 * walk;
+      const arm = arms.current[i];
+      if (arm) arm.rotation.x = -Math.sin(ph) * 0.18 * sgn * walk;
+    }
+    // the wave: the right arm swings up and out, the forearm waving overhead
+    const armR = arms.current[1];
+    const foreR = fores.current[1];
+    if (armR) armR.rotation.z = 2.6 * k;
+    if (foreR) foreR.rotation.z = (0.35 + Math.sin(t * 2.2) * 0.4) * k;
+    const h = head.current;
+    if (h) {
+      h.rotation.y = THREE.MathUtils.clamp(wrapAngle(toYaw - g.rotation.y), -1, 1) * k;
+      h.rotation.x = 0.18 * k;
+    }
+    mats.glow.color.copy(COLOSSUS_GLOW).multiplyScalar(1 + 0.9 * k + 0.12 * Math.sin(t * 1.3));
+
+    // look at it and hold still: it answers
+    _fwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
+    _to.set(x, g.position.y + COLOSSUS_H * 0.6, z).sub(camera.position);
+    const looking = _to.normalize().dot(_fwd) > COLOSSUS_GAZE_COS;
+    s.gaze = looking && s.wave <= 0 ? s.gaze + dt : 0;
+    if (!reducedMotion && s.gaze > COLOSSUS_GAZE_S && s.cool <= 0) hail();
+  });
+
+  const poke = (e: ThreeEvent<MouseEvent>) => {
+    if (!isPoke(e)) return;
+    if (st.current.wave <= 0) hail();
+  };
+
+  const S = COLOSSUS_H / 10;
+  return (
+    <group ref={root} scale={S}>
+      {/* hips and long thin legs */}
+      <mesh material={mats.stone} position={[0, 4.6, 0]}>
+        <boxGeometry args={[1.4, 0.6, 0.8]} />
+      </mesh>
+      {[-1, 1].map((sx, i) => (
+        <group key={sx} position={[sx * 0.45, 4.5, 0]} ref={(el) => (legs.current[i] = el)}>
+          <mesh material={mats.stone} position={[0, -1.2, 0]}>
+            <boxGeometry args={[0.45, 2.4, 0.5]} />
+          </mesh>
+          <mesh material={mats.glow} position={[sx * 0.05, -1.2, 0.26]}>
+            <boxGeometry args={[0.04, 1.6, 0.02]} />
+          </mesh>
+          <group position={[0, -2.4, 0]} ref={(el) => (shins.current[i] = el)}>
+            <mesh material={mats.stone} position={[0, -1.05, 0]}>
+              <boxGeometry args={[0.36, 2.1, 0.4]} />
+            </mesh>
+            <mesh material={mats.stone} position={[0, -2.15, 0.2]}>
+              <boxGeometry args={[0.6, 0.25, 1]} />
+            </mesh>
+          </group>
+        </group>
+      ))}
+      {/* a tall tapered torso with a burning seam down the chest */}
+      <mesh material={mats.stone} position={[0, 6.55, 0]} rotation={[0, Math.PI / 4, 0]}>
+        <cylinderGeometry args={[0.95, 0.55, 3.4, 4]} />
+      </mesh>
+      <mesh material={mats.glow} position={[0, 6.6, 0.47]} rotation={[-0.12, 0, 0]}>
+        <boxGeometry args={[0.05, 2.6, 0.03]} />
+      </mesh>
+      {/* arms hanging long, almost to the knees */}
+      {[-1, 1].map((sx, i) => (
+        <group key={sx} position={[sx * 1.05, 8.1, 0]} ref={(el) => (arms.current[i] = el)}>
+          <mesh material={mats.stone} position={[0, -1.3, 0]}>
+            <boxGeometry args={[0.3, 2.6, 0.3]} />
+          </mesh>
+          <group position={[0, -2.6, 0]} ref={(el) => (fores.current[i] = el)}>
+            <mesh material={mats.stone} position={[0, -1.2, 0]}>
+              <boxGeometry args={[0.26, 2.4, 0.26]} />
+            </mesh>
+            <mesh material={mats.stone} position={[0, -2.55, 0]}>
+              <boxGeometry args={[0.42, 0.5, 0.26]} />
+            </mesh>
+          </group>
+        </group>
+      ))}
+      {/* a small head with a glowing eye slit */}
+      <mesh material={mats.stone} position={[0, 8.45, 0]}>
+        <cylinderGeometry args={[0.2, 0.28, 0.5, 6]} />
+      </mesh>
+      <group position={[0, 8.7, 0]} ref={head}>
+        <mesh material={mats.stone} position={[0, 0.4, 0]}>
+          <boxGeometry args={[0.7, 0.8, 0.62]} />
+        </mesh>
+        <mesh material={mats.glow} position={[0, 0.48, 0.32]}>
+          <boxGeometry args={[0.46, 0.07, 0.04]} />
+        </mesh>
+      </group>
+      {/* a generous invisible target for the click */}
+      <mesh position={[0, 5, 0]} visible={false} onClick={poke}>
+        <boxGeometry args={[3, 10, 2]} />
+      </mesh>
+    </group>
+  );
+};
+
 /* ---------- jellies: translucent drifters that pulse and rise over the clouds ---------- */
 
 /** Jellies drift over to hover around a viewer inside this range */
@@ -1473,6 +1726,7 @@ const Wildlife = ({
         />
       )}
       {f.gliders && <Gliders planet={planet} cfg={f.gliders} reducedMotion={reducedMotion} />}
+      {f.colossus && <Colossus planet={planet} ground={ground} reducedMotion={reducedMotion} />}
       {f.jellies > 0 && <Jellies planet={planet} count={Math.round(f.jellies * k)} reducedMotion={reducedMotion} />}
     </>
   );

@@ -476,7 +476,7 @@ export const useSoundEnabled = () =>
 
 /* ---------- wildlife calls ---------- */
 
-export type CritterVoice = 'chirp' | 'squeak' | 'mew' | 'boop' | 'trill' | 'song';
+export type CritterVoice = 'chirp' | 'squeak' | 'mew' | 'boop' | 'trill' | 'song' | 'rumble';
 
 let lastCall = 0;
 
@@ -491,8 +491,9 @@ export const critterCall = (kind: CritterVoice, distance: number, pan: number) =
   if (nowMs - lastCall < 220) return;
   lastCall = nowMs;
   // the big sky creatures' song carries much further than a small creature's call
-  const reach = kind === 'song' ? 110 : 28;
-  const level = (kind === 'song' ? 0.12 : 0.16) * Math.max(0, 1 - distance / reach) ** 1.5;
+  const far = kind === 'song' || kind === 'rumble';
+  const reach = far ? 120 : 28;
+  const level = (kind === 'rumble' ? 0.2 : kind === 'song' ? 0.12 : 0.16) * Math.max(0, 1 - distance / reach) ** 1.5;
   if (level < 0.004) return;
   const c = ctx;
   const t0 = c.currentTime + 0.01;
@@ -569,6 +570,14 @@ export const critterCall = (kind: CritterVoice, distance: number, pan: number) =
       blip('triangle', t0 + 0.12, 2.1, [[0, base * 2.01], [0.85, base * 2.9], [2.0, base * 1.8]], 0.18, 4.5);
       break;
     }
+    case 'rumble': {
+      // a deep grinding groan, like rock moving: two low tones beating against each other
+      const base = r(52, 62);
+      blip('sawtooth', t0, 3.0, [[0, base], [1.2, base * 1.25], [2.9, base * 0.8]], 0.5, 3);
+      blip('sine', t0 + 0.05, 2.9, [[0, base * 1.02], [1.3, base * 1.3], [2.8, base * 0.82]], 0.9);
+      blip('triangle', t0 + 0.4, 2.2, [[0, base * 3], [1.0, base * 3.6], [2.1, base * 2.4]], 0.12, 2);
+      break;
+    }
     case 'boop': {
       // a round, falling bubble with a little echo
       const base = r(380, 520);
@@ -581,7 +590,7 @@ export const critterCall = (kind: CritterVoice, distance: number, pan: number) =
     out.disconnect();
     panner.disconnect();
     send.disconnect();
-  }, kind === 'song' ? 4000 : 2000);
+  }, kind === 'song' || kind === 'rumble' ? 4500 : 2000);
 };
 
 /* ---------- ship ---------- */
