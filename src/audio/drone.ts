@@ -476,7 +476,7 @@ export const useSoundEnabled = () =>
 
 /* ---------- wildlife calls ---------- */
 
-export type CritterVoice = 'chirp' | 'squeak' | 'mew' | 'boop';
+export type CritterVoice = 'chirp' | 'squeak' | 'mew' | 'boop' | 'trill' | 'song';
 
 let lastCall = 0;
 
@@ -490,7 +490,9 @@ export const critterCall = (kind: CritterVoice, distance: number, pan: number) =
   const nowMs = performance.now();
   if (nowMs - lastCall < 220) return;
   lastCall = nowMs;
-  const level = 0.16 * Math.max(0, 1 - distance / 28) ** 1.5;
+  // the big sky creatures' song carries much further than a small creature's call
+  const reach = kind === 'song' ? 110 : 28;
+  const level = (kind === 'song' ? 0.12 : 0.16) * Math.max(0, 1 - distance / reach) ** 1.5;
   if (level < 0.004) return;
   const c = ctx;
   const t0 = c.currentTime + 0.01;
@@ -554,6 +556,19 @@ export const critterCall = (kind: CritterVoice, distance: number, pan: number) =
       blip('triangle', t0, 0.42, [[0, base], [0.16, base * 1.35], [0.4, base * 1.05]], 0.8, 28);
       break;
     }
+    case 'trill': {
+      // a quick dry clicking skitter
+      const base = r(3600, 4600);
+      for (let i = 0; i < 5; i += 1) blip('square', t0 + i * 0.045, 0.03, [[0, base * (1 + (i % 2) * 0.08)], [0.025, base * 0.85]], 0.18);
+      break;
+    }
+    case 'song': {
+      // a long low call that rises and falls, with a quiet overtone above it
+      const base = r(130, 175);
+      blip('sine', t0, 2.4, [[0, base], [0.9, base * 1.45], [2.3, base * 0.9]], 1, 4.5);
+      blip('triangle', t0 + 0.12, 2.1, [[0, base * 2.01], [0.85, base * 2.9], [2.0, base * 1.8]], 0.18, 4.5);
+      break;
+    }
     case 'boop': {
       // a round, falling bubble with a little echo
       const base = r(380, 520);
@@ -566,7 +581,7 @@ export const critterCall = (kind: CritterVoice, distance: number, pan: number) =
     out.disconnect();
     panner.disconnect();
     send.disconnect();
-  }, 2000);
+  }, kind === 'song' ? 4000 : 2000);
 };
 
 /* ---------- ship ---------- */

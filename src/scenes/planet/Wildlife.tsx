@@ -2,37 +2,87 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Planet, PlanetStyle } from '@/types/content';
-import type { HeightFn } from './Terrain';
+import { walkRadiusFor, type HeightFn } from './Terrain';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { mulberry, seedOf } from './rng';
 import { critterCall, type CritterVoice } from '@/audio/drone';
 import { dragLook, mouseLook } from '@/state/runtime';
 
 /* ---------- which creatures live where ---------- */
 
+/** A herd of walkers: medium ones that follow and greet, or big ones that roam slower */
+interface Herd {
+  kind: 'deer' | 'hopper';
+  count: number;
+  size?: number;
+  speed?: number;
+  /** Deer coat and leg colours */
+  colors?: [string, string];
+}
+
+/**
+ * Every planet has something in each part of its sky and on its ground: small
+ * fliers, big slow gliders high up, small quick things underfoot, and herds of
+ * medium and big walkers.
+ */
 interface Fauna {
   birds: { count: number; color: string; alt: [number, number]; radius: [number, number] } | null;
-  walkers: { kind: 'deer' | 'hopper'; count: number } | null;
+  walkers: Herd[];
   jellies: number;
+  skitter: SkitterCfg | null;
+  gliders: GliderCfg | null;
 }
 
 const FAUNA: Record<PlanetStyle, Fauna> = {
   // gulls wheeling over the island
-  oceanic: { birds: { count: 9, color: '#f2f0ea', alt: [6, 10], radius: [12, 24] }, walkers: null, jellies: 0 },
+  oceanic: {
+    birds: { count: 9, color: '#f2f0ea', alt: [6, 10], radius: [12, 24] },
+    walkers: [],
+    jellies: 0,
+    skitter: { kind: 'crab', count: 8, color: '#b4563a' },
+    gliders: null,
+  },
   // dark songbirds and grazing deer under the canopy
   forested: {
     birds: { count: 8, color: '#1a1714', alt: [6, 10], radius: [14, 26] },
-    walkers: { kind: 'deer', count: 4 },
+    walkers: [{ kind: 'deer', count: 4 }],
     jellies: 0,
+    skitter: { kind: 'lizard', count: 8, color: '#4f5a35' },
+    gliders: null,
   },
-  // alien hoppers on the dunes, a few birds at dusk
+  // About, dunes at dusk: birds, sky rays, hoppers and tall dune striders, lizards
   rocky: {
     birds: { count: 5, color: '#241a16', alt: [7, 11], radius: [14, 28] },
-    walkers: { kind: 'hopper', count: 6 },
+    walkers: [
+      { kind: 'hopper', count: 6 },
+      { kind: 'deer', count: 2, size: 1.7, speed: 0.6, colors: ['#a9784e', '#4a3324'] },
+    ],
     jellies: 0,
+    skitter: { kind: 'lizard', count: 10, color: '#6b4a33' },
+    gliders: { kind: 'manta', count: 2, color: '#3d2c3f', glow: '#ffb48a', glowK: 0.12, alt: [20, 27], radius: [26, 36] },
   },
-  // glowing drifters over the cloud deck
-  'gas-giant': { birds: null, walkers: null, jellies: 7 },
-  molten: { birds: null, walkers: null, jellies: 0 },
+  // Projects, night over the cloud deck: pale swifts, glowing drifters, sky whales, mesa grazers, glowing crabs
+  'gas-giant': {
+    birds: { count: 8, color: '#e6dcff', alt: [5, 9], radius: [9, 18] },
+    walkers: [
+      { kind: 'deer', count: 3, size: 1.1, speed: 0.85, colors: ['#9a8ac0', '#3e3456'] },
+      { kind: 'deer', count: 1, size: 1.9, speed: 0.5, colors: ['#7a6aa6', '#2e2644'] },
+    ],
+    jellies: 7,
+    skitter: { kind: 'crab', count: 9, color: '#2e2440', glow: '#b48cff' },
+    gliders: { kind: 'whale', count: 2, color: '#8f7fc0', glow: '#c8b6ff', glowK: 0.3, alt: [18, 25], radius: [24, 32] },
+  },
+  // Awards, the molten world: ember bats, lava-lit sky rays, hoppers and basalt beasts, ember salamanders
+  molten: {
+    birds: { count: 7, color: '#1b1110', alt: [5, 9], radius: [12, 22] },
+    walkers: [
+      { kind: 'hopper', count: 4 },
+      { kind: 'deer', count: 2, size: 1.7, speed: 0.55, colors: ['#3a2a22', '#1a120e'] },
+    ],
+    jellies: 0,
+    skitter: { kind: 'ember', count: 10, color: '#2a140b', glow: '#ff6a1a' },
+    gliders: { kind: 'manta', count: 2, color: '#2a1610', glow: '#ff7a3a', glowK: 0.45, alt: [20, 27], radius: [26, 36] },
+  },
 };
 
 const damp = (rate: number, dt: number) => 1 - Math.exp(-rate * dt);
@@ -325,6 +375,10 @@ const Walkers = ({
   planet,
   kind,
   count,
+  size = 1,
+  speedK = 1,
+  colors,
+  maxR = WORLD_R,
   ground,
   obstacles,
   viewer,
@@ -333,6 +387,12 @@ const Walkers = ({
   planet: Planet;
   kind: 'deer' | 'hopper';
   count: number;
+  /** Big walkers are scaled up and move slower */
+  size?: number;
+  speedK?: number;
+  colors?: [string, string];
+  /** How far from the centre they may go (the mesa and the island are smaller) */
+  maxR?: number;
   ground: HeightFn;
   /** Monument footprints (x, z) to walk around */
   obstacles: [number, number][];
@@ -343,13 +403,16 @@ const Walkers = ({
   const refs = useRef<(THREE.Group | null)[]>([]);
   const legs = useRef<(THREE.Object3D | null)[][]>([]);
   const necks = useRef<(THREE.Object3D | null)[]>([]);
-  const rnd = useMemo(() => mulberry(seedOf(`${planet.id}:walkers`)), [planet.id]);
+  const rnd = useMemo(() => mulberry(seedOf(`${planet.id}:walkers:${kind}:${size}`)), [planet.id, kind, size]);
+  const ringMin = Math.min(WALK_MIN_R, maxR * 0.5);
+  const ringMax = Math.min(WALK_MAX_R, maxR - 2);
+  const worldR = Math.min(WORLD_R, maxR - 0.5);
 
   const pick = (w: Walker) => {
     // stay in the ring behind the monuments; short hops in angle keep paths clear of them
     const a0 = Math.atan2(w.z, w.x);
     const a = a0 + (rnd() - 0.5) * 1.6;
-    const r = WALK_MIN_R + rnd() * (WALK_MAX_R - WALK_MIN_R);
+    const r = ringMin + rnd() * (ringMax - ringMin);
     w.tx = Math.cos(a) * r;
     w.tz = Math.sin(a) * r;
   };
@@ -359,7 +422,7 @@ const Walkers = ({
       Array.from({ length: count }, (_, i) => {
         // spread around the far side first, where they are seen from the spawn
         const a = -Math.PI / 2 + (i / count - 0.5) * 2.6 + (rnd() - 0.5) * 0.4;
-        const r = WALK_MIN_R + rnd() * (WALK_MAX_R - WALK_MIN_R);
+        const r = ringMin + rnd() * (ringMax - ringMin);
         const w: Walker = {
           x: Math.cos(a) * r,
           z: Math.sin(a) * r,
@@ -396,8 +459,8 @@ const Walkers = ({
   const mats = useMemo(() => {
     if (kind === 'deer') {
       return {
-        body: new THREE.MeshStandardMaterial({ color: '#7a5636', roughness: 0.85, flatShading: true }),
-        dark: new THREE.MeshStandardMaterial({ color: '#3b2a1c', roughness: 0.9, flatShading: true }),
+        body: new THREE.MeshStandardMaterial({ color: colors?.[0] ?? '#7a5636', roughness: 0.85, flatShading: true }),
+        dark: new THREE.MeshStandardMaterial({ color: colors?.[1] ?? '#3b2a1c', roughness: 0.9, flatShading: true }),
         glow: null,
       };
     }
@@ -411,7 +474,8 @@ const Walkers = ({
       dark: new THREE.MeshStandardMaterial({ color: '#3a2c40', roughness: 0.8, flatShading: true }),
       glow: new THREE.MeshBasicMaterial({ color: accent.clone().multiplyScalar(1.4) }),
     };
-  }, [kind, planet.accent]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind, planet.accent, colors?.[0], colors?.[1]]);
   useEffect(() => () => Object.values(mats).forEach((m) => m?.dispose()), [mats]);
 
   const speak = (w: Walker) => callFrom(camera, kind === 'deer' ? 'mew' : 'squeak', w.x, ground(w.x, w.z) + 0.6, w.z);
@@ -504,7 +568,7 @@ const Walkers = ({
       const dz = w.tz - w.z;
       const d = Math.hypot(dx, dz);
       const hurry = w.mode === 'shy' ? 2.6 : w.mode === 'curious' && d > 5 ? 2.3 : 1;
-      const speed = (kind === 'deer' ? 0.9 : 1.1) * hurry;
+      const speed = (kind === 'deer' ? 0.9 : 1.1) * hurry * speedK;
       if (w.moving && w.greet <= 0 && w.rest < 0.15) {
         if (d < (w.mode === 'wander' ? 0.15 : 0.4)) {
           w.moving = false;
@@ -521,7 +585,7 @@ const Walkers = ({
           const step = Math.min(d, speed * dt * facing);
           w.x += Math.sin(w.yaw) * step;
           w.z += Math.cos(w.yaw) * step;
-          w.phase += step * (kind === 'deer' ? 5.5 : 4.2);
+          w.phase += (step * (kind === 'deer' ? 5.5 : 4.2)) / size;
         }
       } else if (w.mode !== 'wander' && !w.moving) {
         // stopped near you: turn to face you
@@ -533,9 +597,10 @@ const Walkers = ({
         const ex = w.x - ox;
         const ez = w.z - oz;
         const e = Math.hypot(ex, ez);
-        if (e < 1.35 && e > 1e-4) {
-          w.x = ox + (ex / e) * 1.35;
-          w.z = oz + (ez / e) * 1.35;
+        const keep = 1.35 * size;
+        if (e < keep && e > 1e-4) {
+          w.x = ox + (ex / e) * keep;
+          w.z = oz + (ez / e) * keep;
         }
       }
       for (let j = 0; j < i; j += 1) {
@@ -543,8 +608,8 @@ const Walkers = ({
         const ex = w.x - o.x;
         const ez = w.z - o.z;
         const e = Math.hypot(ex, ez);
-        if (e < 0.9 && e > 1e-4) {
-          const push = (0.9 - e) / 2;
+        if (e < 0.9 * size && e > 1e-4) {
+          const push = (0.9 * size - e) / 2;
           w.x += (ex / e) * push;
           w.z += (ez / e) * push;
           o.x -= (ex / e) * push;
@@ -552,9 +617,9 @@ const Walkers = ({
         }
       }
       const wr = Math.hypot(w.x, w.z);
-      if (wr > WORLD_R) {
-        w.x *= WORLD_R / wr;
-        w.z *= WORLD_R / wr;
+      if (wr > worldR) {
+        w.x *= worldR / wr;
+        w.z *= worldR / wr;
       }
       w.look += ((w.mode !== 'wander' || w.watch > 0 ? 1 : 0) - w.look) * damp(2, dt);
       w.rest += ((w.act === 'rest' && !w.moving && w.mode === 'wander' ? 1 : 0) - w.rest) * damp(w.act === 'rest' ? 0.9 : 2.2, dt);
@@ -571,7 +636,7 @@ const Walkers = ({
         legs.current[i]?.forEach((leg, k) => {
           if (leg) leg.rotation.x = (k === 0 || k === 3 ? 1 : -1) * swing * (1 - lie) + (k < 2 ? -1.45 : 1.45) * lie;
         });
-        g.position.y -= 0.46 * lie;
+        g.position.y -= 0.46 * lie * size;
         // graze with the head down, look up now and then (or to watch you); lying down the head
         // stays up, nodding off and back
         const grazing = w.mode === 'wander' && !w.moving && w.act === 'graze' && w.watch <= 0 && Math.sin(t * 0.5 + i * 2.3) > -0.3;
@@ -635,7 +700,7 @@ const Walkers = ({
       {walkers.map((_, i) => {
         if (!legs.current[i]) legs.current[i] = [];
         return kind === 'deer' ? (
-          <group key={i} ref={(el) => (refs.current[i] = el)} onClick={(e) => poke(e, i)}>
+          <group key={i} ref={(el) => (refs.current[i] = el)} scale={size} onClick={(e) => poke(e, i)}>
             {/* body and legs; the model faces +z */}
             <mesh material={mats.body} position={[0, 0.72, 0]} castShadow>
               <boxGeometry args={[0.32, 0.34, 0.78]} />
@@ -670,7 +735,7 @@ const Walkers = ({
             </group>
           </group>
         ) : (
-          <group key={i} ref={(el) => (refs.current[i] = el)} scale={1.4} onClick={(e) => poke(e, i)}>
+          <group key={i} ref={(el) => (refs.current[i] = el)} scale={1.4 * size} onClick={(e) => poke(e, i)}>
             <group>
               <mesh material={mats.body} castShadow>
                 <icosahedronGeometry args={[0.24, 1]} />
@@ -695,6 +760,499 @@ const Walkers = ({
           </group>
         );
       })}
+    </>
+  );
+};
+
+/*
+ * ---------- skitterers: small quick things on the ground ----------
+ * Lizards, little crabs, ember salamanders. They dart about in short bursts
+ * near a home spot and bolt when the viewer comes at them. The easter egg:
+ * stand still near them for a few seconds and they creep up and run circles
+ * round your feet, clicking; move and they scatter. A click on one makes it
+ * jump and spin, and the others near it scatter.
+ */
+
+type SkitterKind = 'lizard' | 'crab' | 'ember';
+interface SkitterCfg {
+  kind: SkitterKind;
+  count: number;
+  color: string;
+  /** Emissive glow (ember salamanders, glowing crabs) */
+  glow?: string;
+}
+
+interface Skitter {
+  x: number;
+  z: number;
+  yaw: number;
+  tx: number;
+  tz: number;
+  hx: number;
+  hz: number;
+  state: 'idle' | 'dash' | 'flee' | 'gather';
+  timer: number;
+  /** Seconds before it will come round the viewer again */
+  cool: number;
+  phase: number;
+  /** Jump time left after a click */
+  jump: number;
+  ring: number;
+  callIn: number;
+}
+
+/** Standing still this long near them brings them round */
+const GATHER_AFTER = 3.5;
+const GATHER_NEAR = 8;
+const BOLT_NEAR = 3.5;
+const JUMP_S = 0.7;
+
+const skitterGeometry = (kind: SkitterKind) => {
+  const parts: THREE.BufferGeometry[] = [];
+  const box = (w: number, h: number, d: number, x: number, y: number, z: number, ry = 0, rx = 0) => {
+    const g = new THREE.BoxGeometry(w, h, d);
+    g.rotateX(rx);
+    g.rotateY(ry);
+    g.translate(x, y, z);
+    parts.push(g);
+  };
+  if (kind === 'crab') {
+    box(0.22, 0.07, 0.16, 0, 0.07, 0);
+    for (const s of [-1, 1]) {
+      for (let k = 0; k < 3; k += 1) box(0.14, 0.02, 0.02, s * 0.15, 0.04, -0.05 + k * 0.05, s * (0.25 - k * 0.25), 0);
+      // claws held up in front
+      box(0.05, 0.05, 0.08, s * 0.1, 0.09, 0.12, s * 0.4);
+    }
+  } else {
+    const slim = kind === 'ember' ? 0.8 : 1;
+    box(0.12 * slim, 0.055, 0.26, 0, 0.05, 0);
+    box(0.09 * slim, 0.05, 0.1, 0, 0.055, 0.17);
+    box(0.045 * slim, 0.03, 0.26, 0, 0.04, -0.24);
+    for (const s of [-1, 1]) for (const z of [0.07, -0.07]) box(0.09, 0.025, 0.03, s * 0.09, 0.025, z, s * (z > 0 ? -0.5 : 0.5));
+  }
+  const g = mergeGeometries(parts);
+  parts.forEach((p) => p.dispose());
+  return g!;
+};
+
+const Skitterers = ({
+  planet,
+  cfg,
+  ground,
+  obstacles,
+  viewer,
+  maxR,
+  reducedMotion,
+}: {
+  planet: Planet;
+  cfg: SkitterCfg;
+  ground: HeightFn;
+  obstacles: [number, number][];
+  viewer: ViewerRef;
+  maxR: number;
+  reducedMotion?: boolean;
+}) => {
+  const camera = useThree((s) => s.camera);
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  const rnd = useMemo(() => mulberry(seedOf(`${planet.id}:skitter`)), [planet.id]);
+  const geo = useMemo(() => skitterGeometry(cfg.kind), [cfg.kind]);
+  const mat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: cfg.color,
+        roughness: 0.7,
+        flatShading: true,
+        emissive: new THREE.Color(cfg.glow ?? '#000000'),
+        emissiveIntensity: cfg.glow ? 1.6 : 0,
+      }),
+    [cfg.color, cfg.glow],
+  );
+  useEffect(
+    () => () => {
+      geo.dispose();
+      mat.dispose();
+    },
+    [geo, mat],
+  );
+
+  const crits = useMemo<Skitter[]>(
+    () =>
+      Array.from({ length: cfg.count }, (_, i) => {
+        // a few loose groups round the far side and the flanks
+        const a = -Math.PI / 2 + ((i % 3) - 1) * 1.1 + (rnd() - 0.5) * 0.5;
+        const r = 7 + rnd() * Math.max(2, Math.min(18, maxR - 9));
+        const x = Math.cos(a) * r;
+        const z = Math.sin(a) * r;
+        return { x, z, yaw: rnd() * 6.28, tx: x, tz: z, hx: x, hz: z, state: 'idle', timer: rnd() * 3, cool: 0, phase: rnd() * 10, jump: 0, ring: (i / cfg.count) * Math.PI * 2, callIn: 1 + rnd() * 3 };
+      }),
+    [cfg.count, rnd, maxR],
+  );
+
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+
+  useFrame(({ clock }, delta) => {
+    const m = mesh.current;
+    if (!m) return;
+    const dt = reducedMotion ? 0 : Math.min(delta, 0.05);
+    const t = clock.elapsedTime;
+    const v = viewer.current;
+    const px = camera.position.x;
+    const pz = camera.position.z;
+    crits.forEach((c, i) => {
+      const dx = c.x - px;
+      const dz = c.z - pz;
+      const d = Math.hypot(dx, dz);
+      c.timer -= dt;
+      c.cool -= dt;
+      c.jump = Math.max(0, c.jump - dt);
+      if (!reducedMotion) {
+        if (c.state === 'gather') {
+          if (v.speed > 0.6) {
+            // you moved: scatter
+            c.state = 'flee';
+            c.tx = c.x + (dx / (d || 1)) * 5;
+            c.tz = c.z + (dz / (d || 1)) * 5;
+            c.cool = 8;
+          }
+        } else if (c.state !== 'flee' && d < BOLT_NEAR && v.speed > 0.5) {
+          c.state = 'flee';
+          c.tx = c.x + (dx / (d || 1)) * 5;
+          c.tz = c.z + (dz / (d || 1)) * 5;
+        } else if (c.state !== 'flee' && c.cool <= 0 && v.still > GATHER_AFTER && d < GATHER_NEAR) {
+          c.state = 'gather';
+        }
+      }
+      if (c.state === 'gather') {
+        // round the viewer's feet, each in its own place on the ring
+        const a = c.ring + t * 0.7;
+        c.tx = px + Math.cos(a) * 1.7;
+        c.tz = pz + Math.sin(a) * 1.7;
+        c.callIn -= dt;
+        if (c.callIn <= 0) {
+          callFrom(camera, 'trill', c.x, ground(c.x, c.z), c.z);
+          c.callIn = 2.5 + rnd() * 3;
+        }
+      } else if (c.state === 'idle' && c.timer <= 0) {
+        c.state = 'dash';
+        const a = rnd() * Math.PI * 2;
+        const r = 1 + rnd() * 3.5;
+        c.tx = c.hx + Math.cos(a) * r;
+        c.tz = c.hz + Math.sin(a) * r;
+      }
+      const ex = c.tx - c.x;
+      const ez = c.tz - c.z;
+      const e = Math.hypot(ex, ez);
+      const speed = c.state === 'flee' ? 5.5 : c.state === 'gather' ? 2.4 : 3.2;
+      let moving = false;
+      if (c.state !== 'idle' && c.jump <= 0) {
+        if (e < 0.08 && c.state !== 'gather') {
+          if (c.state === 'flee') {
+            // settle where it ran to
+            c.hx = c.x;
+            c.hz = c.z;
+          }
+          c.state = 'idle';
+          c.timer = 0.6 + rnd() * 2.8;
+        } else if (e > 0.02) {
+          moving = true;
+          const want = Math.atan2(ex, ez);
+          c.yaw += wrapAngle(want - c.yaw) * damp(14, dt);
+          const step = Math.min(e, speed * dt);
+          c.x += Math.sin(c.yaw) * step;
+          c.z += Math.cos(c.yaw) * step;
+          c.phase += step * 40;
+        }
+      }
+      for (const [ox, oz] of obstacles) {
+        const ox2 = c.x - ox;
+        const oz2 = c.z - oz;
+        const o = Math.hypot(ox2, oz2);
+        if (o < 1.2 && o > 1e-4) {
+          c.x = ox + (ox2 / o) * 1.2;
+          c.z = oz + (oz2 / o) * 1.2;
+        }
+      }
+      const wr = Math.hypot(c.x, c.z);
+      if (wr > maxR) {
+        c.x *= maxR / wr;
+        c.z *= maxR / wr;
+      }
+      const jp = c.jump > 0 ? 1 - c.jump / JUMP_S : 0;
+      dummy.position.set(c.x, ground(c.x, c.z) + (jp > 0 ? Math.sin(jp * Math.PI) * 0.45 : 0), c.z);
+      // a body wiggle while running, a spin in the jump
+      dummy.rotation.set(0, c.yaw + (moving ? Math.sin(c.phase) * 0.28 : 0) + jp * Math.PI * 2, 0);
+      dummy.scale.setScalar(1.25);
+      dummy.updateMatrix();
+      m.setMatrixAt(i, dummy.matrix);
+    });
+    m.instanceMatrix.needsUpdate = true;
+  });
+
+  const poke = (e: ThreeEvent<MouseEvent>) => {
+    if (!isPoke(e) || e.instanceId === undefined) return;
+    const c = crits[e.instanceId];
+    if (!c || c.jump > 0) return;
+    c.jump = JUMP_S;
+    callFrom(camera, 'trill', c.x, ground(c.x, c.z), c.z);
+    // the others near it scatter
+    for (const o of crits) {
+      if (o === c) continue;
+      const dx = o.x - c.x;
+      const dz = o.z - c.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 2.5) {
+        o.state = 'flee';
+        o.tx = o.x + (dx / (d || 1)) * 4;
+        o.tz = o.z + (dz / (d || 1)) * 4;
+        o.cool = 6;
+      }
+    }
+  };
+
+  return <instancedMesh ref={mesh} args={[geo, mat, cfg.count]} castShadow frustumCulled={false} onClick={poke} />;
+};
+
+/*
+ * ---------- gliders: big slow creatures of the sky ----------
+ * Sky rays and sky whales wheeling in wide, slow loops high overhead, their
+ * wings or flukes rippling. The easter egg: stand still and look up at one for
+ * a couple of seconds (or click it) and it answers with a long low call and
+ * swoops down in a broad circle over you, then climbs back up.
+ */
+
+type GliderKind = 'manta' | 'whale';
+interface GliderCfg {
+  kind: GliderKind;
+  count: number;
+  color: string;
+  glow: string;
+  /** How strongly the glow shows (bioluminescent spots, lava-lit edges) */
+  glowK: number;
+  alt: [number, number];
+  radius: [number, number];
+}
+
+const GAZE_S = 2.2;
+const SWOOP_S = 16;
+const SWOOP_COOL_S = 40;
+const GAZE_COS = Math.cos(0.14);
+
+/** A wide ray (manta) or a long whale: a body with wings or fins; aWing rises toward the tips. */
+const gliderGeometry = (kind: GliderKind) => {
+  const manta = kind === 'manta';
+  const span = manta ? 4.2 : 2.2;
+  const len = manta ? 2.0 : 6.5;
+  const g = new THREE.PlaneGeometry(span * 2, len, 28, 14);
+  g.rotateX(-Math.PI / 2);
+  const pos = g.getAttribute('position') as THREE.BufferAttribute;
+  const wing = new Float32Array(pos.count);
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    const u = Math.abs(x) / span; // 0 at the spine, 1 at the tip
+    const w = z / (len / 2); // -1 tail .. 1 nose
+    let chord: number;
+    let thick: number;
+    if (manta) {
+      // a ray's outline: the leading edge runs from a blunt head out to tips swept well back,
+      // the trailing edge curves in behind; a thick body ridge down the middle
+      const lead = (1 - u) ** 0.55 - 0.85 * u;
+      const trail = -0.6 * (1 - u) ** 1.5 - 0.85 * u;
+      pos.setZ(i, (len / 2) * (trail + ((w + 1) / 2) * (lead - trail)));
+      chord = 1;
+      thick = 0.34 * Math.max(0, 1 - u / 0.32) ** 2 * Math.sqrt(Math.max(0, 1 - w * w));
+      pos.setY(i, thick);
+      wing[i] = THREE.MathUtils.clamp((u - 0.12) / 0.8, 0, 1);
+      continue;
+    } else {
+      // a long round body, small rounded pectoral fins a third back, and a fluke at the tail
+      const body = Math.sqrt(Math.max(0, 1 - w * w)) * (0.42 + 0.08 * w);
+      const fin = Math.sqrt(Math.max(0, 1 - ((w - 0.28) / 0.22) ** 2)) * 0.95;
+      const fluke = Math.sqrt(Math.max(0, 1 - ((w + 0.9) / 0.1) ** 2)) * 0.85;
+      chord = 1;
+      // points outside the outline are pulled in onto it
+      const r = Math.min(1, Math.max(body, fin, fluke));
+      if (u > r) pos.setX(i, Math.sign(x) * r * span);
+      thick = body * 0.9 * Math.max(0, 1 - u * 2.2);
+    }
+    pos.setZ(i, z * Math.max(0.05, chord));
+    pos.setY(i, thick);
+    wing[i] = THREE.MathUtils.clamp((Math.abs(pos.getX(i)) / span - (manta ? 0.12 : 0.2)) / 0.8, 0, 1);
+  }
+  g.setAttribute('aWing', new THREE.BufferAttribute(wing, 1));
+  g.computeVertexNormals();
+  if (!manta) return g;
+  // and a long thin tail trailing behind
+  const tail = new THREE.ConeGeometry(0.06, 2.4, 6);
+  tail.rotateX(-Math.PI / 2);
+  tail.translate(0, 0.05, -(len / 2) * 0.6 - 1.2);
+  tail.setAttribute('aWing', new THREE.BufferAttribute(new Float32Array(tail.getAttribute('position').count), 1));
+  const merged = mergeGeometries([g, tail]);
+  g.dispose();
+  tail.dispose();
+  return merged!;
+};
+
+const gliderMaterial = (cfg: GliderCfg, time: { value: number }, phase: number) => {
+  const m = new THREE.MeshStandardMaterial({
+    color: cfg.color,
+    roughness: 0.75,
+    side: THREE.DoubleSide,
+    emissive: new THREE.Color(cfg.glow),
+    emissiveIntensity: cfg.glowK,
+  });
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = time;
+    shader.uniforms.uPhase = { value: phase };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float aWing;\nuniform float uTime;\nuniform float uPhase;')
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        // slow strokes rolling out along the wings, and a wave down the body from nose to tail
+        float stroke = sin(uTime * 0.9 + uPhase - aWing * 1.6);
+        transformed.y += stroke * aWing * aWing * ${cfg.kind === 'manta' ? '0.65' : '0.45'};
+        transformed.y += sin(uTime * 0.8 + uPhase + position.z * 0.7) * ${cfg.kind === 'manta' ? '0.08' : '0.28'} * (1.0 - aWing);`,
+      );
+  };
+  m.customProgramCacheKey = () => `glider-${cfg.kind}`;
+  return m;
+};
+
+interface GliderState {
+  cx: number;
+  cz: number;
+  r: number;
+  w: number;
+  th: number;
+  alt: number;
+  ph: number;
+  gaze: number;
+  swoop: number;
+  /** 0..1 how far into the swoop it has blended */
+  k: number;
+  cool: number;
+  sang: boolean;
+  last: THREE.Vector3;
+}
+
+const Gliders = ({ planet, cfg, reducedMotion }: { planet: Planet; cfg: GliderCfg; reducedMotion?: boolean }) => {
+  const camera = useThree((s) => s.camera);
+  const refs = useRef<(THREE.Mesh | null)[]>([]);
+  const time = useMemo(() => ({ value: 0 }), []);
+  const rnd = useMemo(() => mulberry(seedOf(`${planet.id}:gliders`)), [planet.id]);
+  const geo = useMemo(() => gliderGeometry(cfg.kind), [cfg.kind]);
+  const states = useMemo<GliderState[]>(
+    () =>
+      Array.from({ length: cfg.count }, (_, i) => ({
+        cx: (rnd() - 0.5) * 20,
+        cz: -12 - rnd() * 20,
+        r: cfg.radius[0] + rnd() * (cfg.radius[1] - cfg.radius[0]),
+        w: (0.035 + rnd() * 0.02) * (i % 2 ? -1 : 1),
+        th: rnd() * Math.PI * 2,
+        alt: cfg.alt[0] + rnd() * (cfg.alt[1] - cfg.alt[0]),
+        ph: rnd() * 6.28,
+        gaze: 0,
+        swoop: 0,
+        k: 0,
+        cool: 8,
+        sang: false,
+        last: new THREE.Vector3(NaN, 0, 0),
+      })),
+    [cfg, rnd],
+  );
+  const mats = useMemo(() => states.map((s) => gliderMaterial(cfg, time, s.ph)), [states, cfg, time]);
+  useEffect(
+    () => () => {
+      geo.dispose();
+      mats.forEach((m) => m.dispose());
+    },
+    [geo, mats],
+  );
+
+  const _fwd = useMemo(() => new THREE.Vector3(), []);
+  const _to = useMemo(() => new THREE.Vector3(), []);
+  const _p = useMemo(() => new THREE.Vector3(), []);
+  const _look = useMemo(() => new THREE.Matrix4(), []);
+  const _q = useMemo(() => new THREE.Quaternion(), []);
+  const _bank = useMemo(() => new THREE.Quaternion(), []);
+  const Z = useMemo(() => new THREE.Vector3(0, 0, 1), []);
+
+  const call = (s: GliderState) => {
+    s.swoop = SWOOP_S;
+    s.cool = SWOOP_COOL_S;
+    s.sang = false;
+    callFrom(camera, 'song', s.last.x, s.last.y, s.last.z);
+  };
+
+  useFrame(({ clock }, delta) => {
+    const dt = reducedMotion ? 0 : Math.min(delta, 0.05);
+    const t = clock.elapsedTime;
+    time.value = reducedMotion ? 5 : t;
+    const cam = camera.position;
+    _fwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
+    states.forEach((s, i) => {
+      const g = refs.current[i];
+      if (!g) return;
+      s.cool -= dt;
+      s.swoop = Math.max(0, s.swoop - dt);
+      s.k += ((s.swoop > 1.5 ? 1 : 0) - s.k) * damp(0.35, dt);
+      s.th += s.w * dt * (1 + s.k * 0.6);
+      // its loop eases over to a broad circle low over the viewer during a swoop
+      const k = smooth01(s.k);
+      const cx = s.cx + (cam.x - s.cx) * k;
+      const cz = s.cz + (cam.z - s.cz) * k;
+      const r = s.r + (11 - s.r) * k;
+      const alt = s.alt + (cam.y + 8 - s.alt) * k;
+      _p.set(cx + Math.cos(s.th) * r, alt + Math.sin(t * 0.13 + s.ph) * 1.8, cz + Math.sin(s.th) * r);
+      // heading from motion; banked into the turn
+      if (!Number.isNaN(s.last.x) && dt > 0) {
+        _to.copy(_p).sub(s.last);
+        if (_to.lengthSq() > 1e-8) {
+          // Matrix4.lookAt points +z from the target to the eye: the eye one step ahead puts the nose (+z) forward
+          _look.lookAt(_to.add(_p), _p, THREE.Object3D.DEFAULT_UP);
+          _q.setFromRotationMatrix(_look);
+          _bank.setFromAxisAngle(Z, Math.sign(s.w) * (0.22 + 0.15 * k));
+          _q.multiply(_bank);
+          g.quaternion.slerp(_q, damp(1.5, dt));
+        }
+      }
+      s.last.copy(_p);
+      g.position.copy(_p);
+      if (s.swoop > 0 && !s.sang && s.swoop < SWOOP_S * 0.55) {
+        s.sang = true;
+        callFrom(camera, 'song', _p.x, _p.y, _p.z);
+      }
+
+      // look up at one and hold still: it answers
+      _to.copy(_p).sub(cam);
+      const dist = _to.length();
+      const looking = _to.dot(_fwd) / Math.max(dist, 1e-3) > GAZE_COS;
+      s.gaze = looking && s.swoop <= 0 ? s.gaze + dt : 0;
+      if (!reducedMotion && s.gaze > GAZE_S && s.cool <= 0) call(s);
+    });
+  });
+
+  const poke = (e: ThreeEvent<MouseEvent>, i: number) => {
+    if (!isPoke(e)) return;
+    const s = states[i];
+    if (s.swoop <= 0) call(s);
+    else callFrom(camera, 'song', s.last.x, s.last.y, s.last.z);
+  };
+
+  return (
+    <>
+      {states.map((_, i) => (
+        <mesh
+          key={i}
+          ref={(el) => (refs.current[i] = el)}
+          geometry={geo}
+          material={mats[i]}
+          scale={cfg.kind === 'manta' ? 1.1 : 1}
+          frustumCulled={false}
+          onClick={(e) => poke(e, i)}
+        />
+      ))}
     </>
   );
 };
@@ -878,6 +1436,8 @@ const Wildlife = ({
   });
   const f = FAUNA[planet.style];
   const k = isTouch ? 0.6 : 1;
+  const walkR = walkRadiusFor(planet.style);
+  const skitter = useMemo(() => (f.skitter ? { ...f.skitter, count: Math.max(4, Math.round(f.skitter.count * k)) } : null), [f, k]);
   const birds = useMemo(
     () => (f.birds ? { ...f.birds, count: Math.max(3, Math.round(f.birds.count * k)) } : null),
     [f, k],
@@ -885,17 +1445,34 @@ const Wildlife = ({
   return (
     <>
       {birds && <Birds planet={planet} cfg={birds} viewer={viewer} reducedMotion={reducedMotion} />}
-      {f.walkers && (
+      {f.walkers.map((h) => (
         <Walkers
+          key={`${h.kind}:${h.size ?? 1}`}
           planet={planet}
-          kind={f.walkers.kind}
-          count={Math.max(2, Math.round(f.walkers.count * k))}
+          kind={h.kind}
+          count={Math.max(1, Math.round(h.count * k))}
+          size={h.size}
+          speedK={h.speed}
+          colors={h.colors}
+          maxR={walkR}
           ground={ground}
           obstacles={obstacles}
           viewer={viewer}
           reducedMotion={reducedMotion}
         />
+      ))}
+      {f.skitter && (
+        <Skitterers
+          planet={planet}
+          cfg={skitter!}
+          ground={ground}
+          obstacles={obstacles}
+          viewer={viewer}
+          maxR={walkR - 1}
+          reducedMotion={reducedMotion}
+        />
       )}
+      {f.gliders && <Gliders planet={planet} cfg={f.gliders} reducedMotion={reducedMotion} />}
       {f.jellies > 0 && <Jellies planet={planet} count={Math.round(f.jellies * k)} reducedMotion={reducedMotion} />}
     </>
   );
