@@ -1,11 +1,13 @@
 /*
- * The loader lives in index.html so it shows before any script runs: the name
- * over a planet's night side, and "Press any key to launch". A key or tap
- * launches: hyperspace fills the screen and runs the whole jump. Once the scene has drawn its first frames the warp
+ * The loader lives in index.html so it shows before any script runs: a
+ * terminal in the deck's window ending on "press any key to launch". A key or
+ * tap launches: hyperspace fills the screen, and only then does the app start
+ * (see main.tsx). Hyperspace runs for as long as loading takes; once
+ * everything is in, compiled and drawn (src/scenes/Preload.tsx) the warp
  * (src/scenes/overworld/Warp.tsx) keeps the time: it spools the loader into a
  * white flash and removes it underneath, onto the 3D deck and the system.
  * Without the warp (the reader, a deep link, reduced motion, no WebGL) the
- * loader just fades once the app is up.
+ * loader just fades once the app is ready.
  */
 
 import { useAppStore } from '@/state/useAppStore';
@@ -21,8 +23,8 @@ interface Nav {
 const FADE_MS = 400;
 /** The flash clearing after the drop, matching index.html */
 const OUT_MS = 520;
-/** Once departed, never leave it up longer than this, whatever happens */
-const GIVE_UP_MS = 15000;
+/** Once departed, never leave it up longer than this, whatever happens (a stuck driver, a hung fetch) */
+const GIVE_UP_MS = 90000;
 
 const el = () => document.getElementById('boot');
 const nav = (): Nav | null => (window as unknown as { __nav?: Nav }).__nav ?? null;
@@ -87,6 +89,8 @@ export const hideBoot = (giveUp = false) => {
     return;
   }
   if (store.intro) store.endIntro();
+  // given up while still loading: stop and show what there is
+  if (store.warming) store.endWarm();
   fadeAll();
   reveal();
 };

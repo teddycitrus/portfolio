@@ -19,8 +19,8 @@ import { responsiveFov } from './TelescopeCamera';
  * tap or key in hyperspace drops out straight away.
  */
 
-/** Shortest stretch of hyperspace once the scene is up */
-const RUN_MS = 1200;
+/** Hyperspace runs on this long once everything is loaded and drawing, before the drive spools */
+const RUN_MS = 500;
 /** A cached visit is up in no time: the whole jump lasts at least this long from the departure */
 const MIN_TOTAL_MS = 2600;
 /** Asked to drop out: this long for the roar to swell in first */

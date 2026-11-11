@@ -1,10 +1,11 @@
-import { Component, Suspense, useEffect, useRef, type ReactNode } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Component, Suspense, useEffect, type ReactNode } from 'react';
+import { Canvas } from '@react-three/fiber';
 import OverworldScene from '@/scenes/overworld/OverworldScene';
 import PlanetSurfaceScene from '@/scenes/planet/LazySurface';
 import TransitionController from '@/scenes/transition/TransitionController';
 import Cockpit from '@/scenes/ship/Cockpit';
 import Effects from '@/scenes/Effects';
+import Preload from '@/scenes/Preload';
 import UiRoot from '@/ui/UiRoot';
 import { useInputBridge } from '@/hooks/useInputBridge';
 import { useHashRoute } from '@/hooks/useHashRoute';
@@ -18,16 +19,6 @@ const hasWebGL = (() => {
     return false;
   }
 })();
-
-/** Mounts once the scene has loaded; after a few drawn frames the loader can go. */
-const BootReady = () => {
-  const frames = useRef(0);
-  useFrame(() => {
-    frames.current += 1;
-    if (frames.current === 3) hideBoot();
-  });
-  return null;
-};
 
 /** Any render or context failure in the 3D tree drops the site into reader-only mode. */
 class SceneBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
@@ -79,7 +70,8 @@ const App = () => {
               <TransitionController />
               <Cockpit />
               <Effects />
-              <BootReady />
+              {/* mounts once the scene is in; lets the loader go when everything is ready */}
+              <Preload />
             </Suspense>
           </Canvas>
         </SceneBoundary>

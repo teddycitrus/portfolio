@@ -2,6 +2,7 @@ import { PerformanceMonitor } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import { Bloom, BrightnessContrast, EffectComposer, Noise, ToneMapping, Vignette } from '@react-three/postprocessing';
 import { BlendFunction, ToneMappingMode } from 'postprocessing';
+import { useAppStore } from '@/state/useAppStore';
 
 /**
  * Decided once at load and never changed: switching multisampling or effect
@@ -29,9 +30,11 @@ const AdaptiveDpr = () => {
  * off without the hue skew ACES gives saturated lava, skies and accents.
  */
 const Effects = () => {
+  // the frames drawn while loading under the loader are slow by nature: judge the frame rate only after
+  const settled = useAppStore((s) => !s.intro && !s.warming);
   return (
     <>
-      <AdaptiveDpr />
+      {settled && <AdaptiveDpr />}
       <EffectComposer multisampling={COARSE ? 0 : 2}>
         <Bloom
           mipmapBlur

@@ -47,18 +47,22 @@
        * The loader, drawn before the app loads: the observation deck around the
        * viewer (painted to match the 3D cockpit, which lines up under it), and
        * its window turned to a terminal that finds the system and sets the
-       * course, ending on the launch prompt. Any key or tap launches (and, being a
-       * gesture, lets the sound play): the terminal clears
-       * and hyperspace fills the screen for the whole jump, so nothing that
-       * loads later cuts into it. The app spools it up into a white flash and
-       * removes the loader under it; the deck and the system are there as it
-       * clears. Only transform, opacity and filter animate.
+       * course, ending on the launch prompt. Nothing else runs while it does: the
+       * app's files only download in the background. Any key or tap launches
+       * (and, being a gesture, lets the sound play): the terminal clears, hyperspace
+       * fills the screen, and the app starts underneath. Hyperspace runs until
+       * everything is loaded, compiled and drawn, however long that takes; then
+       * the app spools it up into a white flash and removes the loader under it.
+       * Hyperspace animates only transform and opacity, so it stays smooth on the
+       * compositor while the app loads on the main thread.
        */
+      /* it takes every click and tap while up, so nothing under it can be pressed while it loads */
       #boot {
         position: fixed;
         inset: 0;
         z-index: 100;
-        pointer-events: none;
+        pointer-events: auto;
+        touch-action: none;
         overflow: hidden;
         background: #02040a;
         color: #eef3fb;
@@ -358,6 +362,7 @@
       /* dropped out: under the full flash the loader's picture goes and the flash clears off the system */
       #boot.boot-out {
         background: transparent;
+        pointer-events: none;
       }
       #boot.boot-out .space,
       #boot.boot-out .term {
@@ -369,6 +374,7 @@
       }
       #boot.boot-done {
         opacity: 0;
+        pointer-events: none;
       }
       @media (prefers-reduced-motion: reduce) {
         #boot .hyper i, #boot .hyper b { animation: none; opacity: 0.8; transform: scale(0.9); }
@@ -430,7 +436,7 @@
     </div>
     <script>
       // The loader: a terminal in the deck's window, then hyperspace once a key or tap launches.
-      // It runs before the app bundle; the app waits for the launch and takes it from there through window.__nav.
+      // It runs before any app code; the app is only started on the launch (src/main.tsx) and takes it from there through window.__nav.
       (function () {
         var boot = document.getElementById('boot');
 
@@ -438,51 +444,80 @@
         var pick = function (list) { return list[Math.floor(rnd() * list.length)]; };
 
         // hyperspace streaks, drawn once each with a fading tail and a soft bloom; CSS zooms the copies.
-        // They are only seen after the launch, so the image is encoded off the critical path.
-        var streaks = function (size, count, near, els) {
+        // They are only seen after the launch, so they are drawn a few at a time between frames (the
+        // terminal keeps typing smoothly) and the image is encoded off the main thread.
+        var later = function (fn) {
+          if (window.requestIdleCallback) window.requestIdleCallback(fn, { timeout: 100 });
+          else setTimeout(fn, 16);
+        };
+        var streaks = function (size, count, near, els, next) {
+          var cv, g;
           try {
-            var cv = document.createElement('canvas');
+            cv = document.createElement('canvas');
             cv.width = cv.height = size;
-            var g = cv.getContext('2d');
-            var c = size / 2;
-            var tints = ['205, 222, 255', '205, 222, 255', '170, 200, 255', '150, 190, 255', '120, 225, 255', '190, 165, 255', '255, 255, 255'];
-            g.lineCap = 'round';
-            for (var i = 0; i < count; i += 1) {
-              var a = rnd() * 6.2832;
-              var f = near ? 0.4 + rnd() * 0.55 : 0.05 + Math.pow(rnd(), 0.8) * 0.85;
-              var r0 = c * f;
-              var len = c * (near ? 0.18 + rnd() * 0.25 : 0.05 + 0.26 * f);
-              var k = near ? 0.7 + rnd() * 0.3 : 0.35 + 0.65 * f;
-              var tint = pick(tints);
-              var x0 = c + Math.cos(a) * r0, y0 = c + Math.sin(a) * r0;
-              var x1 = c + Math.cos(a) * (r0 + len), y1 = c + Math.sin(a) * (r0 + len);
-              var w = (near ? 1.6 + rnd() * 2.2 : 0.6 + 1.5 * k) * (size / 512);
-              for (var pass = 0; pass < 2; pass += 1) {
-                var grad = g.createLinearGradient(x0, y0, x1, y1);
-                var al = pass ? 0.95 * k : 0.1 * k;
-                grad.addColorStop(0, 'rgba(' + tint + ', 0)');
-                grad.addColorStop(0.75, 'rgba(' + tint + ', ' + (al * 0.8).toFixed(3) + ')');
-                grad.addColorStop(1, 'rgba(255, 255, 255, ' + al.toFixed(3) + ')');
-                g.strokeStyle = grad;
-                g.lineCap = pass ? 'round' : 'butt';
-                g.lineWidth = pass ? w : w * 3;
-                g.beginPath();
-                g.moveTo(x0, y0);
-                g.lineTo(x1, y1);
-                g.stroke();
-              }
-            }
+            // drawn on the CPU in this process: no waiting on the GPU, which is busy putting the terminal up
+            g = cv.getContext('2d', { willReadFrequently: true });
+          } catch (e) {
+            return;
+          }
+          if (!g) return;
+          var c = size / 2;
+          var tints = ['205, 222, 255', '205, 222, 255', '170, 200, 255', '150, 190, 255', '120, 225, 255', '190, 165, 255', '255, 255, 255'];
+          var drawn = 0;
+          var finish = function () {
             var apply = function (src) {
               for (var j = 0; j < els.length; j += 1) els[j].style.backgroundImage = 'url(' + src + ')';
             };
             if (cv.toBlob) cv.toBlob(function (b) { apply(b ? URL.createObjectURL(b) : cv.toDataURL()); });
             else apply(cv.toDataURL());
-          } catch (e) {
-            /* no canvas: the tunnel alone */
-          }
+            if (next) later(next);
+          };
+          var slice = function () {
+            try {
+              var stop = Math.min(count, drawn + 20);
+              for (var i = drawn; i < stop; i += 1) {
+                var a = rnd() * 6.2832;
+                var f = near ? 0.4 + rnd() * 0.55 : 0.05 + Math.pow(rnd(), 0.8) * 0.85;
+                var r0 = c * f;
+                var len = c * (near ? 0.18 + rnd() * 0.25 : 0.05 + 0.26 * f);
+                var k = near ? 0.7 + rnd() * 0.3 : 0.35 + 0.65 * f;
+                var tint = pick(tints);
+                var x0 = c + Math.cos(a) * r0, y0 = c + Math.sin(a) * r0;
+                var x1 = c + Math.cos(a) * (r0 + len), y1 = c + Math.sin(a) * (r0 + len);
+                var w = (near ? 1.6 + rnd() * 2.2 : 0.6 + 1.5 * k) * (size / 512);
+                for (var pass = 0; pass < 2; pass += 1) {
+                  var grad = g.createLinearGradient(x0, y0, x1, y1);
+                  var al = pass ? 0.95 * k : 0.1 * k;
+                  grad.addColorStop(0, 'rgba(' + tint + ', 0)');
+                  grad.addColorStop(0.75, 'rgba(' + tint + ', ' + (al * 0.8).toFixed(3) + ')');
+                  grad.addColorStop(1, 'rgba(255, 255, 255, ' + al.toFixed(3) + ')');
+                  g.strokeStyle = grad;
+                  g.lineCap = pass ? 'round' : 'butt';
+                  g.lineWidth = pass ? w : w * 3;
+                  g.beginPath();
+                  g.moveTo(x0, y0);
+                  g.lineTo(x1, y1);
+                  g.stroke();
+                }
+              }
+              drawn = stop;
+              // reading a pixel makes the canvas draw this slice now, instead of all of it at the encode
+              g.getImageData(0, 0, 1, 1);
+              if (drawn < count) later(slice);
+              else finish();
+            } catch (e) {
+              /* no canvas: the tunnel alone */
+            }
+          };
+          later(slice);
         };
-        streaks(1024, 300, false, boot.querySelectorAll('.hyper i'));
-        streaks(1024, 70, true, boot.querySelectorAll('.hyper b'));
+        // after the terminal's first paint, so nothing delays it
+        var bake = function () {
+          streaks(1024, 300, false, boot.querySelectorAll('.hyper i'), function () {
+            streaks(1024, 70, true, boot.querySelectorAll('.hyper b'));
+          });
+        };
+        requestAnimationFrame(function () { setTimeout(bake, 0); });
 
         // the deck around the window, as the 3D cockpit draws it at rest (src/scenes/ship/shape.ts and
         // Cockpit.tsx): outlines in frame units, where x / 0.6 and y / 0.6 are screen coordinates (-1..1)

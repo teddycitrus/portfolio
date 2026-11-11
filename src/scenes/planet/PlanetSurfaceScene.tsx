@@ -16,6 +16,7 @@ import PlanetCamera, { type SurfaceBeacon } from './PlanetCamera';
 import { siteFor } from './sites/site';
 import { TempleGrounds } from './sites/Temple';
 import { OutpostGrounds } from './sites/Outpost';
+import { surfaceMounted } from './surfaceState';
 
 const SHADOW_EXTENT = 34;
 const SUN_DISTANCE = 70;
@@ -71,6 +72,14 @@ const Surface = ({ planet }: { planet: Planet }) => {
     () => [...beacons.map((b) => [b.position[0], b.position[2]] as [number, number]), ...site.clearings],
     [beacons, site],
   );
+
+  // the parent's effect runs after every child's: the whole surface is in once this fires
+  useEffect(() => {
+    surfaceMounted.id = planet.id;
+    return () => {
+      if (surfaceMounted.id === planet.id) surfaceMounted.id = null;
+    };
+  }, [planet.id]);
 
   // exponential fog matching the sky horizon; removed on unmount so the overworld stays clear
   useEffect(() => {
@@ -144,15 +153,19 @@ const Surface = ({ planet }: { planet: Planet }) => {
 
 /**
  * Planet surface. Renders in 'planet' and through 'transitioning-out' so the
- * launch is visible; PlanetCamera only drives the camera in 'planet'.
+ * launch is visible; PlanetCamera only drives the camera in 'planet'. Under
+ * the loader it also renders each planet in turn while the app warms up (see
+ * Preload), with the mode still 'overworld' so the camera, HUD, music and
+ * address bar take no notice.
  */
 const PlanetSurfaceScene = () => {
   const mode = useAppStore((s) => s.mode);
   const activeId = useAppStore((s) => s.activePlanetId);
-  const planet = useMemo(() => planetById(activeId), [activeId]);
+  const warmId = useAppStore((s) => s.warmPlanetId);
+  const planet = useMemo(() => planetById(warmId ?? activeId), [warmId, activeId]);
 
   // the shadow map is switched on by LazySurface, before this chunk loads
-  const show = (mode === 'planet' || mode === 'transitioning-out') && !!planet;
+  const show = (!!warmId || mode === 'planet' || mode === 'transitioning-out') && !!planet;
   if (!show || !planet) return null;
   return <Surface key={planet.id} planet={planet} />;
 };

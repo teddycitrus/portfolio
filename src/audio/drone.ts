@@ -503,6 +503,8 @@ let lastCall = 0;
  */
 export const critterCall = (kind: CritterVoice, distance: number, pan: number) => {
   if (!ctx || !sfx || !verbIn || !enabled || ctx.state !== 'running') return;
+  // a surface drawn out of sight under the loader stays silent
+  if (useAppStore.getState().warmPlanetId) return;
   const nowMs = performance.now();
   if (nowMs - lastCall < 220) return;
   lastCall = nowMs;

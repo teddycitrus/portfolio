@@ -607,8 +607,9 @@ const Cockpit = () => {
     /* deploy: 1 = the frame around the view, 0 = cleared away past the screen edges */
     // beamed down or up, there is no deck around the viewer; launching, the beam pulls the viewer
     // out through the aperture and the deck falls away past the edges of the view
+    // (a surface drawn out of sight under the loader is drawn as on a landing: no deck)
     const deploy =
-      mode === 'planet' || mode === 'transitioning-out'
+      mode === 'planet' || mode === 'transitioning-out' || store.warmPlanetId
         ? 0
         : mode === 'transitioning-in' && !r.chained && !reduced
           ? 1 - THREE.MathUtils.smoothstep(now - r.diveAt, PULL_AT - 60, PULL_AT + 420)

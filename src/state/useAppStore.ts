@@ -30,9 +30,19 @@ interface AppState {
   intro: boolean;
   /** A planet asked for during the arrival (a link, Back); travel starts when it ends */
   introTravel: string | null;
+  /**
+   * Under the loader, before the lobby shows: every planet's surface is drawn
+   * once out of sight so all of it is built and compiled before anyone lands.
+   * No input acts and travel waits until it is over.
+   */
+  warming: boolean;
+  /** The planet whose surface is being drawn out of sight while warming, else null */
+  warmPlanetId: string | null;
 
   setNoWebGL: () => void;
   endIntro: () => void;
+  setWarmPlanet: (id: string | null) => void;
+  endWarm: () => void;
   setHoveredPlanet: (id: string | null) => void;
   setFocusedBeacon: (id: string | null) => void;
   glideToBeacon: (id: string) => void;
@@ -56,6 +66,9 @@ interface AppState {
  * The hyperspace arrival plays on a plain visit to the lobby: not when a link
  * goes straight to a planet or the reader, and not with reduced motion.
  */
+/** A plain visit to the lobby (no link to a planet or the reader): the loader stays up until all of it is ready. */
+const lobbyStart = () => typeof window !== 'undefined' && window.location.hash.replace(/^#\/?/, '') === '';
+
 const introWanted = () => {
   if (typeof window === 'undefined') return false;
   if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return false;
@@ -77,12 +90,30 @@ export const useAppStore = create<AppState>((set, get) => ({
   noWebGL: false,
   intro: introWanted(),
   introTravel: null,
+  warming: lobbyStart(),
+  warmPlanetId: null,
 
-  setNoWebGL: () => set({ noWebGL: true, readerOpen: true, readerSection: null, intro: false, introTravel: null }),
+  setNoWebGL: () =>
+    set({ noWebGL: true, readerOpen: true, readerSection: null, intro: false, introTravel: null, warming: false, warmPlanetId: null }),
   endIntro: () => {
+    // still warming: a queued trip waits for endWarm
+    if (get().warming) {
+      set({ intro: false });
+      return;
+    }
     const queued = get().introTravel;
     set({ intro: false, introTravel: null });
     if (queued) get().travelTo(queued);
+  },
+  setWarmPlanet: (id) => set({ warmPlanetId: id }),
+  endWarm: () => {
+    if (!get().warming && !get().warmPlanetId) return;
+    set({ warming: false, warmPlanetId: null });
+    const queued = get().introTravel;
+    if (queued && !get().intro) {
+      set({ introTravel: null });
+      get().travelTo(queued);
+    }
   },
   setHoveredPlanet: (id) => set({ hoveredPlanetId: id }),
   setFocusedBeacon: (id) => {
@@ -99,7 +130,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   travelTo: (planetId) => {
     const s = get();
-    if (s.intro) {
+    if (s.intro || s.warming) {
       set({ introTravel: planetId });
       return;
     }

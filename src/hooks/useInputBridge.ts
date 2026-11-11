@@ -107,8 +107,8 @@ export const useInputBridge = (): void => {
       if (isTypingTarget(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
       keyboardState[e.code] = true;
       const s = store();
-      // nothing to act on until the ship has dropped out of hyperspace
-      if (s.intro) return;
+      // nothing to act on until the ship has dropped out of hyperspace and everything is loaded
+      if (s.intro || s.warming) return;
 
       if (e.key === 'Escape') {
         // the browser spends this Esc on freeing the cursor; pointerlockchange may land before or after it

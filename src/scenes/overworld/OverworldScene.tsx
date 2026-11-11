@@ -73,7 +73,9 @@ const ScreenProjector = () => {
 
 const OverworldScene = () => {
   const mode = useAppStore((s) => s.mode);
-  const show = mode === 'overworld' || mode === 'transitioning-in';
+  // while a surface is drawn out of sight under the loader, the system makes way so the lights match a real landing
+  const warming = useAppStore((s) => !!s.warmPlanetId);
+  const show = (mode === 'overworld' || mode === 'transitioning-in') && !warming;
 
   useEffect(() => {
     if (mode !== 'overworld') document.body.style.cursor = '';
@@ -83,7 +85,8 @@ const OverworldScene = () => {
     if (!show) for (const p of planets) planetScreen[p.id].visible = false;
   }, [show]);
 
-  if (!show) return null;
+  // the arrival keeps its clock and its roar through the warm-up, so it stays mounted
+  if (!show) return <Warp />;
 
   return (
     <>
@@ -100,7 +103,8 @@ const OverworldScene = () => {
       <TelescopeCamera />
       <ScreenProjector />
       <Warp />
-      {mode === 'transitioning-in' && <LaunchBeam />}
+      {/* always mounted (hidden until a dive) so its shader is compiled before the first trip */}
+      <LaunchBeam />
     </>
   );
 };
