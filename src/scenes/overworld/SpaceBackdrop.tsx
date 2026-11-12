@@ -19,6 +19,9 @@ const BAKE_FRAGMENT = /* glsl */ `
   #define ENCODE_GAIN 24.0
   uniform vec3 uAxis;
   uniform vec3 uCore;
+  // Loop bounds go through uLoop (always 1) so Direct3D's shader compiler, which Chrome uses on
+  // Windows, cannot unroll them: unrolled and inlined, these shaders take it most of a minute.
+  uniform int uLoop;
   varying vec3 vDir;
 
   float sq(float x) { return x * x; }
@@ -43,7 +46,7 @@ const BAKE_FRAGMENT = /* glsl */ `
   }
   float fbm(vec3 p) {
     float v = 0.0, a = 0.5;
-    for (int i = 0; i < 6; i++) { v += a * noise(p); p = p * 2.03 + 17.1; a *= 0.5; }
+    for (int i = 0; i < 6 * uLoop; i++) { v += a * noise(p); p = p * 2.03 + 17.1; a *= 0.5; }
     return v;
   }
 
@@ -92,10 +95,15 @@ const BAKE_FRAGMENT = /* glsl */ `
 
     // emission nebulae framing the view: magenta and amber low left, teal and blue high right,
     // a violet veil behind, and a small red one far off
-    col += nebula(d, vec3(-0.62, -0.2, -1.0), 0.16, vec3(1.0, 0.42, 0.62), vec3(0.42, 0.26, 0.9), 1.7) * 0.036;
-    col += nebula(d, vec3(0.7, 0.32, -1.0), 0.13, vec3(0.32, 0.9, 0.95), vec3(0.2, 0.36, 0.95), 6.3) * 0.032;
-    col += nebula(d, vec3(0.05, 0.05, -1.0), 0.32, vec3(0.6, 0.42, 1.0), vec3(0.14, 0.2, 0.55), 9.1) * 0.012;
-    col += nebula(d, vec3(0.95, -0.45, -0.6), 0.08, vec3(1.0, 0.36, 0.3), vec3(0.8, 0.3, 0.5), 3.4) * 0.026;
+    // (in a loop so the compiler keeps one copy of the nebula, not four)
+    const vec3 NEB_DIR[4] = vec3[4](vec3(-0.62, -0.2, -1.0), vec3(0.7, 0.32, -1.0), vec3(0.05, 0.05, -1.0), vec3(0.95, -0.45, -0.6));
+    const vec3 NEB_HOT[4] = vec3[4](vec3(1.0, 0.42, 0.62), vec3(0.32, 0.9, 0.95), vec3(0.6, 0.42, 1.0), vec3(1.0, 0.36, 0.3));
+    const vec3 NEB_COOL[4] = vec3[4](vec3(0.42, 0.26, 0.9), vec3(0.2, 0.36, 0.95), vec3(0.14, 0.2, 0.55), vec3(0.8, 0.3, 0.5));
+    // spread, seed, brightness
+    const vec3 NEB_K[4] = vec3[4](vec3(0.16, 1.7, 0.036), vec3(0.13, 6.3, 0.032), vec3(0.32, 9.1, 0.012), vec3(0.08, 3.4, 0.026));
+    for (int k = 0; k < 4 * uLoop; k++) {
+      col += nebula(d, NEB_DIR[k], NEB_K[k].x, NEB_HOT[k], NEB_COOL[k], NEB_K[k].y) * NEB_K[k].z;
+    }
 
     // Gamma-encode with gain so the dark gradients keep precision in an 8-bit cube face
     gl_FragColor = vec4(pow(max(col, 0.0) * ENCODE_GAIN, vec3(1.0 / 2.2)), 1.0);
@@ -146,6 +154,7 @@ const bakeSky = (gl: THREE.WebGLRenderer, size: number): THREE.CubeTexture => {
     uniforms: {
       uAxis: { value: GALAXY_AXIS },
       uCore: { value: new THREE.Vector3(0.32, -0.12, -0.94).normalize() },
+      uLoop: { value: 1 },
     },
     vertexShader: BAKE_VERTEX,
     fragmentShader: BAKE_FRAGMENT,

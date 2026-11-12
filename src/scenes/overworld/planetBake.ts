@@ -20,6 +20,9 @@ export const STYLE_INDEX: Record<PlanetStyle, number> = {
 const BUMP: Record<PlanetStyle, number> = { oceanic: 0.03, rocky: 0.07, 'gas-giant': 0, forested: 0.03, molten: 0.05 };
 
 export const NOISE_GLSL = /* glsl */ `
+  // Loop bounds go through uLoop (always 1) so Direct3D's shader compiler, which Chrome uses on
+  // Windows, cannot unroll them: unrolled and inlined, these shaders take it most of a minute.
+  uniform int uLoop;
   float sq(float x) { return x * x; }
   float hash13(vec3 p) {
     p = fract(p * 0.1031);
@@ -42,12 +45,12 @@ export const NOISE_GLSL = /* glsl */ `
   }
   float fbm(vec3 p) {
     float v = 0.0, a = 0.5;
-    for (int i = 0; i < 6; i++) { v += a * noise(p); p = p * 2.02 + 11.7; a *= 0.5; }
+    for (int i = 0; i < 6 * uLoop; i++) { v += a * noise(p); p = p * 2.02 + 11.7; a *= 0.5; }
     return v / 0.984;
   }
   float fbm3(vec3 p) {
     float v = 0.0, a = 0.5;
-    for (int i = 0; i < 3; i++) { v += a * noise(p); p = p * 2.03 + 5.3; a *= 0.5; }
+    for (int i = 0; i < 3 * uLoop; i++) { v += a * noise(p); p = p * 2.03 + 5.3; a *= 0.5; }
     return v / 0.875;
   }
   vec3 warp(vec3 p) {
@@ -68,12 +71,13 @@ const BAKE_FRAGMENT = /* glsl */ `
   uniform vec3 uA;
   uniform vec3 uB;
   uniform vec3 uC;
-  uniform int uStyle;
+  // style and pass are compiled in (one small program each, see getBakeMaterial), not uniforms
+  #define uStyle STYLE
+  #define uPass PASS
   uniform float uSeed;
   uniform float uBump;
   uniform float uTexel;
   in vec2 vUv;
-  uniform int uPass;
   layout(location = 0) out vec4 outColor;
 
   ${NOISE_GLSL}
@@ -82,9 +86,9 @@ const BAKE_FRAGMENT = /* glsl */ `
   float craters(vec3 p) {
     vec3 i = floor(p), f = fract(p);
     float h = 0.0;
-    for (int x = -1; x <= 1; x++)
-    for (int y = -1; y <= 1; y++)
-    for (int z = -1; z <= 1; z++) {
+    for (int x = -uLoop; x <= uLoop; x++)
+    for (int y = -uLoop; y <= uLoop; y++)
+    for (int z = -uLoop; z <= uLoop; z++) {
       vec3 g = vec3(float(x), float(y), float(z));
       vec3 o = hash33(i + g);
       float r = 0.18 + 0.27 * o.z * o.z;
@@ -100,9 +104,9 @@ const BAKE_FRAGMENT = /* glsl */ `
   vec2 cells(vec3 p) {
     vec3 i = floor(p), f = fract(p);
     float f1 = 8.0, f2 = 8.0;
-    for (int x = -1; x <= 1; x++)
-    for (int y = -1; y <= 1; y++)
-    for (int z = -1; z <= 1; z++) {
+    for (int x = -uLoop; x <= uLoop; x++)
+    for (int y = -uLoop; y <= uLoop; y++)
+    for (int z = -uLoop; z <= uLoop; z++) {
       vec3 g = vec3(float(x), float(y), float(z));
       float d = length(g + hash33(i + g) - f);
       if (d < f1) { f2 = f1; f1 = d; } else if (d < f2) { f2 = d; }
@@ -230,34 +234,43 @@ export interface PlanetMaps {
 }
 
 const cache = new WeakMap<THREE.WebGLRenderer, Map<string, PlanetMaps>>();
-let bakeMat: THREE.ShaderMaterial | null = null;
-let bakeScene: THREE.Scene | null = null;
+const bakeUniforms = {
+  uA: { value: new THREE.Color() },
+  uB: { value: new THREE.Color() },
+  uC: { value: new THREE.Color() },
+  uSeed: { value: 0 },
+  uBump: { value: 0 },
+  uTexel: { value: 0.004 },
+  uLoop: { value: 1 },
+};
+const bakeMats = new Map<string, THREE.ShaderMaterial>();
+const bakeQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2));
+bakeQuad.frustumCulled = false;
+const bakeScene = new THREE.Scene().add(bakeQuad);
 const bakeCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-const getBakeMaterial = () => {
-  if (bakeMat && bakeScene) return { mat: bakeMat, scene: bakeScene };
-  bakeMat = new THREE.ShaderMaterial({
-    glslVersion: THREE.GLSL3,
-    uniforms: {
-      uA: { value: new THREE.Color() },
-      uB: { value: new THREE.Color() },
-      uC: { value: new THREE.Color() },
-      uStyle: { value: 0 },
-      uSeed: { value: 0 },
-      uBump: { value: 0 },
-      uTexel: { value: 0.004 },
-      uPass: { value: 0 },
-    },
-    vertexShader: BAKE_VERTEX,
-    fragmentShader: BAKE_FRAGMENT,
-    depthTest: false,
-    depthWrite: false,
-  });
-  bakeScene = new THREE.Scene();
-  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), bakeMat);
-  quad.frustumCulled = false;
-  bakeScene.add(quad);
-  return { mat: bakeMat, scene: bakeScene };
+/**
+ * One program per style and pass, with the others' code compiled out: a single program holding
+ * all five styles, with the normal pass evaluating the surface three times, is several times
+ * larger and takes Direct3D's compiler seconds on its own.
+ */
+const getBakeMaterial = (style: number, pass: number) => {
+  const key = `${style}-${pass}`;
+  let mat = bakeMats.get(key);
+  if (!mat) {
+    mat = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3,
+      defines: { STYLE: style, PASS: pass },
+      uniforms: bakeUniforms,
+      vertexShader: BAKE_VERTEX,
+      fragmentShader: BAKE_FRAGMENT,
+      depthTest: false,
+      depthWrite: false,
+    });
+    bakeMats.set(key, mat);
+  }
+  bakeQuad.material = mat;
+  return bakeScene;
 };
 
 export const planetSeed = (id: string) => {
@@ -290,26 +303,23 @@ export const getPlanetMaps = (gl: THREE.WebGLRenderer, planet: Planet, lowRes: b
   const rtSurface = target(w);
   const rtDetail = target(w / 2);
 
-  const { mat, scene } = getBakeMaterial();
-  const u = mat.uniforms;
+  const u = bakeUniforms;
+  const style = STYLE_INDEX[planet.style];
   (u.uA.value as THREE.Color).set(planet.palette[0]);
   (u.uB.value as THREE.Color).set(planet.palette[1]);
   (u.uC.value as THREE.Color).set(planet.palette[2]);
-  u.uStyle.value = STYLE_INDEX[planet.style];
   u.uSeed.value = planetSeed(planet.id);
   u.uBump.value = BUMP[planet.style];
 
   const prevTarget = gl.getRenderTarget();
   const prevAutoClear = gl.autoClear;
   gl.autoClear = true;
-  u.uPass.value = 0;
   u.uTexel.value = (Math.PI * 2) / w;
   gl.setRenderTarget(rtSurface);
-  gl.render(scene, bakeCam);
-  u.uPass.value = 1;
+  gl.render(getBakeMaterial(style, 0), bakeCam);
   u.uTexel.value = (Math.PI * 2) / (w / 2);
   gl.setRenderTarget(rtDetail);
-  gl.render(scene, bakeCam);
+  gl.render(getBakeMaterial(style, 1), bakeCam);
   gl.setRenderTarget(prevTarget);
   gl.autoClear = prevAutoClear;
 

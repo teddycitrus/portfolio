@@ -7,6 +7,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { mulberry, seedOf } from './rng';
 import { critterCall, type CritterVoice } from '@/audio/drone';
 import { dragLook, mouseLook } from '@/state/runtime';
+import { useAppStore } from '@/state/useAppStore';
 
 /* ---------- which creatures live where ---------- */
 
@@ -2026,7 +2027,9 @@ const Wildlife = ({
     v.z = c.z;
   });
   const f = FAUNA[planet.style];
-  const k = isTouch ? 0.6 : 1;
+  // fewer animals on phones, and half on the low tier (see gpuTier)
+  const low = useAppStore((s) => s.quality === 'low');
+  const k = low ? 0.5 : isTouch ? 0.6 : 1;
   const walkR = walkRadiusFor(planet.style);
   const skitter = useMemo(() => (f.skitter ? { ...f.skitter, count: Math.max(4, Math.round(f.skitter.count * k)) } : null), [f, k]);
   const birds = useMemo(

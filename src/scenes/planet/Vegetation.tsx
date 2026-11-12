@@ -6,6 +6,7 @@ import type { Planet, PlanetStyle } from '@/types/content';
 import { SURFACE_SPAWN } from '@/data/content';
 import { fbm2, heightFor, ISLAND_RADIUS, MESA_RADIUS, noise2, terrainPalette } from './Terrain';
 import { mulberry, seedOf } from './rng';
+import { useAppStore } from '@/state/useAppStore';
 
 /* ---------- geometry builders ---------- */
 
@@ -627,20 +628,25 @@ interface VegetationProps {
   reducedMotion?: boolean;
 }
 
+/** Plants kept on the low tier (see gpuTier) */
+const LOW_DENSITY = 0.5;
+
 const Vegetation = ({ planet, beacons, reducedMotion }: VegetationProps) => {
   const time = useMemo(() => ({ value: 0 }), []);
+  const low = useAppStore((s) => s.quality === 'low');
 
   const meshes = useMemo(() => {
     const seed = seedOf(planet.id);
     return buildLayers(planet, time).map((layer, i) => {
-      const mesh = new THREE.InstancedMesh(layer.geo, layer.mat, layer.count);
-      fillInstances(mesh, layer, beacons, seed + i * 101, planet.style);
+      const sized = low ? { ...layer, count: Math.round(layer.count * LOW_DENSITY) } : layer;
+      const mesh = new THREE.InstancedMesh(layer.geo, layer.mat, sized.count);
+      fillInstances(mesh, sized, beacons, seed + i * 101, planet.style);
       mesh.castShadow = layer.shadow;
       mesh.receiveShadow = true;
       mesh.raycast = () => undefined;
       return mesh;
     });
-  }, [planet, beacons, time]);
+  }, [planet, beacons, time, low]);
 
   const embers = useMemo(
     () =>
