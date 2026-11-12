@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Planet, PlanetStyle } from '@/types/content';
+import { LOSSLESS, bakeHash, isBaked, saveBaked, takeBaked } from './bakedMaps';
 
 /**
  * Bakes each planet's procedural surface once into two equirect maps laid
@@ -279,26 +280,46 @@ export const planetSeed = (id: string) => {
   return ((h >>> 0) % 1000) * 0.0731;
 };
 
-/** Returns the baked maps for a planet, baking on first use. */
-export const getPlanetMaps = (gl: THREE.WebGLRenderer, planet: Planet, lowRes: boolean): PlanetMaps => {
-  let perGl = cache.get(gl);
-  if (!perGl) cache.set(gl, (perGl = new Map()));
-  const hit = perGl.get(planet.id);
-  if (hit) return hit;
+/** Everything a planet's maps are drawn from: the shipped images must match it exactly (see bakedMaps) */
+const bakeInputs = (planet: Planet, w: number) =>
+  bakeHash(
+    JSON.stringify([
+      THREE.REVISION,
+      BAKE_VERTEX,
+      BAKE_FRAGMENT,
+      planet.style,
+      planet.palette,
+      planetSeed(planet.id),
+      BUMP[planet.style],
+      w,
+    ]),
+  );
 
-  // Full-res colour, half-res normals/clouds: about 8MB per planet on desktop with mips
-  const w = lowRes ? 1024 : 1536;
+const mapOptions = (gl: THREE.WebGLRenderer) => ({
+  generateMipmaps: true,
+  minFilter: THREE.LinearMipmapLinearFilter,
+  magFilter: THREE.LinearFilter,
+  wrapS: THREE.RepeatWrapping,
+  wrapT: THREE.ClampToEdgeWrapping,
+  anisotropy: Math.min(8, gl.capabilities.getMaxAnisotropy()),
+});
+
+/** A shipped map as the same texture the render target would have held */
+const shippedMap = (gl: THREE.WebGLRenderer, px: Uint8Array<ArrayBuffer>, w: number) => {
+  const t = new THREE.DataTexture(px, w, w / 2, THREE.RGBAFormat, THREE.UnsignedByteType);
+  Object.assign(t, mapOptions(gl));
+  t.needsUpdate = true;
+  return t;
+};
+
+/** Draws a planet's maps on the GPU: full-res colour, half-res normals and clouds */
+const bakeLive = (gl: THREE.WebGLRenderer, planet: Planet, w: number) => {
   const target = (tw: number) =>
     new THREE.WebGLRenderTarget(tw, tw / 2, {
       type: THREE.UnsignedByteType,
       format: THREE.RGBAFormat,
-      generateMipmaps: true,
-      minFilter: THREE.LinearMipmapLinearFilter,
-      magFilter: THREE.LinearFilter,
-      wrapS: THREE.RepeatWrapping,
-      wrapT: THREE.ClampToEdgeWrapping,
       depthBuffer: false,
-      anisotropy: Math.min(8, gl.capabilities.getMaxAnisotropy()),
+      ...mapOptions(gl),
     });
   const rtSurface = target(w);
   const rtDetail = target(w / 2);
@@ -322,8 +343,49 @@ export const getPlanetMaps = (gl: THREE.WebGLRenderer, planet: Planet, lowRes: b
   gl.render(getBakeMaterial(style, 1), bakeCam);
   gl.setRenderTarget(prevTarget);
   gl.autoClear = prevAutoClear;
+  return { rtSurface, rtDetail };
+};
 
-  const maps = { surface: rtSurface.texture, detail: rtDetail.texture };
+const mapWidth = (lowRes: boolean) => (lowRes ? 1024 : 1536);
+const mapName = (planet: Planet, w: number) => `planet-${planet.id}-${w}`;
+
+/** Development only: writes out any of this planet's maps (both sizes) that have no matching image yet. */
+const saveMaps = (gl: THREE.WebGLRenderer, planet: Planet) => {
+  for (const lowRes of [false, true]) {
+    const w = mapWidth(lowRes);
+    const name = mapName(planet, w);
+    const hash = bakeInputs(planet, w);
+    if (isBaked(`${name}-surface`, hash) && isBaked(`${name}-detail`, hash)) continue;
+    const { rtSurface, rtDetail } = bakeLive(gl, planet, w);
+    void saveBaked(gl, `${name}-surface`, hash, rtSurface, w, w / 2, 1, lowRes);
+    void saveBaked(gl, `${name}-detail`, hash, rtDetail, w / 2, w / 4, 1, lowRes, LOSSLESS);
+    rtSurface.dispose();
+    rtDetail.dispose();
+  }
+};
+
+/**
+ * Returns a planet's maps: the shipped images when they match the code, otherwise baked live.
+ * Full-res colour, half-res normals/clouds: about 8MB per planet on desktop with mips.
+ */
+export const getPlanetMaps = (gl: THREE.WebGLRenderer, planet: Planet, lowRes: boolean): PlanetMaps => {
+  let perGl = cache.get(gl);
+  if (!perGl) cache.set(gl, (perGl = new Map()));
+  const hit = perGl.get(planet.id);
+  if (hit) return hit;
+
+  const w = mapWidth(lowRes);
+  const name = mapName(planet, w);
+  const hash = bakeInputs(planet, w);
+  const surface = takeBaked(`${name}-surface`, hash);
+  const detail = takeBaked(`${name}-detail`, hash);
+  let maps: PlanetMaps;
+  if (surface && detail) maps = { surface: shippedMap(gl, surface, w), detail: shippedMap(gl, detail, w / 2) };
+  else {
+    if (import.meta.env.DEV) saveMaps(gl, planet);
+    const { rtSurface, rtDetail } = bakeLive(gl, planet, w);
+    maps = { surface: rtSurface.texture, detail: rtDetail.texture };
+  }
   perGl.set(planet.id, maps);
   return maps;
 };

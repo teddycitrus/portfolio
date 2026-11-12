@@ -97,7 +97,7 @@ sequenceDiagram
   Note over V,B: One screen per part (title, video, description, highlights, stack) beside the monument
 ```
 
-Loading follows the launch. The page itself holds only the terminal, hyperspace and a 2 KB entry (`main.tsx`), so the terminal is up and answering keys at once; the app's scripts, stylesheet and fonts download meanwhile as low-priority prefetches (module preloads on Safari) without being run. The launch starts the app (`start.tsx`) under hyperspace, and `Preload` holds hyperspace until everything is ready:
+Loading follows the launch. The page itself holds only the terminal, hyperspace and a 2 KB entry (`main.tsx`), so the terminal is up and answering keys at once; the app's scripts, stylesheet, fonts and the shipped sky and planet maps download meanwhile as low-priority prefetches (module preloads on Safari) without being run. The launch starts the app (`start.tsx`) under hyperspace, the maps unpack in a worker while it mounts, and `Preload` holds hyperspace until everything is ready:
 
 1. The system is compiled against the composer's render target (in parallel where the browser supports it) with nothing drawn, then drawn for three frames.
 2. 24 frames of the system are timed. If the median frame takes over 40 ms on the full tier, the device steps down to the low tier (remembered for its next visit) and is timed again; over 85 ms on the low tier, the canvas is dropped and the reader becomes the site.
@@ -119,7 +119,7 @@ sequenceDiagram
   V->>L: any key or tap
   L->>L: hyperspace on the compositor
   L->>M: onDepart
-  M->>A: import and mount
+  M->>A: import, unpack the maps in a worker, mount
   A->>P: scene mounted
   P->>P: compile and draw the system
   P->>P: time 24 frames, step down the tier if slow
@@ -142,6 +142,7 @@ Guarantees and limits:
 - Without WebGL (or if the context is lost or the 3D tree throws), the canvas is never mounted and the reader becomes the whole site.
 - Shaders stay quick to compile on Windows, where Chrome turns each one into Direct3D and its compiler unrolls and inlines everything: noise loops in the bakes take their bounds from a uniform (`uLoop`, always 1) so they cannot be unrolled, the four sky nebulae are drawn in one loop, and each planet style and bake pass is its own small program. Before this a first visit stalled on two shader compiles of about 20 seconds each, long enough for Chrome to reset the GPU; now the slowest is under half a second.
 - Plants and animals are halved on the low tier.
+- The sky cube and the planet maps are the same for every visitor, so they ship as images (`public/baked`, listed in `src/data/baked.json`) instead of being drawn on each first visit, which took Direct3D about 4.5 seconds of shader compiling. Each image is named by a hash of what it was drawn from (shader source, uniforms, size, three's revision); one that does not match the code is ignored and the map is baked live. In development a live bake with no matching image is saved by the dev server (`bakedMaps` in `vite.config.ts`), so editing a bake shader and opening the site refreshes them. Colour and sky are lossy WebP; normal maps are lossless, as lossy blurs crater rims. Desktop downloads 2 to 4 MB of them, touch devices a smaller set.
 - Every shader stays defined on Apple Metal (Safari and every Mac browser): no pow() of a base that can go negative, no normalize() of a zero vector, no atan(0, 0). Metal returns NaN there where Direct3D does not, and the bloom blur grows each NaN pixel into a black box.
 - The planet surface is its own chunk (`loadSurface.ts`). On a plain visit it is fetched and every surface warmed under hyperspace (see above); after a deep link it is fetched when the browser is idle after the arrival, or at once when a trip starts. If a dive ever finishes before it is in, the dive holds its covered last frame until it is. On the high tier the shadow map is switched on at startup regardless, so loading the chunk never recompiles the orbit's materials.
 - Delivery: vendor code ships in three stable chunks (React, the R3F stack with postprocessing and zustand, three.js) apart from the site's own code, so a deploy only invalidates what changed; `vercel.json` caches the hashed `/assets` files for a year. On a planet the shadow map is redrawn every other frame (the sun and its shadow frame are fixed and only slow things move), and the hidden cockpit skips its per-frame work.

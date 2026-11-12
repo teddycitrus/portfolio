@@ -1,0 +1,114 @@
+{
+  "planet-about-1024-detail": {
+    "hash": "13t3y4oi0pz",
+    "file": "planet-about-1024-detail-13t3y4oi0pz.webp",
+    "w": 512,
+    "h": 256,
+    "layers": 1,
+    "touch": true
+  },
+  "planet-about-1024-surface": {
+    "hash": "13t3y4oi0pz",
+    "file": "planet-about-1024-surface-13t3y4oi0pz.webp",
+    "w": 1024,
+    "h": 512,
+    "layers": 1,
+    "touch": true
+  },
+  "planet-about-1536-detail": {
+    "hash": "1nsp3zardya",
+    "file": "planet-about-1536-detail-1nsp3zardya.webp",
+    "w": 768,
+    "h": 384,
+    "layers": 1,
+    "touch": false
+  },
+  "planet-about-1536-surface": {
+    "hash": "1nsp3zardya",
+    "file": "planet-about-1536-surface-1nsp3zardya.webp",
+    "w": 1536,
+    "h": 768,
+    "layers": 1,
+    "touch": false
+  },
+  "planet-awards-1024-detail": {
+    "hash": "16wyxqllcq5",
+    "file": "planet-awards-1024-detail-16wyxqllcq5.webp",
+    "w": 512,
+    "h": 256,
+    "layers": 1,
+    "touch": true
+  },
+  "planet-awards-1024-surface": {
+    "hash": "16wyxqllcq5",
+    "file": "planet-awards-1024-surface-16wyxqllcq5.webp",
+    "w": 1024,
+    "h": 512,
+    "layers": 1,
+    "touch": true
+  },
+  "planet-awards-1536-detail": {
+    "hash": "bg47o9ue5z",
+    "file": "planet-awards-1536-detail-bg47o9ue5z.webp",
+    "w": 768,
+    "h": 384,
+    "layers": 1,
+    "touch": false
+  },
+  "planet-awards-1536-surface": {
+    "hash": "bg47o9ue5z",
+    "file": "planet-awards-1536-surface-bg47o9ue5z.webp",
+    "w": 1536,
+    "h": 768,
+    "layers": 1,
+    "touch": false
+  },
+  "planet-projects-1024-detail": {
+    "hash": "1k4zw9vpg88",
+    "file": "planet-projects-1024-detail-1k4zw9vpg88.webp",
+    "w": 512,
+    "h": 256,
+    "layers": 1,
+    "touch": true
+  },
+  "planet-projects-1024-surface": {
+    "hash": "1k4zw9vpg88",
+    "file": "planet-projects-1024-surface-1k4zw9vpg88.webp",
+    "w": 1024,
+    "h": 512,
+    "layers": 1,
+    "touch": true
+  },
+  "planet-projects-1536-detail": {
+    "hash": "mrw6fo3tea",
+    "file": "planet-projects-1536-detail-mrw6fo3tea.webp",
+    "w": 768,
+    "h": 384,
+    "layers": 1,
+    "touch": false
+  },
+  "planet-projects-1536-surface": {
+    "hash": "mrw6fo3tea",
+    "file": "planet-projects-1536-surface-mrw6fo3tea.webp",
+    "w": 1536,
+    "h": 768,
+    "layers": 1,
+    "touch": false
+  },
+  "sky-1024": {
+    "hash": "k4ov2dko2r",
+    "file": "sky-1024-k4ov2dko2r.webp",
+    "w": 1024,
+    "h": 1024,
+    "layers": 6,
+    "touch": false
+  },
+  "sky-512": {
+    "hash": "1bhfafn7pdx",
+    "file": "sky-512-1bhfafn7pdx.webp",
+    "w": 512,
+    "h": 512,
+    "layers": 6,
+    "touch": true
+  }
+}

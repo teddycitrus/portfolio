@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useAppStore } from '@/state/useAppStore';
 import * as THREE from 'three';
+import { bakeHash, isBaked, layerSlice, saveBaked, takeBaked, useBakedReady } from './bakedMaps';
 
 /** Pole of the galactic plane; Starfield clusters stars along the same band. */
 export const GALAXY_AXIS = new THREE.Vector3(0.45, 0.88, 0.12).normalize();
@@ -139,10 +140,20 @@ const DISPLAY_FRAGMENT = /* glsl */ `
 
 const skyCache = new WeakMap<THREE.WebGLRenderer, THREE.CubeTexture>();
 
-/** Renders the procedural sky into a cube map once per renderer. */
-const bakeSky = (gl: THREE.WebGLRenderer, size: number): THREE.CubeTexture => {
-  const hit = skyCache.get(gl);
-  if (hit) return hit;
+const skyUniforms = () => ({
+  uAxis: { value: GALAXY_AXIS },
+  uCore: { value: new THREE.Vector3(0.32, -0.12, -0.94).normalize() },
+  uLoop: { value: 1 },
+});
+
+const SPHERE: [number, number, number] = [10, 64, 32];
+const skySize = (touch: boolean) => (touch ? 512 : 1024);
+/** Everything the sky is drawn from: the shipped image must match it exactly (see bakedMaps) */
+const skyHash = (size: number) =>
+  bakeHash(JSON.stringify([THREE.REVISION, BAKE_VERTEX, BAKE_FRAGMENT, skyUniforms(), SPHERE, size]));
+
+/** Draws the procedural sky into a cube map on the GPU. */
+const bakeLive = (gl: THREE.WebGLRenderer, size: number) => {
   const rt = new THREE.WebGLCubeRenderTarget(size, {
     type: THREE.UnsignedByteType,
     generateMipmaps: false,
@@ -151,33 +162,63 @@ const bakeSky = (gl: THREE.WebGLRenderer, size: number): THREE.CubeTexture => {
     depthBuffer: false,
   });
   const mat = new THREE.ShaderMaterial({
-    uniforms: {
-      uAxis: { value: GALAXY_AXIS },
-      uCore: { value: new THREE.Vector3(0.32, -0.12, -0.94).normalize() },
-      uLoop: { value: 1 },
-    },
+    uniforms: skyUniforms(),
     vertexShader: BAKE_VERTEX,
     fragmentShader: BAKE_FRAGMENT,
     side: THREE.BackSide,
     depthTest: false,
     depthWrite: false,
   });
-  const geo = new THREE.SphereGeometry(10, 64, 32);
+  const geo = new THREE.SphereGeometry(...SPHERE);
   const scene = new THREE.Scene();
   scene.add(new THREE.Mesh(geo, mat));
   const cam = new THREE.CubeCamera(0.1, 100, rt);
   cam.update(gl, scene);
   mat.dispose();
   geo.dispose();
-  skyCache.set(gl, rt.texture);
-  return rt.texture;
+  return rt;
+};
+
+/** Development only: writes out either sky size that has no matching image yet. */
+const saveSky = (gl: THREE.WebGLRenderer) => {
+  for (const touch of [false, true]) {
+    const size = skySize(touch);
+    const hash = skyHash(size);
+    if (isBaked(`sky-${size}`, hash)) continue;
+    const rt = bakeLive(gl, size);
+    void saveBaked(gl, `sky-${size}`, hash, rt, size, size, 6, touch);
+    rt.dispose();
+  }
+};
+
+/** The sky cube once per renderer: the shipped image when it matches the code, otherwise baked live. */
+const bakeSky = (gl: THREE.WebGLRenderer, touch: boolean): THREE.CubeTexture => {
+  const hit = skyCache.get(gl);
+  if (hit) return hit;
+  const size = skySize(touch);
+  const px = takeBaked(`sky-${size}`, skyHash(size));
+  let tex: THREE.CubeTexture;
+  if (px) {
+    const faces = Array.from({ length: 6 }, (_, i) => new THREE.DataTexture(layerSlice(px, size, size, i), size, size));
+    tex = new THREE.CubeTexture(faces as unknown as HTMLImageElement[]);
+    tex.generateMipmaps = false;
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.needsUpdate = true;
+  } else {
+    if (import.meta.env.DEV) saveSky(gl);
+    tex = bakeLive(gl, size).texture;
+  }
+  skyCache.set(gl, tex);
+  return tex;
 };
 
 const SpaceBackdrop = () => {
+  useBakedReady();
   const ref = useRef<THREE.Mesh>(null);
   const gl = useThree((st) => st.gl);
   const material = useMemo(() => {
-    const sky = bakeSky(gl, useAppStore.getState().isTouch ? 512 : 1024);
+    const sky = bakeSky(gl, useAppStore.getState().isTouch);
     return new THREE.ShaderMaterial({
       uniforms: { uSky: { value: sky } },
       vertexShader: DISPLAY_VERTEX,

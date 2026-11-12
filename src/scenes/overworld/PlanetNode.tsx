@@ -7,6 +7,7 @@ import { useAppStore } from '@/state/useAppStore';
 import { dragLook } from '@/state/runtime';
 import { SUN_COLOR, SUN_DIRECTION } from './Sun';
 import { STYLE_INDEX, getPlanetMaps, planetSeed } from './planetBake';
+import { useBakedReady } from './bakedMaps';
 
 interface Props {
   planet: Planet;
@@ -232,6 +233,7 @@ const damp = (k: number, dt: number) => 1 - Math.exp(-k * dt);
 const _pos: Vec3 = [0, 0, 0];
 
 const PlanetNode = ({ planet }: Props) => {
+  useBakedReady();
   const orbit = useRef<THREE.Group>(null);
   const spin = useRef<THREE.Group>(null);
   const clouds = useRef<THREE.Mesh>(null);

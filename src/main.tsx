@@ -36,7 +36,7 @@ const upgradePrefetch = () => {
     if (href.endsWith('.js')) n.rel = 'modulepreload';
     else {
       n.rel = 'preload';
-      n.as = href.endsWith('.css') ? 'style' : 'font';
+      n.as = href.endsWith('.css') ? 'style' : href.endsWith('.webp') ? 'fetch' : 'font';
       if (n.as === 'font') n.type = 'font/woff2';
     }
     n.crossOrigin = '';
