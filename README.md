@@ -1,17 +1,87 @@
-# John Mannully, portfolio
+<a id="readme-top"></a>
+
+<!-- PROJECT SHIELDS -->
+<div align="center">
+
+[![Contributors][contributors-shield]][contributors-url]
+[![Forks][forks-shield]][forks-url]
+[![Stargazers][stars-shield]][stars-url]
+[![Issues][issues-shield]][issues-url]
+
+</div>
+
+<!-- PROJECT LOGO -->
+<br />
+<div align="center">
+  <h3 align="center">John Mannully, Portfolio</h3>
+  <p align="center">
+    A portfolio as a star system you fly to and walk through
+    <br />
+    <a href="https://johnmannully.vercel.app/"><strong>Visit the site »</strong></a>
+    <br />
+    <a href="https://github.com/teddycitrus/portfolio"><strong>Explore the docs »</strong></a>
+    <br />
+    <br />
+    <a href="https://github.com/teddycitrus/portfolio/issues/new?labels=bug">Report Bug</a>
+    &middot;
+    <a href="https://github.com/teddycitrus/portfolio/issues/new?labels=enhancement">Request Feature</a>
+  </p>
+</div>
+
+<!-- TABLE OF CONTENTS -->
+<details>
+  <summary>Table of Contents</summary>
+  <ol>
+    <li>
+      <a href="#about-the-project">About The Project</a>
+      <ul>
+        <li><a href="#built-with">Built With</a></li>
+      </ul>
+    </li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li>
+      <a href="#getting-started">Getting Started</a>
+      <ul>
+        <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#installation">Installation</a></li>
+      </ul>
+    </li>
+    <li><a href="#usage">Usage</a></li>
+    <li><a href="#roadmap">Roadmap</a></li>
+    <li><a href="#contributing">Contributing</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ol>
+</details>
+
+<!-- ABOUT THE PROJECT -->
+## About The Project
 
 An interactive portfolio rendered in Three.js. You look out of a ship's observation deck at three planets (About, Projects, Awards), fly down to one, and walk its surface: past monuments on Projects, through a temple of statues on Awards, and around a small base camp on About. Everything is also available as a plain, readable page through "Read as page".
 
-Built with Vite, React 18, TypeScript, React Three Fiber, drei, postprocessing, zustand and Tailwind.
+Key capabilities:
+* **A launch, not a loading screen**: the site opens on a terminal aboard the ship; any key launches into hyperspace while the app loads and compiles underneath, then drops out into the system
+* **Beam down and walk**: a tractor beam pulls you to a planet and lowers you onto its surface, each with its own sky, terrain, plants, wildlife, music and monuments
+* **Screens in the world**: walking up to a monument fans its panels out into holographic screens with the title, video, description, highlights and stack
+* **Runs on ordinary hardware**: two quality tiers picked from the GPU and checked against real frame times, shipped sky and planet maps instead of drawing them on each visit, and planet shaders compiled in the background when the mouse heads for a planet
+* **A plain page too**: the reader shows the same content as a normal, accessible page, and becomes the whole site when WebGL is missing or too slow
+* **One source of content**: monuments, HUD, panels and reader are all generated from `src/data/content.json`
 
-## Controls
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-| Where | Desktop | Touch |
-| --- | --- | --- |
-| Orbit | Move the mouse to look, drag to pan, click a planet or press 1 to 5 | Drag to look, tap a planet |
-| Surface | The cursor locks on landing: move the mouse to look, WASD or arrows to walk, Shift to run, click the monument under the crosshair. Esc frees the cursor, a click on the scene locks it again | Joystick to walk, drag to look, tap a monument |
-| Anywhere | R opens the reader, Q or Esc goes back | Back and Read buttons |
+### Built With
 
+* [![Vite][Vite-badge]][Vite-url]
+* [![React][React-badge]][React-url]
+* [![TypeScript][TypeScript-badge]][TypeScript-url]
+* [![Three.js][Three-badge]][Three-url]
+* [![React Three Fiber][R3F-badge]][R3F-url]
+* [![Zustand][Zustand-badge]][Zustand-url]
+* [![Tailwind CSS][Tailwind-badge]][Tailwind-url]
+* [![Vercel][Vercel-badge]][Vercel-url]
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- ARCHITECTURE -->
 ## Architecture
 
 The app is one WebGL canvas plus a DOM layer on top. A single zustand store holds the scene mode and selections; per-frame data (pointer, drag, keys, projected screen positions) lives in plain mutable objects so the render loop never triggers React renders.
@@ -184,13 +254,132 @@ Guarantees and limits:
 - Type is one self-hosted family, Archivo (expanded cut for display, normal for text), with JetBrains Mono only for key caps and handles. No font CDN.
 - Post-processing renders in linear HDR with AgX tone mapping and a light contrast lift; only values above about 0.9 bloom (sun, bright stars, lava, glints, focused seams). Touch devices drop multisampling and film grain.
 
-## Getting started
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-```bash
-npm install
-npm run dev      # http://localhost:5173
-npm run build    # type-checks and builds to dist/
-npm run preview  # serves the production build
-```
+<!-- GETTING STARTED -->
+## Getting Started
+
+### Prerequisites
+
+* Node.js 18+ and npm
+
+### Installation
+
+1. Clone the repo
+   ```sh
+   git clone https://github.com/teddycitrus/portfolio.git
+   cd portfolio
+   ```
+
+2. Install dependencies
+   ```sh
+   npm install
+   ```
+
+3. Start the development server
+   ```sh
+   npm run dev
+   ```
+
+   Open [http://localhost:5173](http://localhost:5173) to see the site.
+
+4. Build and preview the production version
+   ```sh
+   npm run build    # type-checks and builds to dist/
+   npm run preview  # serves the production build
+   ```
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- USAGE -->
+## Usage
+
+**Controls**
+
+| Where | Desktop | Touch |
+| --- | --- | --- |
+| Orbit | Move the mouse to look, drag to pan, click a planet or press 1 to 3 | Drag to look, tap a planet |
+| Surface | The cursor locks on landing: move the mouse to look, WASD or arrows to walk, Shift to run, click the monument under the crosshair. Esc frees the cursor, a click on the scene locks it again | Joystick to walk, drag to look, tap a monument |
+| Anywhere | R opens the reader, Q or Esc goes back | Back and Read buttons |
+
+**Links**
+
+The address follows where you are, so any view can be shared: `#/projects` lands on the Projects planet, `#/projects/proj-iris` opens the Iris panel there, and `#/read` or `#/read/awards` opens the reader, optionally at a section.
+
+**Quality**
+
+The tier is picked automatically. Add `?quality=high` or `?quality=low` to force one, or `?quality=lite` for the reader without the 3D.
+
+**Editing content**
 
 To change what the site says, edit `src/data/content.json`. Each planet lists its beacons; a beacon's `kind` (`profile`, `project`, `award`, `skills`, `link`) decides how it is drawn and how its content is rendered. Contact links live in `profile.links` and feed the console keys and the reader header.
+
+**Shipped maps**
+
+The sky and planet maps in `public/baked` are made by the dev server. After editing a bake shader or a planet's look, open the site once with `npm run dev`: it bakes the changed maps live, saves them and reloads. Commit `public/baked` and `src/data/baked.json` with the change.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- ROADMAP -->
+## Roadmap
+
+- [x] Three planets with their own surfaces, music and wildlife
+- [x] Terminal launch and hyperspace loader
+- [x] Reader mode and the no-WebGL fallback
+- [x] Quality tiers, shipped sky and planet maps, and background shader compiles for older PCs
+- [ ] Build planet terrain in a worker, so the first hover over a planet no longer stutters
+
+See the [open issues](https://github.com/teddycitrus/portfolio/issues) for a full list of proposed features and known bugs.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- CONTRIBUTING -->
+## Contributing
+
+This is a personal site, but bug reports and suggestions are welcome. File an issue, or fork the repo and open a pull request.
+
+1. Fork the project
+2. Create your feature branch (`git checkout -b feature/my-feature`)
+3. Commit your changes (`git commit -m 'Add my feature'`)
+4. Push to the branch (`git push origin feature/my-feature`)
+5. Open a pull request
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- CONTACT -->
+## Contact
+
+John Mannully: [LinkedIn](https://www.linkedin.com/in/john-mannully/) &middot; [GitHub](https://github.com/teddycitrus) &middot; [Devpost](https://devpost.com/teddycitrus)
+
+Live site: [https://johnmannully.vercel.app](https://johnmannully.vercel.app/)
+
+Project Link: [https://github.com/teddycitrus/portfolio](https://github.com/teddycitrus/portfolio)
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- MARKDOWN LINKS & BADGES -->
+[contributors-shield]: https://img.shields.io/github/contributors/teddycitrus/portfolio.svg?style=for-the-badge&cacheSeconds=60
+[contributors-url]: https://github.com/teddycitrus/portfolio/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/teddycitrus/portfolio.svg?style=for-the-badge&cacheSeconds=60
+[forks-url]: https://github.com/teddycitrus/portfolio/network/members
+[stars-shield]: https://img.shields.io/github/stars/teddycitrus/portfolio.svg?style=for-the-badge&cacheSeconds=60
+[stars-url]: https://github.com/teddycitrus/portfolio/stargazers
+[issues-shield]: https://img.shields.io/github/issues/teddycitrus/portfolio.svg?style=for-the-badge&cacheSeconds=60
+[issues-url]: https://github.com/teddycitrus/portfolio/issues
+
+[Vite-badge]: https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white
+[Vite-url]: https://vitejs.dev/
+[React-badge]: https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB
+[React-url]: https://react.dev/
+[TypeScript-badge]: https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white
+[TypeScript-url]: https://www.typescriptlang.org/
+[Three-badge]: https://img.shields.io/badge/Three.js-000000?style=for-the-badge&logo=threedotjs&logoColor=white
+[Three-url]: https://threejs.org/
+[R3F-badge]: https://img.shields.io/badge/React_Three_Fiber-000000?style=for-the-badge&logo=react&logoColor=white
+[R3F-url]: https://docs.pmnd.rs/react-three-fiber
+[Zustand-badge]: https://img.shields.io/badge/Zustand-443E38?style=for-the-badge&logo=react&logoColor=white
+[Zustand-url]: https://zustand.docs.pmnd.rs/
+[Tailwind-badge]: https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white
+[Tailwind-url]: https://tailwindcss.com/
+[Vercel-badge]: https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white
+[Vercel-url]: https://vercel.com/
