@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useContext, useEffect, useMemo, useRef } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Architecture, Beacon as BeaconData, Planet, Vec3 } from '@/types/content';
 import { useAppStore } from '@/state/useAppStore';
 import { dragLook, mouseLook } from '@/state/runtime';
-import { arrivalPulse } from './surfaceState';
+import { StagedSurface, arrivalPulse } from './surfaceState';
 import { openBeacon } from '@/ui/navigation';
 import { mulberry, seedOf } from './rng';
 import BeaconScreens from './BeaconScreens';
@@ -299,12 +299,14 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
     return { stone, plinth, metal, seam, seamBase, pool, ringMat };
   }, [planet, kind, rim, rimColor, rank, spec.shade]);
 
+  // a copy compiled out of sight from orbit never set the cursor, and the pointer may be on a planet
+  const staged = useContext(StagedSurface);
   useEffect(
     () => () => {
       Object.values(mats).forEach((m) => m instanceof THREE.Material && m.dispose());
-      document.body.style.cursor = '';
+      if (!staged) document.body.style.cursor = '';
     },
-    [mats],
+    [mats, staged],
   );
 
   useFrame(({ clock }, delta) => {

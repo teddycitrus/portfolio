@@ -34,18 +34,14 @@ interface AppState {
   /** A planet asked for during the arrival (a link, Back); travel starts when it ends */
   introTravel: string | null;
   /**
-   * Under the loader, before the lobby shows: every planet's surface is drawn
-   * once out of sight so all of it is built and compiled before anyone lands.
-   * No input acts and travel waits until it is over.
+   * Under the loader, before the lobby shows: the system is compiled and its
+   * frame rate judged (see Preload). No input acts and travel waits until it is over.
    */
   warming: boolean;
-  /** The planet whose surface is being drawn out of sight while warming, else null */
-  warmPlanetId: string | null;
 
   setNoWebGL: () => void;
   setQuality: (q: Quality) => void;
   endIntro: () => void;
-  setWarmPlanet: (id: string | null) => void;
   endWarm: () => void;
   setHoveredPlanet: (id: string | null) => void;
   setFocusedBeacon: (id: string | null) => void;
@@ -96,14 +92,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   intro: introWanted(),
   introTravel: null,
   warming: lobbyStart(),
-  warmPlanetId: null,
 
   setQuality: (q) => {
     if (q === 'none') get().setNoWebGL();
     else set({ quality: q });
   },
   setNoWebGL: () =>
-    set({ noWebGL: true, quality: 'none', readerOpen: true, readerSection: null, intro: false, introTravel: null, warming: false, warmPlanetId: null }),
+    set({ noWebGL: true, quality: 'none', readerOpen: true, readerSection: null, intro: false, introTravel: null, warming: false }),
   endIntro: () => {
     // still warming: a queued trip waits for endWarm
     if (get().warming) {
@@ -114,10 +109,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ intro: false, introTravel: null });
     if (queued) get().travelTo(queued);
   },
-  setWarmPlanet: (id) => set({ warmPlanetId: id }),
   endWarm: () => {
-    if (!get().warming && !get().warmPlanetId) return;
-    set({ warming: false, warmPlanetId: null });
+    if (!get().warming) return;
+    set({ warming: false });
     const queued = get().introTravel;
     if (queued && !get().intro) {
       set({ introTravel: null });

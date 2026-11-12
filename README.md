@@ -27,7 +27,7 @@ flowchart LR
   end
   subgraph Canvas["R3F canvas"]
     overworld["OverworldScene<br/><sub>planets, stars, nebulae, galaxies, meteors, telescope camera, hyperspace arrival</sub>"]
-    surface["PlanetSurfaceScene<br/><sub>sky, mothership, terrain, monuments or a built site, wildlife, walk camera; own chunk, loaded and warmed in hyperspace</sub>"]
+    surface["PlanetSurfaceScene<br/><sub>sky, mothership, terrain, monuments or a built site, wildlife, walk camera; own chunk, compiled out of sight when a planet is aimed at</sub>"]
     screens["BeaconScreens<br/><sub>orbiting panels, in-world content screens</sub>"]
     transition["TransitionController<br/><sub>lock-on camera, tractor beam exit</sub>"]
     ship["Cockpit<br/><sub>deck frame, beam-down rig, shake</sub>"]
@@ -101,10 +101,16 @@ Loading follows the launch. The page itself holds only the terminal, hyperspace 
 
 1. The system is compiled against the composer's render target (in parallel where the browser supports it) with nothing drawn, then drawn for three frames.
 2. 24 frames of the system are timed. If the median frame takes over 40 ms on the full tier, the device steps down to the low tier (remembered for its next visit) and is timed again; over 85 ms on the low tier, the canvas is dropped and the reader becomes the site.
-3. On a plain visit to the lobby, the planet chunk is fetched and each planet's surface is mounted out of sight in turn (`warmPlanetId`): the system makes way and the deck is hidden so the lights match a real landing, then the surface is compiled, drawn for four frames and taken down. The mode stays `overworld`, so the music, address bar, camera and HUD take no notice, and critter calls stay silent.
-   The low tier skips this step, so a weak GPU is never handed every planet's shaders at once; its surfaces compile on landing, under the veil.
-4. The system is put back and settled, the `warming` flag clears (input and travel wait on it), and fonts and video posters finish loading.
-5. The loader is let go and the warp spools it out. Every shader program compiled on the way is kept for the life of the page, so no landing or return to orbit compiles again.
+3. The `warming` flag clears (input and travel wait on it), and fonts and video posters finish loading.
+4. The loader is let go and the warp spools it out. Every shader program compiled on the way is kept for the life of the page, so a return to orbit never compiles again.
+
+Planet surfaces are not compiled under the loader, so it never waits on a planet nobody visits. `LazySurface` compiles each one the first time the mouse heads for its planet in orbit (over it at once, or within three of its on-screen radii plus 48 px for 150 ms) or a trip to it starts (a click, a key, a tap, a link):
+
+1. The surface is mounted through a portal into a scene that is never drawn, with its pointer events off. React builds it as a transition, in slices between frames.
+2. Its materials are compiled against the composer's target with that scene's own lights and fog, a few objects per frame (at most 6 ms of each), in parallel on the GPU side; again after three frames for parts built on their first frame.
+3. Its programs are kept and it is taken down. Critter calls stay silent and the cursor is left alone meanwhile (`StagedSurface`).
+
+The landing builds the surface again but compiles nothing new (a handful of shadow programs at most), where it used to freeze for half a second or more. Each planet is compiled once per tier.
 
 ```mermaid
 sequenceDiagram
@@ -123,11 +129,12 @@ sequenceDiagram
   A->>P: scene mounted
   P->>P: compile and draw the system
   P->>P: time 24 frames, step down the tier if slow
-  P->>P: each planet surface: mount, compile, draw, unmount
-  P->>P: system back, fonts and posters in
+  P->>P: fonts and posters in
   P->>W: hideBoot, reveal
   W->>L: spool, flash, remove
-  Note over V,W: The lobby shows fully compiled; landings reuse the kept programs
+  V->>A: mouse nears a planet, or a trip starts
+  A->>A: mount its surface out of sight, compile in slices, keep, unmount
+  Note over V,W: The lobby shows fully compiled; a landing reuses its surface's kept programs
 ```
 
 Guarantees and limits:
@@ -136,7 +143,7 @@ Guarantees and limits:
 - Planet and beacon layout is computed, not authored: planets are fitted to the viewport (a horizontal arc on landscape, a zig-zag on portrait) and beacons sit on a 94 degree arc in front of the spawn point.
 - Quality tiers (`gpuTier.ts`), picked before the canvas exists from the WebGL renderer and the device's memory and cores:
   - `high`: the full scene, at up to 1.75x pixel density, with 2x multisampling, five-level bloom, film grain and soft shadows on the surfaces.
-  - `low` (integrated Intel and AMD graphics, older Mali, Adreno and PowerVR, or 4 GB of memory or 4 threads or fewer): 1x pixels, no multisampling, three-level bloom, no grain, no shadow map, and no planets warmed under the loader.
+  - `low` (integrated Intel and AMD graphics, older Mali, Adreno and PowerVR, or 4 GB of memory or 4 threads or fewer): 1x pixels, no multisampling, three-level bloom, no grain, and no shadow map.
   - `none` (no WebGL 2, or WebGL drawn on the CPU because the browser blocked the GPU): no canvas; the reader is the site.
   - `?quality=high|low|lite` forces a tier.
 - Without WebGL (or if the context is lost or the 3D tree throws), the canvas is never mounted and the reader becomes the whole site.
@@ -144,7 +151,7 @@ Guarantees and limits:
 - Plants and animals are halved on the low tier.
 - The sky cube and the planet maps are the same for every visitor, so they ship as images (`public/baked`, listed in `src/data/baked.json`) instead of being drawn on each first visit, which took Direct3D about 4.5 seconds of shader compiling. Each image is named by a hash of what it was drawn from (shader source, uniforms, size, three's revision); one that does not match the code is ignored and the map is baked live. In development a live bake with no matching image is saved by the dev server (`bakedMaps` in `vite.config.ts`), so editing a bake shader and opening the site refreshes them. Colour and sky are lossy WebP; normal maps are lossless, as lossy blurs crater rims. Desktop downloads 2 to 4 MB of them, touch devices a smaller set.
 - Every shader stays defined on Apple Metal (Safari and every Mac browser): no pow() of a base that can go negative, no normalize() of a zero vector, no atan(0, 0). Metal returns NaN there where Direct3D does not, and the bloom blur grows each NaN pixel into a black box.
-- The planet surface is its own chunk (`loadSurface.ts`). On a plain visit it is fetched and every surface warmed under hyperspace (see above); after a deep link it is fetched when the browser is idle after the arrival, or at once when a trip starts. If a dive ever finishes before it is in, the dive holds its covered last frame until it is. On the high tier the shadow map is switched on at startup regardless, so loading the chunk never recompiles the orbit's materials.
+- The planet surface is its own chunk (`loadSurface.ts`). It is fetched when the browser is idle after the arrival, or at once when the mouse nears a planet or a trip starts. If a dive ever finishes before it is in, the dive holds its covered last frame until it is. On the high tier the shadow map is switched on at startup regardless, so loading the chunk never recompiles the orbit's materials.
 - Delivery: vendor code ships in three stable chunks (React, the R3F stack with postprocessing and zustand, three.js) apart from the site's own code, so a deploy only invalidates what changed; `vercel.json` caches the hashed `/assets` files for a year. On a planet the shadow map is redrawn every other frame (the sun and its shadow frame are fixed and only slow things move), and the hidden cockpit skips its per-frame work.
 - Frame loops do not read layout or rewrite unchanged styles: screen content sizes come from a ResizeObserver, HUD markers and screens write a style only when its value changes, the contact keys are laid out again only when the console moves half a pixel, and colours used per frame are parsed once.
 - Touch: hover styles apply only where a pointer can hover, taps fire without the double-tap wait, controls never select on a long press, small HUD buttons have a 48px hit area, and the phone sheet is sized in `dvh` so it never hides under the browser's URL bar.

@@ -16,7 +16,7 @@ import PlanetCamera, { type SurfaceBeacon } from './PlanetCamera';
 import { siteFor } from './sites/site';
 import { TempleGrounds } from './sites/Temple';
 import { OutpostGrounds } from './sites/Outpost';
-import { surfaceMounted } from './surfaceState';
+import { StagedSurface, surfaceMounted } from './surfaceState';
 
 const SHADOW_EXTENT = 34;
 const SUN_DISTANCE = 70;
@@ -154,21 +154,24 @@ const Surface = ({ planet }: { planet: Planet }) => {
 
 /**
  * Planet surface. Renders in 'planet' and through 'transitioning-out' so the
- * launch is visible; PlanetCamera only drives the camera in 'planet'. Under
- * the loader it also renders each planet in turn while the app warms up (see
- * Preload), with the mode still 'overworld' so the camera, HUD, music and
- * address bar take no notice.
+ * launch is visible; PlanetCamera only drives the camera in 'planet'. Given
+ * `stageId` it renders that planet regardless, for LazySurface to compile out
+ * of sight from orbit; the mode is then 'overworld' or 'transitioning-in', so
+ * the camera, HUD, music and address bar take no notice.
  */
-const PlanetSurfaceScene = () => {
+const PlanetSurfaceScene = ({ stageId }: { stageId?: string }) => {
   const mode = useAppStore((s) => s.mode);
   const activeId = useAppStore((s) => s.activePlanetId);
-  const warmId = useAppStore((s) => s.warmPlanetId);
-  const planet = useMemo(() => planetById(warmId ?? activeId), [warmId, activeId]);
+  const planet = useMemo(() => planetById(stageId ?? activeId), [stageId, activeId]);
 
   // the shadow map is switched on by LazySurface, before this chunk loads
-  const show = (!!warmId || mode === 'planet' || mode === 'transitioning-out') && !!planet;
+  const show = (!!stageId || mode === 'planet' || mode === 'transitioning-out') && !!planet;
   if (!show || !planet) return null;
-  return <Surface key={planet.id} planet={planet} />;
+  return (
+    <StagedSurface.Provider value={!!stageId}>
+      <Surface key={planet.id} planet={planet} />
+    </StagedSurface.Provider>
+  );
 };
 
 export default PlanetSurfaceScene;

@@ -503,8 +503,9 @@ let lastCall = 0;
  */
 export const critterCall = (kind: CritterVoice, distance: number, pan: number) => {
   if (!ctx || !sfx || !verbIn || !enabled || ctx.state !== 'running') return;
-  // a surface drawn out of sight under the loader stays silent
-  if (useAppStore.getState().warmPlanetId) return;
+  // a surface compiled out of sight from orbit (see LazySurface) stays silent
+  const { mode } = useAppStore.getState();
+  if (mode === 'overworld' || mode === 'transitioning-in') return;
   const nowMs = performance.now();
   if (nowMs - lastCall < 220) return;
   lastCall = nowMs;

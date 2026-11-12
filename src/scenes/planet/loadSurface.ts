@@ -10,8 +10,10 @@ import { useAppStore } from '@/state/useAppStore';
  * TransitionController), so a landing never renders onto nothing.
  */
 
-let scene: ComponentType | null = null;
-let pending: Promise<ComponentType> | null = null;
+export type SurfaceComponent = ComponentType<{ stageId?: string }>;
+
+let scene: SurfaceComponent | null = null;
+let pending: Promise<SurfaceComponent> | null = null;
 const listeners = new Set<() => void>();
 
 /** The surface component once loaded, else null. */
