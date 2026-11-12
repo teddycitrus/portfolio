@@ -100,9 +100,11 @@ sequenceDiagram
 Loading follows the launch. The page itself holds only the terminal, hyperspace and a 2 KB entry (`main.tsx`), so the terminal is up and answering keys at once; the app's scripts, stylesheet and fonts download meanwhile as low-priority prefetches (module preloads on Safari) without being run. The launch starts the app (`start.tsx`) under hyperspace, and `Preload` holds hyperspace until everything is ready:
 
 1. The system is compiled against the composer's render target (in parallel where the browser supports it) with nothing drawn, then drawn for three frames.
-2. On a plain visit to the lobby, the planet chunk is fetched and each planet's surface is mounted out of sight in turn (`warmPlanetId`): the system makes way and the deck is hidden so the lights match a real landing, then the surface is compiled, drawn for four frames and taken down. The mode stays `overworld`, so the music, address bar, camera and HUD take no notice, and critter calls stay silent.
-3. The system is put back and settled, the `warming` flag clears (input and travel wait on it), and fonts and video posters finish loading.
-4. The loader is let go and the warp spools it out. Every shader program compiled on the way is kept for the life of the page, so no landing or return to orbit compiles again.
+2. 24 frames of the system are timed. If the median frame takes over 40 ms on the full tier, the device steps down to the low tier (remembered for its next visit) and is timed again; over 85 ms on the low tier, the canvas is dropped and the reader becomes the site.
+3. On a plain visit to the lobby, the planet chunk is fetched and each planet's surface is mounted out of sight in turn (`warmPlanetId`): the system makes way and the deck is hidden so the lights match a real landing, then the surface is compiled, drawn for four frames and taken down. The mode stays `overworld`, so the music, address bar, camera and HUD take no notice, and critter calls stay silent.
+   The low tier skips this step, so a weak GPU is never handed every planet's shaders at once; its surfaces compile on landing, under the veil.
+4. The system is put back and settled, the `warming` flag clears (input and travel wait on it), and fonts and video posters finish loading.
+5. The loader is let go and the warp spools it out. Every shader program compiled on the way is kept for the life of the page, so no landing or return to orbit compiles again.
 
 ```mermaid
 sequenceDiagram
@@ -120,6 +122,7 @@ sequenceDiagram
   M->>A: import and mount
   A->>P: scene mounted
   P->>P: compile and draw the system
+  P->>P: time 24 frames, step down the tier if slow
   P->>P: each planet surface: mount, compile, draw, unmount
   P->>P: system back, fonts and posters in
   P->>W: hideBoot, reveal
@@ -131,9 +134,14 @@ Guarantees and limits:
 
 - Content lives only in `src/data/content.json`. The 3D monuments, the HUD chips, the panel and the reader are all generated from it.
 - Planet and beacon layout is computed, not authored: planets are fitted to the viewport (a horizontal arc on landscape, a zig-zag on portrait) and beacons sit on a 94 degree arc in front of the spawn point.
+- Quality tiers (`gpuTier.ts`), picked before the canvas exists from the WebGL renderer and the device's memory and cores:
+  - `high`: the full scene, at up to 1.75x pixel density, with 2x multisampling, five-level bloom, film grain and soft shadows on the surfaces.
+  - `low` (integrated Intel and AMD graphics, older Mali, Adreno and PowerVR, or 4 GB of memory or 4 threads or fewer): 1x pixels, no multisampling, three-level bloom, no grain, no shadow map, and no planets warmed under the loader.
+  - `none` (no WebGL 2, or WebGL drawn on the CPU because the browser blocked the GPU): no canvas; the reader is the site.
+  - `?quality=high|low|lite` forces a tier.
 - Without WebGL (or if the context is lost or the 3D tree throws), the canvas is never mounted and the reader becomes the whole site.
 - Every shader stays defined on Apple Metal (Safari and every Mac browser): no pow() of a base that can go negative, no normalize() of a zero vector, no atan(0, 0). Metal returns NaN there where Direct3D does not, and the bloom blur grows each NaN pixel into a black box.
-- The planet surface is its own chunk (`loadSurface.ts`). On a plain visit it is fetched and every surface warmed under hyperspace (see above); after a deep link it is fetched when the browser is idle after the arrival, or at once when a trip starts. If a dive ever finishes before it is in, the dive holds its covered last frame until it is. The shadow map is switched on at startup regardless, so loading the chunk never recompiles the orbit's materials.
+- The planet surface is its own chunk (`loadSurface.ts`). On a plain visit it is fetched and every surface warmed under hyperspace (see above); after a deep link it is fetched when the browser is idle after the arrival, or at once when a trip starts. If a dive ever finishes before it is in, the dive holds its covered last frame until it is. On the high tier the shadow map is switched on at startup regardless, so loading the chunk never recompiles the orbit's materials.
 - Delivery: vendor code ships in three stable chunks (React, the R3F stack with postprocessing and zustand, three.js) apart from the site's own code, so a deploy only invalidates what changed; `vercel.json` caches the hashed `/assets` files for a year. On a planet the shadow map is redrawn every other frame (the sun and its shadow frame are fixed and only slow things move), and the hidden cockpit skips its per-frame work.
 - Frame loops do not read layout or rewrite unchanged styles: screen content sizes come from a ResizeObserver, HUD markers and screens write a style only when its value changes, the contact keys are laid out again only when the console moves half a pixel, and colours used per frame are parsed once.
 - Touch: hover styles apply only where a pointer can hover, taps fire without the double-tap wait, controls never select on a long press, small HUD buttons have a 48px hit area, and the phone sheet is sized in `dvh` so it never hides under the browser's URL bar.

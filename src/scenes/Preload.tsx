@@ -7,6 +7,7 @@ import { hideBoot } from '@/ui/boot';
 import { preloadAssets } from '@/ui/preloadAssets';
 import { loadSurface, surfaceScene } from '@/scenes/planet/loadSurface';
 import { surfaceMounted } from '@/scenes/planet/surfaceState';
+import { rememberLow } from '@/scenes/gpuTier';
 
 /*
  * Everything is made ready under the loader, so the site is whole and smooth
@@ -17,6 +18,10 @@ import { surfaceMounted } from '@/scenes/planet/surfaceState';
  *      frames (shadows, textures, anything built on the first frame) and taken
  *      down again, with the system put back after;
  *   3. fonts and video posters are in;
+ * Between 1 and 2 real frames of the system are timed: a device that cannot hold
+ * its frame rate steps down to the low tier, and one that cannot hold even that
+ * gets the reader instead of the 3D (see gpuTier). The low tier skips step 2, so
+ * a weak GPU is not handed every planet's shaders at once.
  * and only then is the loader let go (the warp spools it out, see Warp.tsx).
  * Every shader program compiled on the way is kept for the life of the page,
  * so a landing or a return to orbit never compiles again. Nothing here shows:
@@ -28,6 +33,12 @@ import { surfaceMounted } from '@/scenes/planet/surfaceState';
 const STEP_TIMEOUT_MS = 12000;
 /** Frames drawn of each surface once its shaders are in */
 const SURFACE_FRAMES = 4;
+/** Frames timed to judge the device */
+const TIMED_FRAMES = 24;
+/** Median frame time (ms) above which the full scene steps down to the low tier (under 25 fps) */
+const SLOW_HIGH_MS = 40;
+/** Median frame time (ms) above which even the low tier gives way to the reader (under 12 fps) */
+const SLOW_LOW_MS = 85;
 
 const within = <T,>(p: Promise<T>, ms = STEP_TIMEOUT_MS) =>
   Promise.race([p.then(() => undefined, () => undefined), new Promise<void>((r) => window.setTimeout(r, ms))]);
@@ -49,9 +60,11 @@ const Preload = () => {
   const scene = useThree((s) => s.scene);
   const camera = useThree((s) => s.camera);
   const waiters = useRef<Waiter[]>([]);
+  const stamps = useRef<number[] | null>(null);
 
   // counted before the frame is drawn, so `frames(n)` resolves once n frames have been drawn
   useFrame(() => {
+    stamps.current?.push(performance.now());
     const list = waiters.current;
     for (let i = list.length - 1; i >= 0; i -= 1) {
       const w = list[i];
@@ -141,15 +154,49 @@ const Preload = () => {
     // marks for timing the load in the browser's performance panel
     const mark = (name: string) => performance.mark?.(`preload:${name}`);
 
+    /** Median time between drawn frames over a short run, or null if too few were drawn to tell */
+    const timeFrames = async () => {
+      stamps.current = [];
+      await frames(TIMED_FRAMES);
+      const t = stamps.current;
+      stamps.current = null;
+      const gaps = t.slice(1).map((v, i) => v - t[i]).sort((a, b) => a - b);
+      return gaps.length >= 8 ? gaps[Math.floor(gaps.length / 2)] : null;
+    };
+
+    /** Steps the tier down while the frame rate is too low; false once the 3D is given up */
+    const judge = async () => {
+      // the first frames after a compile are never typical
+      await frames(4);
+      const ms = await timeFrames();
+      mark(`frame-${ms?.toFixed(1)}`);
+      if (ms === null || !live || !covered()) return true;
+      const { quality, setQuality } = useAppStore.getState();
+      if (quality === 'high' && ms > SLOW_HIGH_MS) {
+        setQuality('low');
+        rememberLow();
+        // the tier change rebuilds the composer and drops the shadow map: compile and time again
+        await settle(3);
+        return judge();
+      }
+      if (quality === 'low' && ms > SLOW_LOW_MS) {
+        setQuality('none');
+        return false;
+      }
+      return true;
+    };
+
     const run = async () => {
       mark('start');
       const assets = preloadAssets();
       await settle(3);
       if (!live) return;
       mark('system');
+      if (!(await judge()) || !live) return;
 
       const s = useAppStore.getState();
-      if (s.warming && covered() && !s.noWebGL) {
+      if (s.warming && s.quality === 'low') s.endWarm();
+      else if (s.warming && covered() && !s.noWebGL) {
         try {
           await within(loadSurface(), STEP_TIMEOUT_MS * 2);
           for (const p of surfaceScene() ? planets : []) {

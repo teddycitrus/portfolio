@@ -32,23 +32,26 @@ const AdaptiveDpr = () => {
 const Effects = () => {
   // the frames drawn while loading under the loader are slow by nature: judge the frame rate only after
   const settled = useAppStore((s) => !s.intro && !s.warming);
+  // the low tier (see gpuTier) is already at 1x pixels: no multisampling, a lighter bloom, no grain
+  const low = useAppStore((s) => s.quality === 'low');
+  const lean = COARSE || low;
   return (
     <>
-      {settled && <AdaptiveDpr />}
-      <EffectComposer multisampling={COARSE ? 0 : 2}>
+      {settled && !low && <AdaptiveDpr />}
+      <EffectComposer multisampling={lean ? 0 : 2}>
         <Bloom
           mipmapBlur
           luminanceThreshold={0.9}
           luminanceSmoothing={0.25}
           intensity={0.7}
           radius={0.72}
-          levels={COARSE ? 4 : 5}
+          levels={low ? 3 : COARSE ? 4 : 5}
         />
         <ToneMapping mode={ToneMappingMode.AGX} />
         {/* AgX lands a touch flat; a little contrast brings the low-poly faces back apart */}
         <BrightnessContrast contrast={0.12} />
         <Vignette offset={0.36} darkness={0.38} />
-        {COARSE ? <></> : <Noise blendFunction={BlendFunction.OVERLAY} opacity={0.04} />}
+        {lean ? <></> : <Noise blendFunction={BlendFunction.OVERLAY} opacity={0.04} />}
       </EffectComposer>
     </>
   );

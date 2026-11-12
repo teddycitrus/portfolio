@@ -11,14 +11,10 @@ import { useInputBridge } from '@/hooks/useInputBridge';
 import { useHashRoute } from '@/hooks/useHashRoute';
 import { useAppStore } from '@/state/useAppStore';
 import { hideBoot } from '@/ui/boot';
+import { startQuality } from '@/scenes/gpuTier';
 
-const hasWebGL = (() => {
-  try {
-    return !!document.createElement('canvas').getContext('webgl2');
-  } catch {
-    return false;
-  }
-})();
+/** No WebGL, or WebGL drawn on the CPU: no 3D at all (see gpuTier) */
+const hasWebGL = startQuality !== 'none';
 
 /** Any render or context failure in the 3D tree drops the site into reader-only mode. */
 class SceneBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
@@ -39,6 +35,7 @@ const App = () => {
   useHashRoute();
   const noWebGL = useAppStore((s) => s.noWebGL);
   const readerOpen = useAppStore((s) => s.readerOpen);
+  const low = useAppStore((s) => s.quality === 'low');
 
   useEffect(() => {
     if (!hasWebGL) useAppStore.getState().setNoWebGL();
@@ -55,7 +52,7 @@ const App = () => {
         <SceneBoundary>
           <Canvas
             gl={{ antialias: false, alpha: false, powerPreference: 'high-performance' }}
-            dpr={[1, 1.75]}
+            dpr={low ? 1 : [1, 1.75]}
             frameloop={readerOpen ? 'never' : 'always'}
             camera={{ position: [0, 0, 0], fov: 60, near: 0.1, far: 800 }}
             aria-hidden="true"

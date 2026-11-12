@@ -47,6 +47,7 @@ const Surface = ({ planet }: { planet: Planet }) => {
   const scene = useThree((s) => s.scene);
   const reducedMotion = useAppStore((s) => s.reducedMotion);
   const isTouch = useAppStore((s) => s.isTouch);
+  const shadows = useAppStore((s) => s.quality === 'high');
   const terrain = useMemo(() => heightFor(planet.style), [planet.style]);
   // built ground (a temple floor, a landing pad) over the terrain
   const site = useMemo(() => siteFor(planet, terrain), [planet, terrain]);
@@ -105,13 +106,13 @@ const Surface = ({ planet }: { planet: Planet }) => {
 
   return (
     <>
-      <ShadowCadence />
+      {shadows && <ShadowCadence />}
       <hemisphereLight args={[sky.hemiSky, sky.hemiGround, sky.hemiIntensity]} />
       <directionalLight
         ref={sun}
         color={sky.lightColor}
         intensity={sky.lightIntensity}
-        castShadow
+        castShadow={shadows}
         shadow-mapSize={isTouch ? [1024, 1024] : [2048, 2048]}
         shadow-bias={-0.0004}
         shadow-normalBias={0.03}

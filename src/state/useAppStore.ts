@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { startQuality, type Quality } from '@/scenes/gpuTier';
 
 /**
  * overworld         telescope view of all planets
@@ -26,6 +27,8 @@ interface AppState {
   reducedMotion: boolean;
   /** WebGL failed or is missing: the reader becomes the whole site */
   noWebGL: boolean;
+  /** 3D detail for this device (see gpuTier); 'none' means noWebGL */
+  quality: Quality;
   /** The hyperspace arrival is playing: no HUD, no input, and travel waits for it */
   intro: boolean;
   /** A planet asked for during the arrival (a link, Back); travel starts when it ends */
@@ -40,6 +43,7 @@ interface AppState {
   warmPlanetId: string | null;
 
   setNoWebGL: () => void;
+  setQuality: (q: Quality) => void;
   endIntro: () => void;
   setWarmPlanet: (id: string | null) => void;
   endWarm: () => void;
@@ -88,13 +92,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   isTouch: false,
   reducedMotion: false,
   noWebGL: false,
+  quality: startQuality,
   intro: introWanted(),
   introTravel: null,
   warming: lobbyStart(),
   warmPlanetId: null,
 
+  setQuality: (q) => {
+    if (q === 'none') get().setNoWebGL();
+    else set({ quality: q });
+  },
   setNoWebGL: () =>
-    set({ noWebGL: true, readerOpen: true, readerSection: null, intro: false, introTravel: null, warming: false, warmPlanetId: null }),
+    set({ noWebGL: true, quality: 'none', readerOpen: true, readerSection: null, intro: false, introTravel: null, warming: false, warmPlanetId: null }),
   endIntro: () => {
     // still warming: a queued trip waits for endWarm
     if (get().warming) {
