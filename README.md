@@ -17,7 +17,7 @@
   <p align="center">
     A portfolio as a star system you fly to and walk through
     <br />
-    <a href="https://johnmannully.vercel.app/"><strong>Visit the site »</strong></a>
+    <a href="https://johnmannully.com/"><strong>Visit the site »</strong></a>
     <br />
     <a href="https://github.com/teddycitrus/portfolio"><strong>Explore the docs »</strong></a>
     <br />
@@ -351,7 +351,7 @@ This is a personal site, but bug reports and suggestions are welcome. File an is
 
 John Mannully: [LinkedIn](https://www.linkedin.com/in/john-mannully/) &middot; [GitHub](https://github.com/teddycitrus) &middot; [Devpost](https://devpost.com/teddycitrus)
 
-Live site: [https://johnmannully.vercel.app](https://johnmannully.vercel.app/)
+Live site: [https://johnmannully.com](https://johnmannully.com/)
 
 Project Link: [https://github.com/teddycitrus/portfolio](https://github.com/teddycitrus/portfolio)
 
