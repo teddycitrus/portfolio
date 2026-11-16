@@ -3,8 +3,10 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Beacon as BeaconData, Planet } from '@/types/content';
 import type { HeightFn } from '../Terrain';
-import { TEMPLE, templeLevels, templeStepTop } from './site';
+import { TEMPLE, templeLevels } from './site';
 import { addRim, Fire, noRaycast, Strut, useCanvasTexture, type FireLevel } from './common';
+import { decalMaterial } from './dress';
+import { buildTemple } from './templeDress';
 
 /*
  * The awards planet is an open-air temple at dawn: a raised floor reached by
@@ -90,21 +92,6 @@ const Brazier = ({ mats, level, height = 0.95, bowl = 0.22, flame = 0.5, reduced
   </group>
 );
 
-/** A plain column: base, shaft and capital. */
-const Column = ({ mats, h, x, z, y }: { mats: Mats; h: number; x: number; z: number; y: number }) => (
-  <group position={[x, y, z]}>
-    <mesh material={mats.dark} position={[0, 0.12, 0]} castShadow receiveShadow raycast={noRaycast}>
-      <boxGeometry args={[0.78, 0.24, 0.78]} />
-    </mesh>
-    <mesh material={mats.stone} position={[0, 0.24 + (h - 0.5) / 2, 0]} castShadow receiveShadow raycast={noRaycast}>
-      <cylinderGeometry args={[0.27, 0.31, h - 0.5, 12]} />
-    </mesh>
-    <mesh material={mats.stone} position={[0, h - 0.13, 0]} castShadow raycast={noRaycast}>
-      <boxGeometry args={[0.72, 0.26, 0.72]} />
-    </mesh>
-  </group>
-);
-
 /** Floor slabs with grout lines, tiled over the temple floor. */
 const useFloorTexture = () =>
   useCanvasTexture(
@@ -164,8 +151,28 @@ export const TempleGrounds = ({
     floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
     floorTex.repeat.set(W / 2.4, D / 2.4);
   }, [floorTex, W, D]);
-  const colH = 4.1;
   const eternal = useRef<FireLevel>({ v: 1 });
+  const dress = useMemo(() => buildTemple(planet, ground, top, base), [planet, ground, top, base]);
+  useEffect(() => () => Object.values(dress).forEach((g) => g.dispose()), [dress]);
+  const dressMats = useMemo(() => {
+    const rc = rimColor ?? new THREE.Color(planet.accent);
+    return {
+      cast: addRim(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, metalness: 0.02, flatShading: true }), rc, rim * 0.16),
+      flat: addRim(
+        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88, flatShading: true, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
+        rc,
+        rim * 0.08,
+      ),
+      stain: decalMaterial(),
+      ember: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }),
+    };
+  }, [planet, rim, rimColor]);
+  useDispose(dressMats);
+
+  useFrame(({ clock }) => {
+    const k = reducedMotion ? 0.9 : 0.85 + 0.15 * Math.sin(clock.elapsedTime * 0.7);
+    dressMats.ember.color.setScalar(k);
+  });
 
   return (
     <group>
@@ -173,71 +180,20 @@ export const TempleGrounds = ({
       <mesh material={floor} position={[cx, (top + base) / 2, cz]} receiveShadow raycast={noRaycast}>
         <boxGeometry args={[W, top - base, D]} />
       </mesh>
-      {/* a darker runner down the aisle, edged in gold */}
-      <mesh material={mats.dark} position={[0, top + 0.012, cz + 0.6]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow raycast={noRaycast}>
-        <planeGeometry args={[2.0, D - 1.2]} />
-      </mesh>
-      {[-1.02, 1.02].map((x) => (
-        <mesh key={x} material={mats.gold} position={[x, top + 0.02, cz + 0.6]} raycast={noRaycast}>
-          <boxGeometry args={[0.05, 0.02, D - 1.2]} />
+      {/* steps, colonnades, gate and dais; their carving; inlays and offerings; stains */}
+      <mesh geometry={dress.cast} material={dressMats.cast} castShadow receiveShadow raycast={noRaycast} />
+      <mesh geometry={dress.flat} material={dressMats.flat} receiveShadow raycast={noRaycast} />
+      <mesh geometry={dress.gold} material={mats.gold} raycast={noRaycast} />
+      <mesh geometry={dress.stain} material={dressMats.stain} renderOrder={1} raycast={noRaycast} />
+      <mesh geometry={dress.ember} material={dressMats.ember} raycast={noRaycast} />
+      {/* the eternal flame */}
+      <group position={[0, top + 1.3, TEMPLE.daisZ]}>
+        <mesh material={mats.gold} castShadow raycast={noRaycast}>
+          <cylinderGeometry args={[0.62, 0.3, 0.32, 14, 1]} />
         </mesh>
-      ))}
-      {/* steps down toward the spawn */}
-      {Array.from({ length: TEMPLE.steps }, (_, k) => {
-        const st = templeStepTop(ground, top, k);
-        const z0 = TEMPLE.z1 + k * TEMPLE.stepRun;
-        return (
-          <mesh key={k} material={mats.stone} position={[cx, (st + base) / 2, z0 + TEMPLE.stepRun / 2]} receiveShadow castShadow raycast={noRaycast}>
-            <boxGeometry args={[W - 0.6 - k * 0.5, st - base, TEMPLE.stepRun]} />
-          </mesh>
-        );
-      })}
-      {/* colonnades with their beams */}
-      {[-TEMPLE.colX, TEMPLE.colX].map((x) => (
-        <group key={x}>
-          {TEMPLE.colZ.map((z) => (
-            <Column key={z} mats={mats} h={colH} x={x} z={z} y={top} />
-          ))}
-          <mesh
-            material={mats.stone}
-            position={[x, top + colH + 0.2, (TEMPLE.colZ[0] + TEMPLE.colZ[TEMPLE.colZ.length - 1]) / 2]}
-            castShadow
-            raycast={noRaycast}
-          >
-            <boxGeometry args={[0.85, 0.4, TEMPLE.colZ[0] - TEMPLE.colZ[TEMPLE.colZ.length - 1] + 0.9]} />
-          </mesh>
+        <group position={[0, 0.1, 0]}>
+          <Fire level={eternal.current} size={1.35} ground={-1.4} pool={7} reducedMotion={reducedMotion} seed={9} />
         </group>
-      ))}
-      {/* the dais and the eternal flame */}
-      <group position={[0, top, TEMPLE.daisZ]}>
-        <mesh material={mats.dark} position={[0, 0.15, 0]} castShadow receiveShadow raycast={noRaycast}>
-          <cylinderGeometry args={[TEMPLE.daisR, TEMPLE.daisR + 0.1, 0.3, 10]} />
-        </mesh>
-        <mesh material={mats.stone} position={[0, 0.45, 0]} castShadow receiveShadow raycast={noRaycast}>
-          <cylinderGeometry args={[TEMPLE.daisR - 0.5, TEMPLE.daisR - 0.4, 0.3, 10]} />
-        </mesh>
-        <mesh material={mats.stone} position={[0, 0.95, 0]} castShadow raycast={noRaycast}>
-          <cylinderGeometry args={[0.28, 0.4, 0.7, 10]} />
-        </mesh>
-        <group position={[0, 1.3, 0]}>
-          <mesh material={mats.gold} castShadow raycast={noRaycast}>
-            <cylinderGeometry args={[0.62, 0.3, 0.32, 14, 1]} />
-          </mesh>
-          <group position={[0, 0.1, 0]}>
-            <Fire level={eternal.current} size={1.35} ground={-1.4} pool={7} reducedMotion={reducedMotion} seed={9} />
-          </group>
-        </group>
-      </group>
-      {/* the gate behind it */}
-      <group position={[0, top, TEMPLE.z0 + 0.7]}>
-        <Column mats={mats} h={5.2} x={-2.3} z={0} y={0} />
-        <Column mats={mats} h={5.2} x={2.3} z={0} y={0} />
-        <mesh material={mats.stone} position={[0, 5.42, 0]} castShadow raycast={noRaycast}>
-          <boxGeometry args={[5.8, 0.45, 0.9]} />
-        </mesh>
-        <mesh material={mats.gold} position={[0, 5.42, 0.46]} raycast={noRaycast}>
-          <boxGeometry args={[4.6, 0.06, 0.02]} />
-        </mesh>
       </group>
     </group>
   );

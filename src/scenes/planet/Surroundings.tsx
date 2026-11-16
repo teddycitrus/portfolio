@@ -4,7 +4,11 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Planet } from '@/types/content';
 import type { ResolvedSky } from '@/data/skyPresets';
+import { useAppStore } from '@/state/useAppStore';
 import { CLOUD_DECK_Y, fbm2, heightFor, noise2, TERRAIN_RADIUS, terrainPalette, WATER_LEVEL } from './Terrain';
+import { skyNoiseTexture } from './envBake';
+import EnvScatter from './envScatter';
+import EnvMotes from './envMotes';
 
 /* ---------- shallow water (oceanic) ---------- */
 
@@ -124,27 +128,21 @@ const cloudFrag = /* glsl */ `
   uniform vec3 uHorizon;
   uniform float uFogDensity;
   uniform float uShadowR;
+  uniform sampler2D uNoise;
   varying vec3 vW;
-  float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-  float vn(vec2 p) {
-    vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
-    return mix(mix(h21(i), h21(i + vec2(1, 0)), u.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), u.x), u.y);
-  }
-  float fbm(vec2 p) {
-    float s = 0.0; float a = 0.5;
-    for (int i = 0; i < 5; i++) { s += vn(p) * a; p = p * 2.03 + 11.7; a *= 0.5; }
-    return s;
-  }
   void main() {
     vec2 p = vW.xz * 0.012;
     float t = uTime;
     // long latitude bands, sheared by turbulence and drifting slowly
-    float turb = fbm(p * 1.6 + vec2(t * 0.012, 0.0));
+    float turb = texture2D(uNoise, p * 0.4 + vec2(t * 0.003, 0.0)).r;
     float v = p.y * 3.2 + turb * 2.4 + sin(p.x * 0.7 + t * 0.02) * 0.3;
     float band = sin(v * 3.14159) * 0.5 + 0.5;
     vec3 col = mix(uC2, uC0, smoothstep(0.15, 0.85, band));
-    float puff = fbm(p * 4.0 - vec2(t * 0.02, t * 0.008));
+    float puff = texture2D(uNoise, p * 1.0 - vec2(t * 0.005, t * 0.002)).r;
     col = mix(col, uC1, smoothstep(0.55, 0.85, puff) * 0.55);
+    // billowed relief, so the deck has tops and shadowed folds close to the mesa
+    float fold = texture2D(uNoise, p * 2.6 + vec2(t * 0.004, 0.0)).a;
+    col *= 0.86 + 0.28 * fold;
     // luminous seams between bands
     col += uGlow * pow(max(1.0 - abs(band - 0.5) * 2.0, 0.0), 8.0) * 0.6;
     // the mesa shades the deck right below it
@@ -202,6 +200,7 @@ interface SurroundingsProps {
 const Surroundings = ({ planet, sky, reducedMotion }: SurroundingsProps) => {
   const time = useMemo(() => ({ value: 0 }), []);
   const style = planet.style;
+  const isTouch = useAppStore((s) => s.isTouch);
 
   const water = useMemo(() => {
     if (style !== 'oceanic') return null;
@@ -244,6 +243,7 @@ const Surroundings = ({ planet, sky, reducedMotion }: SurroundingsProps) => {
         uHorizon: { value: sky.fogColor },
         uFogDensity: { value: sky.fogDensity * 0.4 },
         uShadowR: { value: 28 },
+        uNoise: { value: skyNoiseTexture() },
       },
     });
     const pal = terrainPalette(planet);
@@ -290,6 +290,8 @@ const Surroundings = ({ planet, sky, reducedMotion }: SurroundingsProps) => {
 
   return (
     <group>
+      <EnvScatter planet={planet} isTouch={isTouch} />
+      <EnvMotes planet={planet} sky={sky} reducedMotion={reducedMotion} isTouch={isTouch} />
       {water && <mesh geometry={water.geo} material={water.mat} renderOrder={-1} frustumCulled={false} />}
       {clouds && (
         <>

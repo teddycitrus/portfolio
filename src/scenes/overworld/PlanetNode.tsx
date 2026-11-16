@@ -44,6 +44,10 @@ const PLANET_FRAGMENT = /* glsl */ `
   uniform int uStyle;
   uniform float uTime;
   uniform float uAtmo;
+  uniform vec3 uCenter;
+  uniform vec3 uRingN;
+  uniform float uRingInner;
+  uniform float uRingOuter;
   varying vec2 vUv;
   varying vec3 vLocal;
   varying vec3 vWorldPos;
@@ -89,7 +93,25 @@ const PLANET_FRAGMENT = /* glsl */ `
       float crack = S.a;
       float pulse = 0.85 + 0.15 * sin(uTime * 0.6 + dot(vLocal, vec3(7.0, 5.0, 3.0)));
       vec3 lava = mix(vec3(1.0, 0.28, 0.04), mix(uB, vec3(1.0, 0.75, 0.4), 0.5), crack * crack);
-      col += lava * crack * pulse * mix(2.4, 0.6, day);
+      col += lava * crack * pulse * mix(2.2, 0.55, day);
+    }
+
+    // rocky worlds: the few warm lights of the camp, only out of the sun
+    if (uStyle == 1) col += vec3(1.0, 0.62, 0.3) * specMask * (1.0 - smoothstep(-0.02, 0.1, NgL)) * 2.2;
+
+    // the shadow of the rings across the disc
+    if (uRingOuter > 0.0) {
+      float denom = dot(uSun, uRingN);
+      if (abs(denom) > 1e-3) {
+        vec3 rel = vWorldPos - uCenter;
+        float s = -dot(rel, uRingN) / denom;
+        if (s > 0.0) {
+          float rr = length(rel + uSun * s);
+          float cover = smoothstep(uRingInner, uRingInner * 1.08, rr) * (1.0 - smoothstep(uRingOuter * 0.92, uRingOuter, rr));
+          cover *= 0.6 + 0.4 * smoothstep(0.0, 0.5, abs(fract(rr * 2.3) - 0.5));
+          col *= 1.0 - 0.62 * cover;
+        }
+      }
     }
 
     // Aerial haze across the disc, strongest toward the lit limb
@@ -148,6 +170,8 @@ const ATMO_FRAGMENT = /* glsl */ `
   uniform float uR;
   uniform float uRa;
   uniform float uIntensity;
+  uniform float uHaze;
+  uniform float uEmber;
   varying vec3 vWorldPos;
   void main() {
     vec3 rd = normalize(vWorldPos - cameraPosition);
@@ -157,10 +181,15 @@ const ATMO_FRAGMENT = /* glsl */ `
     float d = length(up);
     float h = clamp((d - uR) / (uRa - uR), 0.0, 1.0);
     float dens = exp(-h * 4.5) * (1.0 - h);
+    // a detached haze layer high up, the thin second line seen on a dusty limb
+    dens += uHaze * exp(-(h - 0.55) * (h - 0.55) * 220.0) * 0.14;
     float s = dot(up / max(d, 1e-4), uSun);
     float light = smoothstep(-0.4, 0.6, s);
     vec3 col = mix(uColor * vec3(1.0, 0.55, 0.4), uColor, smoothstep(-0.1, 0.45, s));
-    gl_FragColor = vec4(col * dens * light * uIntensity, 1.0);
+    col = col * dens * light;
+    // a molten world lights its own smoke from underneath, sun or no sun
+    col += vec3(1.0, 0.36, 0.1) * dens * uEmber * (1.0 - light) * 0.5;
+    gl_FragColor = vec4(col * uIntensity, 1.0);
   }
 `;
 
@@ -201,12 +230,13 @@ const RING_FRAGMENT = /* glsl */ `
     dens *= 0.3 + 0.5 * noise1(t * 18.0) + 0.2 * noise1(t * 47.0 + 3.0);
     float fineAmp = clamp(1.0 - fw * 140.0, 0.0, 1.0);
     dens *= 1.0 - 0.3 * fineAmp * noise1(t * 160.0);
+    dens *= 1.0 - 0.18 * clamp(1.0 - fw * 420.0, 0.0, 1.0) * noise1(t * 430.0 + 7.0);
     dens *= 1.0 - 0.9 * exp(-sq((t - 0.64) / 0.022));
     dens *= 1.0 - 0.5 * exp(-sq((t - 0.27) / 0.012));
 
     vec3 base = mix(uA, uB, 0.35 + 0.4 * noise1(t * 9.0));
     float l = dot(base, vec3(0.2126, 0.7152, 0.0722));
-    base = mix(vec3(l), base, 0.55) * 0.75;
+    base = mix(vec3(l), base, 0.68) * 0.75;
 
     vec3 V = normalize(cameraPosition - vWorldPos);
     float nl = dot(vNormalW, uSun);
@@ -226,6 +256,8 @@ const RING_FRAGMENT = /* glsl */ `
 `;
 
 /* ---------- helpers ---------- */
+
+const RING_TILT: [number, number, number] = [-Math.PI / 2 + 0.38, 0.12, 0];
 
 const linear = (hex: string) => new THREE.Color(hex);
 const damp = (k: number, dt: number) => 1 - Math.exp(-k * dt);
@@ -253,6 +285,12 @@ const PlanetNode = ({ planet }: Props) => {
   const ringInner = r * 1.38;
   const ringOuter = r * 2.25;
 
+  const ringNormal = useMemo(() => {
+    const ringRot = new THREE.Quaternion().setFromEuler(new THREE.Euler(RING_TILT[0], RING_TILT[1], RING_TILT[2]));
+    const tiltRot = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, tilt));
+    return new THREE.Vector3(0, 0, 1).applyQuaternion(tiltRot.multiply(ringRot)).normalize();
+  }, [tilt]);
+
   const mats = useMemo(() => {
     const atmoColor = linear(planet.accent).lerp(new THREE.Color(0.55, 0.65, 0.8), 0.25);
     const surface = new THREE.ShaderMaterial({
@@ -266,6 +304,10 @@ const PlanetNode = ({ planet }: Props) => {
         uStyle: { value: STYLE_INDEX[style] },
         uTime: { value: 0 },
         uAtmo: { value: ATMO_STRENGTH[style] },
+        uCenter: { value: new THREE.Vector3() },
+        uRingN: { value: ringNormal },
+        uRingInner: { value: ringInner },
+        uRingOuter: { value: planet.rings ? ringOuter : 0 },
       },
       vertexShader: PLANET_VERTEX,
       fragmentShader: PLANET_FRAGMENT,
@@ -290,6 +332,8 @@ const PlanetNode = ({ planet }: Props) => {
         uR: { value: r },
         uRa: { value: atmoR },
         uIntensity: { value: 1 },
+        uHaze: { value: style === 'rocky' ? 1 : 0.35 },
+        uEmber: { value: style === 'molten' ? 1 : 0 },
       },
       vertexShader: ATMO_VERTEX,
       fragmentShader: ATMO_FRAGMENT,
@@ -324,7 +368,7 @@ const PlanetNode = ({ planet }: Props) => {
       fog: false,
     });
     return { surface, cloud, atmo, ring, reticle };
-  }, [planet.accent, planet.palette, style, r, atmoR, ringInner, ringOuter, maps]);
+  }, [planet.accent, planet.palette, planet.rings, style, r, atmoR, ringInner, ringOuter, ringNormal, maps]);
 
   useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats]);
 
@@ -363,6 +407,7 @@ const PlanetNode = ({ planet }: Props) => {
     const h = hover.current;
 
     mats.surface.uniforms.uTime.value = t;
+    mats.surface.uniforms.uCenter.value.copy(o.position);
     mats.atmo.uniforms.uCenter.value.copy(o.position);
     mats.atmo.uniforms.uIntensity.value = (0.95 + 0.75 * h + (locked ? 0.3 : 0)) * haloScale;
     mats.ring.uniforms.uCenter.value.copy(o.position);
@@ -416,7 +461,7 @@ const PlanetNode = ({ planet }: Props) => {
           </mesh>
         )}
         {planet.rings && (
-          <mesh material={mats.ring} rotation={[-Math.PI / 2 + 0.38, 0.12, 0]}>
+          <mesh material={mats.ring} rotation={RING_TILT}>
             <ringGeometry args={[ringInner, ringOuter, 192, 1]} />
           </mesh>
         )}

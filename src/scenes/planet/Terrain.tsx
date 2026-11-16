@@ -3,6 +3,8 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Planet, PlanetStyle } from '@/types/content';
 import type { ResolvedSky } from '@/data/skyPresets';
+import { groundDetailTexture } from './envBake';
+import { withGroundDetail } from './envGround';
 
 export const TERRAIN_RADIUS = 120;
 /** Radius around the origin that stays nearly flat (the beacon arc lives inside it) */
@@ -265,9 +267,13 @@ const buildTerrain = (planet: Planet, pal: TerrainPalette): THREE.BufferGeometry
 
 const mountainVert = /* glsl */ `
   varying float vH;
+  varying float vY;
+  varying float vAlong;
   varying vec3 vDir;
   void main() {
     vH = uv.y;
+    vY = position.y;
+    vAlong = uv.x;
     vDir = normalize(position);
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
@@ -278,12 +284,20 @@ const mountainFrag = /* glsl */ `
   uniform vec3 uRim;
   uniform vec3 uSun;
   uniform float uHaze;
+  uniform float uFace;
+  uniform sampler2D uDetail;
   varying float vH;
+  varying float vY;
+  varying float vAlong;
   varying vec3 vDir;
   void main() {
     // denser haze near the base (height fog), clearer toward the ridge
     float haze = mix(1.0, uHaze, smoothstep(0.0, 1.0, vH));
-    vec3 col = mix(uTone, uFog, haze);
+    // faces and level bands, which the haze then takes away with distance
+    vec4 d = texture2D(uDetail, vec2(vAlong * 34.0, vY * 0.05));
+    float strata = sin(vY * 0.75 + d.a * 3.5) * 0.5 + 0.5;
+    vec3 tone = uTone * (1.0 + ((d.r - 0.5) * 0.9 + (d.a - 0.5) * 0.5 + (strata - 0.5) * 0.3) * uFace);
+    vec3 col = mix(tone, uFog, haze);
     // thin rim light on ridges facing the sun
     float facing = pow(max(dot(normalize(vDir.xz + 1e-5), normalize(uSun.xz + 1e-5)), 0.0), 6.0);
     col += uRim * facing * smoothstep(0.75, 1.0, vH) * 0.35;
@@ -293,7 +307,29 @@ const mountainFrag = /* glsl */ `
   }
 `;
 
-const buildRidge = (radius: number, base: number, amp: number, seed: number, sun: THREE.Vector3) => {
+type RidgeForm = 'peaks' | 'buttes' | 'cones' | 'towers';
+
+const ridgeProfile = (form: RidgeForm, x: number, z: number, seed: number): number => {
+  const n = fbm2(x * 2.2 + seed, z * 2.2 - seed, 5);
+  if (form === 'buttes') {
+    // eroded tablelands: the crests are planed off to a few levels
+    const raw = Math.pow(n, 1.6) * 1.6;
+    return Math.min(raw, 0.42 + fbm2(x * 0.9 + seed, z * 0.9, 2) * 0.32);
+  }
+  if (form === 'cones') {
+    // ridged noise makes the sharp crests of young volcanic peaks
+    const r = 1 - Math.abs(2 * n - 1);
+    return r * r * 1.7;
+  }
+  if (form === 'towers') {
+    // rounded billows of far cloud; smooth crests, no crags
+    const b = fbm2(x * 5.5 + seed, z * 5.5 - seed, 3);
+    return b * b * 1.5;
+  }
+  return Math.pow(n, 1.6) * 1.6;
+};
+
+const buildRidge = (radius: number, base: number, amp: number, seed: number, sun: THREE.Vector3, form: RidgeForm) => {
   const N = 256;
   const pos = new Float32Array((N + 1) * 2 * 3);
   const uv = new Float32Array((N + 1) * 2 * 2);
@@ -302,8 +338,7 @@ const buildRidge = (radius: number, base: number, amp: number, seed: number, sun
     const a = (i / N) * Math.PI * 2;
     const x = Math.cos(a);
     const z = Math.sin(a);
-    const n = fbm2(x * 2.2 + seed, z * 2.2 - seed, 5);
-    const peaks = Math.pow(n, 1.6) * 1.6;
+    const peaks = ridgeProfile(form, x, z, seed);
     // open a low saddle under the sun so the disc is never hidden
     const d = Math.abs(Math.atan2(Math.sin(a - sunAz), Math.cos(a - sunAz)));
     const saddle = 1 - 0.65 * Math.exp(-d * d * 18) * (sun.y < 0.35 ? 1 : 0);
@@ -323,6 +358,44 @@ const buildRidge = (radius: number, base: number, amp: number, seed: number, sun
   geo.setIndex(idx);
   return geo;
 };
+
+/* ---------- ground mist banked between the ridge layers ---------- */
+
+const MIST_HEIGHT = 34;
+const MIST_BASE = -4;
+
+const mistVert = /* glsl */ `
+  varying vec2 vMistUv;
+  varying vec3 vDir;
+  void main() {
+    vMistUv = uv;
+    vDir = position;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const mistFrag = /* glsl */ `
+  uniform vec3 uFog;
+  uniform vec3 uWarm;
+  uniform vec3 uSun;
+  uniform float uAmount;
+  uniform float uTime;
+  uniform sampler2D uDetail;
+  varying vec2 vMistUv;
+  varying vec3 vDir;
+  void main() {
+    float t = texture2D(uDetail, vec2(vMistUv.x * 7.0 + uTime * 0.0008, vMistUv.y * 0.5)).a;
+    float fall = 1.0 - clamp(vMistUv.y, 0.0, 1.0);
+    float a = fall * fall * smoothstep(0.0, 0.1, vMistUv.y) * (0.45 + 0.55 * t) * uAmount;
+    vec2 az = vDir.xz / max(length(vDir.xz), 1e-4);
+    vec2 sunAz = uSun.xz / max(length(uSun.xz), 1e-4);
+    float toward = max(dot(az, sunAz), 0.0);
+    vec3 col = mix(uFog, uWarm, toward * toward * 0.35);
+    gl_FragColor = vec4(max(col, vec3(0.0)), a);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`;
 
 /* ---------- lava fissures (molten): voronoi cell edges, emissive > 1 so they bloom ---------- */
 
@@ -384,6 +457,9 @@ const LAVA_FRAG = /* glsl */ `
     diffuseColor.rgb *= 1.0 - core * 0.9;
     vec3 lava = mix(uLava, uLavaCore, core);
     totalEmissiveRadiance += lava * (core * 2.6 * pulse) + uLava * halo * 0.22;
+    // cooling skin: the crust beside a crack is scorched dark, its ropes still faintly warm
+    diffuseColor.rgb *= 1.0 - halo * 0.5;
+    totalEmissiveRadiance += uLava * halo * 0.14 * edA.a * edA.a;
     // faint warm sheen in the crust so the basalt is not dead black
     totalEmissiveRadiance += uLava * 0.0015 * lavaNoise(wp * 0.4);
   }
@@ -417,29 +493,84 @@ interface TerrainProps {
   reducedMotion?: boolean;
 }
 
-const RIDGES: Record<PlanetStyle, Array<[number, number, number, number, number]>> = {
-  // radius, base, amplitude, seed, haze at the ridge
-  rocky: [[330, 26, 70, 11.7, 0.72], [210, 10, 34, 3.3, 0.5]],
-  forested: [[330, 26, 70, 11.7, 0.72], [210, 10, 34, 3.3, 0.5]],
+type RidgeRow = [number, number, number, number, number, RidgeForm];
+
+/** Haze rises with distance so each layer stands apart: atmospheric perspective by hand */
+const RIDGES: Record<PlanetStyle, RidgeRow[]> = {
+  // radius, base, amplitude, seed, haze at the ridge, form
+  rocky: [[430, 36, 90, 7.9, 0.86, 'peaks'], [330, 26, 70, 11.7, 0.72, 'peaks'], [210, 10, 34, 3.3, 0.5, 'buttes'], [150, 6, 16, 14.2, 0.34, 'buttes']],
+  forested: [[430, 36, 90, 7.9, 0.86, 'peaks'], [330, 26, 70, 11.7, 0.72, 'peaks'], [210, 10, 34, 3.3, 0.5, 'peaks']],
   // dark volcanic peaks, lightly hazed so they stay dark against the dawn sky
-  molten: [[330, 30, 80, 5.1, 0.22], [210, 8, 30, 8.8, 0.12]],
+  molten: [[430, 40, 90, 2.4, 0.42, 'peaks'], [330, 30, 80, 5.1, 0.22, 'cones'], [210, 8, 30, 8.8, 0.12, 'cones']],
   // distant islands: mostly below the waterline, a few peaks break the surface
-  oceanic: [[330, -8, 40, 2.2, 0.7], [220, -10, 26, 6.6, 0.55]],
-  // nothing but cloud to the horizon
+  oceanic: [[430, -10, 46, 0.4, 0.8, 'peaks'], [330, -8, 40, 2.2, 0.7, 'peaks'], [220, -10, 26, 6.6, 0.55, 'peaks']],
+  // nothing but cloud to the horizon: towers of it, far off and dim
+  'gas-giant': [[340, -2, 40, 4.2, 0.74, 'towers'], [240, -2, 24, 9.1, 0.6, 'towers']],
+};
+
+/** Mist band radii and strength, far first; the gas giant already stands in cloud */
+const MIST: Record<PlanetStyle, Array<[number, number]>> = {
+  rocky: [[270, 0.5], [180, 0.42]],
+  forested: [[270, 0.6], [150, 0.5]],
+  molten: [[270, 0.35], [160, 0.25]],
+  oceanic: [[270, 0.4]],
   'gas-giant': [],
 };
+
+/** Relief on a ridge face; cloud towers have none */
+const RIDGE_FACE: Record<RidgeForm, number> = { peaks: 1, buttes: 1.15, cones: 0.8, towers: 0.25 };
+
+const noRaycast = () => null;
 
 const Terrain = ({ planet, sky, reducedMotion }: TerrainProps) => {
   const pal = useMemo(() => terrainPalette(planet), [planet]);
   const geo = useMemo(() => buildTerrain(planet, pal), [planet, pal]);
   const time = useMemo(() => ({ value: 0 }), []);
 
-  const material = useMemo(
-    () =>
+  const detail = useMemo(() => groundDetailTexture(planet.style), [planet.style]);
+
+  const material = useMemo(() => {
+    const base =
       planet.style === 'molten'
         ? lavaMaterial(planet, time)
-        : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.94, metalness: 0 }),
-    [planet, time],
+        : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.94, metalness: 0 });
+    const accent = new THREE.Color(planet.accent);
+    const hueA =
+      planet.style === 'molten'
+        ? new THREE.Color('#3a3432')
+        : planet.style === 'oceanic'
+          ? new THREE.Color('#4f6f48')
+          : planet.style === 'forested'
+            ? new THREE.Color('#52703a')
+            : planet.style === 'gas-giant'
+              ? pal.high.clone().lerp(accent, 0.35)
+              : pal.high.clone().lerp(new THREE.Color('#d8b08c'), 0.4);
+    const hueB = planet.style === 'forested' ? new THREE.Color('#6a5032') : accent;
+    return withGroundDetail(base, planet.style, detail, hueA, hueB);
+  }, [planet, time, detail, pal]);
+
+  const mists = useMemo(
+    () =>
+      MIST[planet.style].map(([radius, amount]) => ({
+        geo: new THREE.CylinderGeometry(radius, radius, MIST_HEIGHT, 72, 1, true).translate(0, MIST_BASE + MIST_HEIGHT / 2, 0),
+        mat: new THREE.ShaderMaterial({
+          vertexShader: mistVert,
+          fragmentShader: mistFrag,
+          transparent: true,
+          depthWrite: false,
+          side: THREE.BackSide,
+          fog: false,
+          uniforms: {
+            uFog: { value: sky.fogColor },
+            uWarm: { value: sky.glow },
+            uSun: { value: sky.sunDir },
+            uAmount: { value: amount },
+            uTime: time,
+            uDetail: { value: detail },
+          },
+        }),
+      })),
+    [planet.style, sky, time, detail],
   );
 
   const ridges = useMemo(() => {
@@ -449,8 +580,8 @@ const Terrain = ({ planet, sky, reducedMotion }: TerrainProps) => {
         : planet.style === 'molten'
           ? new THREE.Color('#141013').lerp(sky.zenith, 0.25)
           : pal.rock.clone().lerp(sky.zenith, 0.35);
-    return RIDGES[planet.style].map(([r, base, amp, seed, haze]) => ({
-      geo: buildRidge(r, base, amp, seed, sky.sunDir),
+    return RIDGES[planet.style].map(([r, base, amp, seed, haze, form]) => ({
+      geo: buildRidge(r, base, amp, seed, sky.sunDir, form),
       mat: new THREE.ShaderMaterial({
         vertexShader: mountainVert,
         fragmentShader: mountainFrag,
@@ -460,18 +591,25 @@ const Terrain = ({ planet, sky, reducedMotion }: TerrainProps) => {
           uRim: { value: sky.lightColor },
           uSun: { value: sky.sunDir },
           uHaze: { value: haze },
+          uFace: { value: RIDGE_FACE[form] },
+          uDetail: { value: detail },
         },
         fog: false,
         depthWrite: true,
       }),
     }));
-  }, [pal, sky, planet.style]);
+  }, [pal, sky, planet.style, detail]);
 
   useEffect(() => () => geo.dispose(), [geo]);
   useEffect(() => () => material.dispose(), [material]);
+  useEffect(() => () => detail.dispose(), [detail]);
   useEffect(
     () => () => ridges.forEach((r) => (r.geo.dispose(), r.mat.dispose())),
     [ridges],
+  );
+  useEffect(
+    () => () => mists.forEach((m) => (m.geo.dispose(), m.mat.dispose())),
+    [mists],
   );
 
   useFrame((_, dt) => {
@@ -483,6 +621,9 @@ const Terrain = ({ planet, sky, reducedMotion }: TerrainProps) => {
       <mesh geometry={geo} material={material} receiveShadow />
       {ridges.map((r, i) => (
         <mesh key={i} geometry={r.geo} material={r.mat} renderOrder={-5} frustumCulled={false} />
+      ))}
+      {mists.map((m, i) => (
+        <mesh key={i} geometry={m.geo} material={m.mat} renderOrder={-4 + i * 0.1} frustumCulled={false} raycast={noRaycast} />
       ))}
     </group>
   );

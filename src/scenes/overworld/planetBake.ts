@@ -6,7 +6,7 @@ import { LOSSLESS, bakeHash, isBaked, saveBaked, takeBaked } from './bakedMaps';
  * Bakes each planet's procedural surface once into two equirect maps laid
  * out like SphereGeometry uvs, so runtime shading is a couple of texture
  * fetches instead of domain-warped fbm, craters and cells per pixel.
- *   surface (full res): sqrt(albedo).rgb, ocean specular mask or lava crack
+ *   surface (full res): sqrt(albedo).rgb, then ocean specular mask, lava heat or night lights
  *   detail (half res):  object-space bumped normal (0..1), cloud density
  * Lighting stays fully dynamic. Maps are cached per renderer for the app lifetime.
  */
@@ -78,6 +78,8 @@ const BAKE_FRAGMENT = /* glsl */ `
   uniform float uSeed;
   uniform float uBump;
   uniform float uTexel;
+  // how many things the visitor can find on this world: storms, lava lakes, camp lights
+  uniform int uMarks;
   in vec2 vUv;
   layout(location = 0) out vec4 outColor;
 
@@ -158,41 +160,107 @@ const BAKE_FRAGMENT = /* glsl */ `
     } else if (uStyle == 1) {
       vec3 q = warp(sp * 1.4);
       float n = fbm(q * 1.5);
-      float cr = craters(dir * 3.5 + uSeed) * 0.55 + craters(dir * 8.0 + uSeed * 2.0) * 0.3;
+      float cr = craters(dir * 3.5 + uSeed) * 0.55 + craters(dir * 8.0 + uSeed * 2.0) * 0.3 + craters(dir * 17.0 + uSeed * 3.0) * 0.12;
       float fine = fbm3(sp * 14.0);
+      float grit = fbm3(sp * 38.0);
+      // dry valleys: thin lines where a warped field crosses a level, only in some regions
+      float valley = 1.0 - smoothstep(0.0, 0.026, abs(fbm3(q * 2.6 + 7.0) - 0.5));
+      valley *= smoothstep(0.38, 0.62, fbm3(sp * 3.0 + 4.0));
+      float strata = 0.5 + 0.5 * sin(n * 46.0 + fine * 3.0);
       albedo = mix(uC * 1.4, uA * 0.85, smoothstep(0.3, 0.7, n));
       albedo = mix(albedo, uB * 0.6, smoothstep(0.62, 0.85, n + (fine - 0.5) * 0.25) * 0.55);
-      albedo *= 0.82 + 0.35 * smoothstep(-0.3, 0.15, cr) + (fine - 0.5) * 0.15;
-      h = n * 0.5 + cr + fine * 0.04;
+      albedo *= 0.9 + 0.1 * strata;
+      albedo *= mix(1.0, 0.6, valley);
+      albedo *= 0.82 + 0.35 * smoothstep(-0.3, 0.15, cr) + (fine - 0.5) * 0.15 + (grit - 0.5) * 0.12;
+      float cap = smoothstep(0.87, 0.97, abs(dir.y) + (fbm3(sp * 5.0) - 0.5) * 0.2);
+      albedo = mix(albedo, uB * 0.85, cap * 0.5);
+      h = n * 0.5 + cr + fine * 0.04 - valley * 0.09;
+      // a few warm points on the night side: someone lives here
+      vec3 home = normalize(vec3(sin(uSeed * 3.0), 0.22, cos(uSeed * 3.0)));
+      vec3 side = normalize(cross(home, vec3(0.0, 1.0, 0.0)));
+      for (int i = 0; i < uMarks; i++) {
+        float f = float(i);
+        vec3 c = normalize(home + side * (f - 1.0) * 0.05 + vec3(0.0, 0.03 * sin(f * 2.4), 0.0));
+        vec3 dc = dir - c;
+        extra += (i == 0 ? 1.0 : 0.55) * exp(-dot(dc, dc) * 3200.0);
+      }
     } else if (uStyle == 2) {
       vec3 lp = dir;
       float flow = fbm(vec3(lp.x * 2.0, lp.y * 9.0, lp.z * 2.0) + uSeed);
       float y = lp.y + (flow - 0.5) * 0.09;
       y += (fbm3(vec3(lp.x * 5.0, lp.y * 26.0, lp.z * 5.0) + uSeed) - 0.5) * 0.025;
-      vec3 sc = normalize(vec3(0.75, -0.32, 0.58));
-      vec3 dv = (lp - sc) * vec3(1.0, 2.4, 1.0);
-      float storm = exp(-dot(dv, dv) * 40.0);
-      y += storm * 0.04 * sin(atan(dv.y, dv.x + dv.z) * 2.0);
+      // festoons: band edges roll over into chevrons, hardest near the equator
+      float jets = sin(lp.x * 13.0 + lp.z * 9.0 + y * 17.0) * sin(lp.z * 21.0 - lp.x * 6.0);
+      y += jets * 0.007 * (1.0 - smoothstep(0.1, 0.75, abs(lp.y)));
+
+      // one long-lived storm per project, strung along the bands
+      float stormMask = 0.0;
+      float collar = 0.0;
+      for (int i = 0; i < uMarks; i++) {
+        float f = float(i);
+        float lon = 0.8 + f * 6.28318 / float(max(uMarks, 1)) + sin(f * 3.7 + uSeed) * 0.5;
+        float slat = -0.42 + 0.84 * fract(f * 0.618 + 0.37);
+        float cl = sqrt(max(1.0 - slat * slat, 0.0));
+        vec3 sc = vec3(cos(lon) * cl, slat, sin(lon) * cl);
+        vec3 dv = (lp - sc) * vec3(1.0, 2.3, 1.0);
+        float rr = dot(dv, dv);
+        float size = 36.0 + 30.0 * fract(f * 0.73 + 0.2);
+        float e = exp(-rr * size);
+        // bend the bands around the oval, the way flow parts around a rock
+        y += e * 0.05 * dot(dv, vec3(0.8, 0.0, -0.6)) * sqrt(size);
+        stormMask = max(stormMask, smoothstep(0.32, 0.8, e));
+        collar = max(collar, smoothstep(0.08, 0.3, e) * (1.0 - smoothstep(0.3, 0.75, e)));
+      }
+
       float b1 = 0.5 + 0.5 * sin(y * 21.0 + 0.6);
       float b2 = 0.5 + 0.5 * sin(y * 9.0 + 1.9);
+      float b3 = 0.5 + 0.5 * sin(y * 53.0 + 2.4 + fbm3(vec3(lp.x * 3.0, y * 12.0, lp.z * 3.0)) * 2.0);
       float zone = smoothstep(0.55, 0.95, 0.5 + 0.5 * sin(y * 13.0 + 0.4));
-      albedo = mix(uC * 1.3, uA * 0.85, b1 * 0.7 + b2 * 0.3);
+      albedo = mix(uC * 1.3, uA * 0.85, b1 * 0.62 + b2 * 0.26 + b3 * 0.12);
       albedo = mix(albedo, uB * 0.7, zone * 0.5);
-      albedo *= 0.88 + 0.24 * fbm3(vec3(lp.x * 7.0, y * 60.0, lp.z * 7.0));
-      albedo = mix(albedo, mix(uB * 0.85, vec3(0.75, 0.62, 0.58), 0.4), storm * 0.75);
+      albedo *= 0.86 + 0.28 * fbm3(vec3(lp.x * 7.0, y * 60.0, lp.z * 7.0));
+      albedo *= 0.94 + 0.12 * fbm3(vec3(lp.x * 22.0, y * 140.0, lp.z * 22.0));
+      albedo = mix(albedo, uC * 1.1, collar * 0.5);
+      albedo = mix(albedo, mix(uB * 0.92, vec3(0.8, 0.68, 0.62), 0.4), stormMask * 0.85);
+      // polar hoods go dull and hazy
+      albedo *= 1.0 - 0.3 * smoothstep(0.72, 0.98, abs(lp.y));
     } else {
       vec3 q = warp(sp * 1.8);
       vec2 c1 = cells(q * 2.2);
       vec2 c2 = cells(q * 5.5 + 3.0);
       float plate = fbm(q * 2.0);
-      float w1 = 0.035 + 0.045 * fbm3(sp * 6.0);
-      float crack = 1.0 - smoothstep(0.0, w1, c1.y - c1.x);
-      crack = max(crack, (1.0 - smoothstep(0.0, 0.03, c2.y - c2.x)) * 0.35);
+      // only part of the crust is splitting apart; the rest is cold, dark basalt
+      float rift = smoothstep(0.38, 0.66, fbm3(sp * 1.4 + 8.0));
+      float edge1 = c1.y - c1.x;
+      float w1 = 0.028 + 0.05 * fbm3(sp * 6.0);
+      float crack = (1.0 - smoothstep(0.0, w1, edge1)) * (0.22 + 0.78 * rift);
+      crack = max(crack, (1.0 - smoothstep(0.0, 0.024, c2.y - c2.x)) * 0.3 * (0.2 + 0.8 * rift));
+      float heat = (1.0 - smoothstep(0.0, 0.17, edge1)) * rift * 0.3;
+
       albedo = mix(vec3(0.035, 0.03, 0.028), uC * 0.9, plate);
       albedo = mix(albedo, uA * 0.32, smoothstep(0.6, 0.8, plate) * 0.5);
+      // pale sulphur settles on the older plates
+      albedo = mix(albedo, uB * 0.28, smoothstep(0.55, 0.8, fbm3(sp * 7.0 + 2.0)) * (1.0 - rift) * 0.35);
       albedo *= 1.0 - crack * 0.8;
       h = plate * 0.4 - crack * 0.35;
-      extra = crack;
+
+      // one lava lake per award, ringed by a dark rim
+      float lake = 0.0;
+      for (int i = 0; i < uMarks; i++) {
+        float f = float(i);
+        float lon = 2.1 + f * 6.28318 / float(max(uMarks, 1)) + cos(f * 2.3 + uSeed) * 0.6;
+        float slat = -0.5 + fract(f * 0.618 + 0.11);
+        float cl = sqrt(max(1.0 - slat * slat, 0.0));
+        vec3 sc = vec3(cos(lon) * cl, slat, sin(lon) * cl);
+        float dist = length(dir - sc) + (fbm3(dir * 18.0 + f) - 0.5) * 0.03;
+        float r = 0.065 + 0.035 * fract(f * 0.73);
+        float pool = 1.0 - smoothstep(r * 0.7, r, dist);
+        float bank = smoothstep(r * 0.8, r, dist) * (1.0 - smoothstep(r, r * 1.5, dist));
+        albedo *= 1.0 - 0.6 * bank;
+        h -= pool * 0.25;
+        lake = max(lake, pool * (0.55 + 0.45 * fbm3(dir * 34.0 + f)));
+      }
+      extra = max(max(crack, heat), lake);
     }
     float l = dot(albedo, vec3(0.2126, 0.7152, 0.0722));
     albedo = mix(vec3(l), albedo, 0.84);
@@ -209,7 +277,7 @@ const BAKE_FRAGMENT = /* glsl */ `
 
     // Pass 0: sqrt(albedo) + (ocean spec mask, or lava crack on molten). Fine lines stay at full res.
     if (uPass == 0) {
-      outColor = vec4(sqrt(max(albedo, 0.0)), uStyle == 4 ? extra : spec);
+      outColor = vec4(sqrt(max(albedo, 0.0)), uStyle == 4 || uStyle == 1 ? clamp(extra, 0.0, 1.0) : spec);
       return;
     }
 
@@ -225,7 +293,7 @@ const BAKE_FRAGMENT = /* glsl */ `
       vec3 grad = ((hT - h) * t + (hB - h) * b) / e;
       n = normalize(dir - grad * uBump);
     }
-    outColor = vec4(n * 0.5 + 0.5, uStyle == 4 ? 0.0 : extra);
+    outColor = vec4(n * 0.5 + 0.5, uStyle == 4 || uStyle == 1 ? 0.0 : extra);
   }
 `;
 
@@ -242,6 +310,7 @@ const bakeUniforms = {
   uSeed: { value: 0 },
   uBump: { value: 0 },
   uTexel: { value: 0.004 },
+  uMarks: { value: 0 },
   uLoop: { value: 1 },
 };
 const bakeMats = new Map<string, THREE.ShaderMaterial>();
@@ -291,6 +360,7 @@ const bakeInputs = (planet: Planet, w: number) =>
       planet.palette,
       planetSeed(planet.id),
       BUMP[planet.style],
+      planet.beacons.length,
       w,
     ]),
   );
@@ -331,6 +401,7 @@ const bakeLive = (gl: THREE.WebGLRenderer, planet: Planet, w: number) => {
   (u.uC.value as THREE.Color).set(planet.palette[2]);
   u.uSeed.value = planetSeed(planet.id);
   u.uBump.value = BUMP[planet.style];
+  u.uMarks.value = planet.beacons.length;
 
   const prevTarget = gl.getRenderTarget();
   const prevAutoClear = gl.autoClear;

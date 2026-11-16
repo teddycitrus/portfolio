@@ -142,6 +142,8 @@ const outpostSite = (planet: Planet, H: HeightFn): Site => {
     [SOLAR.x, SOLAR.z],
   ];
   clearings.push(fire);
+  // the camp's clutter, either side of the log
+  clearings.push(campPoint(planet, -2.3, -0.6), campPoint(planet, 2.4, -0.4));
   return { ground, colliders, clearings, collide: () => CAMP_COLLIDE };
 };
 

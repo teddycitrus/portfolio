@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Planet, PlanetTime, Vec3 } from '@/types/content';
+import type { Planet, PlanetStyle, PlanetTime, Vec3 } from '@/types/content';
 
 /**
  * Art-directed sky presets for the planet surfaces. Colours are sRGB hex;
@@ -173,7 +173,31 @@ const skyPresets: Record<PlanetTime, SkyPreset> = {
   },
 };
 
+/** How much weather each world carries, and how far it steps back in the calm window */
+interface WeatherTraits {
+  deck: number;
+  cover: number;
+  calm: number;
+  cirrus: number;
+  stratus: number;
+  aurora: number;
+}
+
+const WEATHER: Record<PlanetStyle, WeatherTraits> = {
+  rocky: { deck: 0.6, cover: 0.5, calm: 0.1, cirrus: 1, stratus: 0.5, aurora: 0 },
+  // a low ash shelf rather than cloud; the sky above it stays open
+  molten: { deck: 0.8, cover: 0.46, calm: 0.12, cirrus: 0.45, stratus: 0.65, aurora: 0 },
+  'gas-giant': { deck: 0.32, cover: 0.6, calm: 0.08, cirrus: 0.9, stratus: 0.3, aurora: 0.55 },
+  oceanic: { deck: 0.55, cover: 0.55, calm: 0.08, cirrus: 0.8, stratus: 0.55, aurora: 0 },
+  forested: { deck: 0.5, cover: 0.5, calm: 0.12, cirrus: 0.6, stratus: 0.7, aurora: 0 },
+};
+
 export interface ResolvedSky {
+  /** Cloud coverage and layer strengths */
+  weather: WeatherTraits;
+  deckLit: THREE.Color;
+  deckShade: THREE.Color;
+  auroraColor: THREE.Color;
   zenith: THREE.Color;
   upper: THREE.Color;
   horizon: THREE.Color;
@@ -253,7 +277,13 @@ export const buildSky = (planet: Planet): ResolvedSky => {
   // The sister planet borrows the palette, rotated so it reads as a neighbour, not a copy
   const moonColors: [THREE.Color, THREE.Color, THREE.Color] = [c(p1), c(p0).lerp(c('#9a9aa0'), 0.3), c(p2)];
 
+  const molten = planet.style === 'molten';
   const sky: ResolvedSky = {
+    weather: WEATHER[planet.style],
+    // ash is lit dimly from below; everywhere else cloud takes the air's own light
+    deckLit: molten ? c('#6e4a42').lerp(c(p.glow), 0.25) : c(p.cloudColor).lerp(c(p.glow), 0.2),
+    deckShade: molten ? c('#2a2028') : c(p.upper).lerp(c(p.zenith), 0.45),
+    auroraColor: accent.clone().lerp(c(p.hemiSky), 0.4),
     zenith: c(p.zenith).lerp(tint, 0.06),
     upper: c(p.upper).lerp(atmo, 0.14),
     horizon,

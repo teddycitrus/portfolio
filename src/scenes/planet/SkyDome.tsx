@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { ResolvedSky } from '@/data/skyPresets';
 import Starfield from '../overworld/Starfield';
+import { skyNoiseTexture } from './envBake';
 
 const DOME_RADIUS = 480;
 const MOON_DISTANCE = 420;
@@ -54,8 +55,22 @@ const skyFrag = /* glsl */ `
   uniform vec3 uCloud;
   uniform float uCloudOpacity;
   uniform float uTime;
+  uniform sampler2D uNoise;
+  uniform float uDeck;
+  uniform float uCover;
+  uniform float uCalm;
+  uniform float uCirrus;
+  uniform float uStratus;
+  uniform float uAurora;
+  uniform vec3 uDeckLit;
+  uniform vec3 uDeckShade;
+  uniform vec3 uAuroraColor;
   varying vec3 vDir;
-  ${GLSL_NOISE}
+  float hash12(vec2 p) {
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+  }
   void main() {
     vec3 dir = normalize(vDir);
     float h = dir.y;
@@ -65,12 +80,17 @@ const skyFrag = /* glsl */ `
     vec3 col = mix(uZenith, uUpper, exp(-hp * 2.6));
     col = mix(col, uHorizon, exp(-hp * 11.0));
     // below the horizon: stay on the fog colour, darken slightly far down
-    col = mix(col, uHorizon * 0.82, smoothstep(0.0, -0.5, h));
+    col = mix(col, uHorizon * 0.82, 1.0 - smoothstep(-0.5, 0.0, h));
 
     float mu = dot(dir, uSunDir);
-    vec2 az = normalize(dir.xz + 1e-5);
-    vec2 sunAz = normalize(uSunDir.xz + 1e-5);
+    vec2 az = dir.xz / max(length(dir.xz), 1e-4);
+    vec2 sunAz = uSunDir.xz / max(length(uSunDir.xz), 1e-4);
     float side = clamp(dot(az, sunAz) * 0.5 + 0.5, 0.0, 1.0);
+
+    // the calm window: the arc the resting view looks into, from the beacons up to the title row.
+    // Weather thins and the air deepens here so labels and screens sit on a quiet ground.
+    float calm = smoothstep(0.25, 0.85, -az.y) * smoothstep(0.02, 0.1, h) * (1.0 - smoothstep(0.5, 0.78, h));
+    col *= 1.0 - calm * uCalm;
 
     // horizon glow toward the sun azimuth
     float band = exp(-abs(h - max(uSunDir.y, -0.05) * 0.3) * 7.0);
@@ -80,16 +100,46 @@ const skyFrag = /* glsl */ `
     float m = max(mu, 0.0);
     col += uHalo * uHaloStrength * (pow(m, 6.0) * 0.35 + pow(m, 48.0) * 0.6) * smoothstep(-0.2, 0.05, h);
 
+    // Weather barely drifts: a tile takes over ten minutes to cross
+    vec2 wind = vec2(uTime * 0.0014, uTime * 0.0005);
+
+    // stratus: thin level lines lying along the horizon
+    vec2 su = dir.xz / (hp + 0.03) * 0.045;
+    float st = smoothstep(0.52, 0.86, texture2D(uNoise, su + wind * 0.5).g);
+    col = mix(col, mix(uHorizon, uDeckLit, 0.5), st * exp(-hp * 26.0) * smoothstep(0.0, 0.02, h) * uStratus);
+
+    // cloud deck: billows on a low plane, shaded by stepping toward the sun
+    vec2 dk = dir.xz / (hp + 0.14);
+    dk = vec2(dk.x * 0.7 + dk.y * 0.25, dk.y * 1.8 - dk.x * 0.15);
+    float warp = texture2D(uNoise, dk * 0.06).b;
+    vec2 dq = dk * 0.22 + (warp - 0.5) * 0.2 + wind;
+    float cov = texture2D(uNoise, dq).r;
+    float detail = texture2D(uNoise, dk * 0.9 + wind * 2.0).a;
+    float dens = smoothstep(uCover, uCover + 0.24, cov * 0.8 + detail * 0.2);
+    float lit = clamp(0.5 + (cov - texture2D(uNoise, dq + uSunDir.xz * 0.012).r) * 7.0, 0.0, 1.0);
+    vec3 dcc = mix(uDeckShade, uDeckLit, lit) + uSunColor * 0.25 * pow(m, 5.0);
+    float dmask = smoothstep(0.03, 0.16, h) * (1.0 - smoothstep(0.55, 0.9, h) * 0.7) * (1.0 - calm * 0.8);
+    col = mix(col, dcc, dens * dmask * uDeck);
+
     // high cirrus: streaks projected on a dome plane, lit by forward scattering
-    if (uCloudOpacity > 0.0 && h > 0.0) {
-      vec2 uv = dir.xz / (h + 0.18);
-      uv = vec2(uv.x * 0.55 + uv.y * 0.3, uv.y * 1.6 - uv.x * 0.2) * 1.4 + vec2(uTime * 0.004, uTime * 0.0015);
-      float n = fbm(uv);
-      float streak = fbm(uv * vec2(0.6, 3.2) + n * 1.4);
-      float cirrus = smoothstep(0.5, 0.82, streak * 0.65 + n * 0.45);
-      cirrus *= smoothstep(0.02, 0.2, h) * (1.0 - smoothstep(0.55, 0.95, h) * 0.6);
-      vec3 cc = mix(uCloud, uSunColor * 1.15, pow(m, 6.0) * 0.6);
-      col = mix(col, cc, cirrus * uCloudOpacity * 0.55);
+    vec2 ci = dir.xz / (hp + 0.18);
+    ci = vec2(ci.x * 0.55 + ci.y * 0.3, ci.y * 1.6 - ci.x * 0.2);
+    float cw = texture2D(uNoise, ci * 0.12 + wind * 0.6).b;
+    float streak = texture2D(uNoise, ci * vec2(0.22, 0.18) + (cw - 0.5) * 0.35 + wind).g;
+    float cirrus = smoothstep(0.54, 0.78, streak * 0.75 + cw * 0.4);
+    cirrus *= smoothstep(0.04, 0.2, h) * (1.0 - smoothstep(0.6, 0.95, h) * 0.6) * (1.0 - calm * 0.72);
+    vec3 cc = mix(uCloud, uSunColor * 1.15, pow(m, 6.0) * 0.6);
+    col = mix(col, cc, cirrus * uCloudOpacity * uCirrus * 0.55);
+
+    // aurora: one faint curtain high behind the viewer's left shoulder, kept out of the window
+    if (uAurora > 0.0) {
+      vec2 au = dir.xz / (hp + 0.35);
+      float wob = texture2D(uNoise, au * 0.09 + wind * 0.4).b;
+      float c1 = dot(au, vec2(-0.9, 0.43)) - 1.2 + (wob - 0.5) * 2.2;
+      float rays = texture2D(uNoise, vec2(dot(au, vec2(0.43, 0.9)) * 0.45, 0.2) + wind).g;
+      float curtain = exp(-c1 * c1 * 3.0) * (0.35 + 0.65 * rays);
+      curtain *= smoothstep(0.08, 0.3, h) * (1.0 - smoothstep(0.75, 0.98, h)) * (1.0 - calm * 0.92);
+      col += uAuroraColor * curtain * uAurora * 0.32;
     }
 
     // sun disc with soft corona; HDR so it blooms
@@ -229,6 +279,16 @@ const SkyDome = ({ sky, reducedMotion }: SkyDomeProps) => {
           uCloud: { value: sky.cloudColor },
           uCloudOpacity: { value: sky.cloudOpacity },
           uTime: { value: 0 },
+          uNoise: { value: skyNoiseTexture() },
+          uDeck: { value: sky.weather.deck },
+          uCover: { value: sky.weather.cover },
+          uCalm: { value: sky.weather.calm },
+          uCirrus: { value: sky.weather.cirrus },
+          uStratus: { value: sky.weather.stratus },
+          uAurora: { value: sky.weather.aurora },
+          uDeckLit: { value: sky.deckLit },
+          uDeckShade: { value: sky.deckShade },
+          uAuroraColor: { value: sky.auroraColor },
         },
       }),
     [sky],
@@ -294,6 +354,7 @@ const SkyDome = ({ sky, reducedMotion }: SkyDomeProps) => {
   useEffect(
     () => () => {
       skyMat.dispose();
+      skyNoiseTexture().dispose();
       moon.mat.dispose();
       moon.ringMat?.dispose();
     },
