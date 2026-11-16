@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useAppStore } from '@/state/useAppStore';
-import { hideBoot } from '@/ui/boot';
+import { bootProgress, hideBoot } from '@/ui/boot';
 import { preloadAssets } from '@/ui/preloadAssets';
 import { qualityForced, rememberLow } from '@/scenes/gpuTier';
 import { keepPrograms, precompile } from '@/scenes/precompile';
@@ -129,10 +129,13 @@ const Preload = () => {
     const run = async () => {
       mark('start');
       const assets = preloadAssets();
+      bootProgress(0.35);
       await settle(3);
       if (!live) return;
       mark('system');
+      bootProgress(0.7);
       if (!(await judge()) || !live) return;
+      bootProgress(0.85);
 
       useAppStore.getState().endWarm();
 

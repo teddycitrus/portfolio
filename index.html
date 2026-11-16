@@ -383,6 +383,117 @@
         opacity: 0;
         pointer-events: none;
       }
+
+      /* a long load: the nav display comes up low on the glass and counts toward the destination */
+      #boot .eta {
+        position: absolute;
+        left: 50%;
+        top: 76%;
+        box-sizing: border-box;
+        width: min(380px, calc(100vw - 48px));
+        padding: 12px 16px 11px;
+        border: 1px solid rgba(150, 195, 255, 0.2);
+        border-radius: 6px;
+        background: linear-gradient(180deg, rgba(4, 8, 26, 0.78), rgba(3, 6, 20, 0.66));
+        box-shadow: 0 0 24px rgba(60, 110, 255, 0.18), inset 0 1px 0 rgba(190, 215, 255, 0.08);
+        transform: translate(-50%, -50%) translateY(6px);
+        font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+        color: rgba(180, 210, 255, 0.82);
+        text-shadow: 0 0 8px rgba(110, 170, 255, 0.55);
+        opacity: 0;
+        transition: opacity 360ms ease-out, transform 360ms cubic-bezier(0.23, 1, 0.32, 1);
+      }
+      /* a tall phone: the window tapers early at the foot, so it sits higher and narrower */
+      @media (max-aspect-ratio: 3/4) {
+        #boot .eta {
+          top: 70%;
+          width: min(380px, calc(100vw - 96px));
+        }
+      }
+      /* a landscape phone: the console rises close under the window */
+      @media (max-height: 500px) {
+        #boot .eta {
+          top: 63%;
+          width: min(340px, calc(100vw - 96px));
+          padding: 8px 14px 7px;
+        }
+        #boot .eta .track {
+          margin: 6px 0 5px;
+        }
+      }
+      #boot.boot-slow .eta {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+      }
+      #boot.boot-spool .eta,
+      #boot.boot-out .eta {
+        opacity: 0;
+        transition-duration: 200ms;
+      }
+      #boot .eta p {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        margin: 0;
+        font-size: 12px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+      #boot .eta .dest {
+        justify-content: center;
+        gap: 10px;
+        color: rgba(180, 210, 255, 0.66);
+      }
+      #boot .eta .dest::before,
+      #boot .eta .dest::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        align-self: center;
+        background: rgba(150, 195, 255, 0.28);
+      }
+      /* dim ticks, lit up to the progress; every fifth tick is taller */
+      #boot .eta .track {
+        position: relative;
+        height: 9px;
+        margin: 10px 0 8px;
+      }
+      #boot .eta .ticks,
+      #boot .eta .fill {
+        position: absolute;
+        inset: 0;
+        background:
+          repeating-linear-gradient(90deg, currentColor 0 1px, transparent 1px 30px) 0 0 / 100% 100%,
+          repeating-linear-gradient(90deg, currentColor 0 1px, transparent 1px 6px) 0 100% / 100% 5px no-repeat;
+      }
+      #boot .eta .ticks {
+        color: rgba(150, 195, 255, 0.22);
+      }
+      #boot .eta .fill {
+        color: #cfe2ff;
+        clip-path: inset(0 100% 0 0);
+        filter: drop-shadow(0 0 3px rgba(120, 190, 255, 0.9));
+      }
+      #boot .eta .caret {
+        position: absolute;
+        inset: -3px 0;
+      }
+      #boot .eta .caret::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 1px;
+        background: #fff;
+        box-shadow: 0 0 6px rgba(150, 215, 255, 1);
+      }
+      #boot .eta .pct {
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.08em;
+        color: #eef4ff;
+      }
       @media (prefers-reduced-motion: reduce) {
         #boot .hyper i, #boot .hyper b { animation: none; opacity: 0.8; transform: scale(0.9); }
         #boot .hyper i:nth-of-type(n + 2), #boot .hyper b { display: none; }
@@ -439,6 +550,11 @@
         <span class="pr hi" style="--t: 4000ms">DESTINATION SET.</span>
         <span class="pr go" style="--t: 4300ms"><span class="fine">press any key to launch</span><span class="coarse">tap to launch</span><span class="cur"></span></span>
       </h1>
+      <div class="eta" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <p class="dest">Mannully system</p>
+        <div class="track" aria-hidden="true"><div class="ticks"></div><div class="fill"></div><div class="caret"></div></div>
+        <p><span class="status">In hyperspace</span><span class="pct">0%</span></p>
+      </div>
       <div class="flash" aria-hidden="true"></div>
     </div>
     <script>
@@ -737,10 +853,53 @@
         window.addEventListener('keydown', depart, true);
         window.addEventListener('pointerdown', depart, true);
 
+        // a load still going 2s into the jump (or 2s in, with no jump): the nav display counts toward
+        // the destination. The app reports milestones; between them it creeps on and never goes back.
+        var eta = boot.querySelector('.eta');
+        var fill = eta.querySelector('.fill');
+        var caret = eta.querySelector('.caret');
+        var pct = eta.querySelector('.pct');
+        var floor = 0;
+        var floorAt = performance.now();
+        var shown = 0;
+        var said = -1;
+        var tick = function () {
+          if (!boot.isConnected || boot.classList.contains('boot-spool') || boot.classList.contains('boot-done')) return;
+          var cap = floor >= 1 ? 1 : Math.min(0.97, floor + 0.25);
+          var target = floor + (cap - floor) * (1 - Math.exp(-(performance.now() - floorAt) / 3000));
+          shown = Math.max(shown, shown + (target - shown) * 0.12);
+          fill.style.clipPath = 'inset(0 ' + ((1 - shown) * 100).toFixed(2) + '% 0 0)';
+          caret.style.transform = 'translateX(' + (shown * 100).toFixed(2) + '%)';
+          var p = Math.round(shown * 100);
+          if (p !== said) {
+            said = p;
+            pct.textContent = p + '%';
+            eta.setAttribute('aria-valuenow', String(p));
+          }
+          requestAnimationFrame(tick);
+        };
+        var clock = function () {
+          setTimeout(function () {
+            if (!boot.isConnected || boot.classList.contains('boot-done') || boot.classList.contains('boot-spool')) return;
+            boot.classList.add('boot-slow');
+            requestAnimationFrame(tick);
+          }, 2000);
+        };
+        if (direct) {
+          eta.querySelector('.status').textContent = 'On approach';
+          clock();
+        }
+
         window.__nav = {
           departedAt: 0,
-          onDepart: function (fn) { if (departed) fn(); else queue.push(fn); }
+          onDepart: function (fn) { if (departed) fn(); else queue.push(fn); },
+          progress: function (p) {
+            if (p <= floor) return;
+            floor = Math.min(1, p);
+            floorAt = performance.now();
+          }
         };
+        window.__nav.onDepart(clock);
       })();
     </script>
     <div id="root"></div>

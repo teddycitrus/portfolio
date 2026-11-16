@@ -11,12 +11,15 @@
  */
 
 import { useAppStore } from '@/state/useAppStore';
+import { qualityForced } from '@/scenes/gpuTier';
 
 interface Nav {
   /** When a key or tap departed (performance.now), 0 until then */
   departedAt: number;
   /** Runs `fn` on the departure (straight away if it has happened) */
   onDepart: (fn: () => void) => void;
+  /** Raises the loader's progress readout to at least `p` (0 to 1) */
+  progress: (p: number) => void;
 }
 
 /** The loader's fade, matching the transition in index.html */
@@ -25,12 +28,17 @@ const FADE_MS = 400;
 const OUT_MS = 520;
 /** Once departed, never leave it up longer than this, whatever happens (a stuck driver, a hung fetch) */
 const GIVE_UP_MS = 90000;
+/** Still loading this long after the departure: the device or the connection cannot carry the 3D, so the page form shows */
+const TOO_SLOW_MS = 25000;
 
 const el = () => document.getElementById('boot');
 const nav = (): Nav | null => (window as unknown as { __nav?: Nav }).__nav ?? null;
 
 /** When the visitor departed (performance.now), or 0 while the ship still waits over Earth */
 export const departedAt = () => nav()?.departedAt ?? 1;
+
+/** Reports a loading milestone to the loader's readout (shown only if the load runs long) */
+export const bootProgress = (p: number) => nav()?.progress?.(p);
 
 let revealed = false;
 const waiting: (() => void)[] = [];
@@ -79,6 +87,7 @@ export const hideBoot = (giveUp = false) => {
   }
   if (b.dataset.done) return;
   b.dataset.done = '1';
+  bootProgress(1);
   const store = useAppStore.getState();
   if (store.intro && !giveUp) {
     // the ship waits over Earth for the departure; after the gesture's own handlers have run
@@ -95,7 +104,21 @@ export const hideBoot = (giveUp = false) => {
   reveal();
 };
 
-const giveUp = () => window.setTimeout(() => hideBoot(true), GIVE_UP_MS);
+const tooSlow = () => {
+  const b = el();
+  if (!b || b.dataset.done || qualityForced) return;
+  const s = useAppStore.getState();
+  if (!s.noWebGL) s.setNoWebGL();
+};
+
+const giveUp = () => {
+  // the app may arrive well after the departure on a slow link: count from the departure itself
+  const since = performance.now() - (nav()?.departedAt || 0);
+  window.setTimeout(tooSlow, Math.max(0, TOO_SLOW_MS - since));
+  window.setTimeout(() => hideBoot(true), GIVE_UP_MS);
+};
 // counted from the departure, or from now when there is none to wait for (a deep link, reduced motion)
 if (nav() && useAppStore.getState().intro) nav()!.onDepart(giveUp);
 else giveUp();
+// the app itself is in: about a quarter of the way
+bootProgress(0.25);

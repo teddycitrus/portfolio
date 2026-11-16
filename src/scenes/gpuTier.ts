@@ -2,7 +2,7 @@
  * How much 3D this device gets, decided once before the canvas exists:
  *   'high'  the full scene
  *   'low'   1x pixels, no multisampling, a lighter bloom, no shadows, and only the system warmed
- *   'none'  no 3D at all: the reader is the site (no WebGL, or WebGL drawn on the CPU)
+ *   'none'  no 3D at all: the reader is the site (no WebGL, WebGL drawn on the CPU, or a 2G link)
  * Preload can still step it down after timing real frames under the loader, and Effects
  * once more if the visit stays slow (in orbit only, see Governor).
  * `?quality=high|low|lite` forces a tier; a step down to 'low' is remembered for the next visit.
@@ -63,10 +63,13 @@ const probe = (): { quality: Quality; renderer: string } => {
     return { quality: 'none', renderer };
   }
 
+  const nav = navigator as Navigator & { deviceMemory?: number; connection?: { saveData?: boolean; effectiveType?: string } };
+  // a 2G link would spend minutes on the 3D: the page form is the site
+  if (/(^|-)2g$/.test(nav.connection?.effectiveType ?? '')) return { quality: 'none', renderer };
+
   const stored = read(STORE_KEY);
   if (stored === 'low') return { quality: 'low', renderer };
 
-  const nav = navigator as Navigator & { deviceMemory?: number; connection?: { saveData?: boolean } };
   // Save-Data (data saver or a low-battery mode on some phones) asks for the lighter page
   const small = (nav.deviceMemory ?? 8) <= 4 || (nav.hardwareConcurrency ?? 8) <= 4 || nav.connection?.saveData === true;
   return { quality: WEAK.test(renderer) || small ? 'low' : 'high', renderer };
