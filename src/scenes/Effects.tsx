@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { PerformanceMonitor, type PerformanceMonitorApi } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
-import { Bloom, BrightnessContrast, EffectComposer, Noise, ToneMapping, Vignette } from '@react-three/postprocessing';
+import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, Noise, ToneMapping, Vignette } from '@react-three/postprocessing';
 import { BlendFunction, ToneMappingMode } from 'postprocessing';
 import { useAppStore } from '@/state/useAppStore';
 import { qualityForced, rememberLow } from '@/scenes/gpuTier';
@@ -83,6 +83,8 @@ const Effects = () => {
         <ToneMapping mode={ToneMappingMode.AGX} />
         {/* AgX lands a touch flat; a little contrast brings the low-poly faces back apart */}
         <BrightnessContrast contrast={0.12} />
+        {/* and greys saturated colour: give the nebula, rings and skies some of their hue back */}
+        <HueSaturation saturation={0.1} />
         <Vignette offset={0.36} darkness={0.38} />
         {lean ? <></> : <Noise blendFunction={BlendFunction.OVERLAY} opacity={0.04} />}
       </EffectComposer>
