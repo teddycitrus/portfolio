@@ -20,7 +20,6 @@ import {
   StackChips,
   linkProps,
 } from "./BeaconContent";
-import { visitPlanet } from "./navigation";
 import { ArrowIcon, EASE, usePresence } from "./primitives";
 
 const sectionId = (id: string) => `reader-${id}`;
@@ -420,21 +419,9 @@ const Reader = () => {
                 aria-labelledby={`${sectionId(p.id)}-title`}
                 className="mt-14 scroll-mt-32 border-t border-[var(--d-line)] pt-10"
               >
-                <div className="mb-8 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-                  <h2 id={`${sectionId(p.id)}-title`} className="d-h2">
-                    {p.title}
-                  </h2>
-                  {!noWebGL && (
-                    <button
-                      type="button"
-                      onClick={() => visitPlanet(p.id)}
-                      className="d-btn shrink-0"
-                    >
-                      Land on the planet
-                      <ArrowIcon className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
+                <h2 id={`${sectionId(p.id)}-title`} className="d-h2 mb-8">
+                  {p.title}
+                </h2>
                 <SectionBody
                   planet={p}
                   onProject={(bid) => goTo(entryId(bid))}
@@ -444,7 +431,7 @@ const Reader = () => {
 
             <footer className="mt-16 space-y-1 border-t border-[var(--d-line)] pt-6 text-[13px] text-[var(--d-muted)]">
               {noWebGL && (
-                <p>The interactive version of this site needs WebGL.</p>
+                <p>The 3D version of this site couldn't run here.</p>
               )}
               <p>
                 {profile.name} / {new Date().getFullYear()}

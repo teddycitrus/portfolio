@@ -69,8 +69,8 @@
           "label": "Hello",
           "kind": "profile",
           "content": {
-            "heading": "I'm John.",
-            "body": "I'm a first-year computer science student at the University of Toronto. I love tech and hackathons. Outside of code, music is a big part of my life and I'm in my church choir. I also play casual volleyball (very much a beginner) and train calisthenics."
+            "heading": "the name's john.",
+            "body": "first year cs at uoft. i'm big on tech and i'll take any excuse to go to a hackathon. outside of code, music's a huge part of my life and i sing in my church choir. i also play volleyball (still very much a beginner) and do calisthenics."
           }
         },
         {
@@ -107,7 +107,7 @@
           "kind": "profile",
           "content": {
             "heading": "What I'm working toward",
-            "body": "I'm going deeper on AI and machine learning: computer vision, voice interfaces, and agents that can be trusted to act on their own."
+            "body": "right now i'm going deep on ai and ml, mostly computer vision, voice stuff, and agents you can actually trust to do things on their own."
           }
         }
       ]
