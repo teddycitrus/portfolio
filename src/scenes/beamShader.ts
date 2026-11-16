@@ -35,7 +35,11 @@ export const BEAM_FRAG = /* glsl */ `
     float ends = smoothstep(0.0, 0.015, vUv.y) * (1.0 - smoothstep(0.85, 1.0, vUv.y));
     // brighter where the wall is seen edge-on, so the column reads as a tube
     float edge = 0.35 + 0.65 * pow(max(1.0 - abs(dot(normalize(vN), normalize(vV))), 0.0), 2.0);
-    vec3 col = vec3(0.55, 0.85, 1.0) * (0.05 + rings * 0.45 + streaks * 0.35) * edge;
+    // white hot where it leaves the emitter, cooling to blue along its length
+    vec3 tint = mix(vec3(0.8, 0.94, 1.0), vec3(0.45, 0.78, 1.0), smoothstep(0.0, 0.5, vUv.y));
+    vec3 col = tint * (0.05 + rings * 0.45 + streaks * 0.35) * edge;
+    // a fine shimmer running round the wall
+    col *= 0.85 + 0.3 * noise(vec2(vUv.x * 96.0 + uTime * 0.7, y * 0.3 - uTime * 2.0));
     gl_FragColor = vec4(col * ends * uA, 1.0);
     #include <colorspace_fragment>
   }

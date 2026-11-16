@@ -197,6 +197,9 @@ const DISPLAY_FRAGMENT = /* glsl */ `
   void main() {
     vec3 d = normalize(vDir);
     vec3 col = pow(textureCube(uSky, d).rgb, vec3(2.2)) / 24.0;
+    // the display mapping greys colour out at these levels: give the gas back some of its hue
+    float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
+    col = max(vec3(lum) + (col - lum) * 1.35, 0.0);
     float v = textureCube(uSky, uVeilRot * d).a;
     v *= v;
     col = col * (1.0 - 0.5 * v) + vec3(0.0011, 0.001, 0.0016) * v;

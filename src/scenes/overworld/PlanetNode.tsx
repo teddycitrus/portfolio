@@ -16,6 +16,27 @@ interface Props {
 const ATMO_SCALE: Record<PlanetStyle, number> = { oceanic: 1.1, rocky: 1.07, 'gas-giant': 1.08, forested: 1.1, molten: 1.09 };
 const ATMO_STRENGTH: Record<PlanetStyle, number> = { oceanic: 1, rocky: 0.8, 'gas-giant': 0.95, forested: 1, molten: 0.85 };
 
+/**
+ * Radial make-up of the rings, shared by the rings and the shadow they throw: a faint inner ring,
+ * a dense bright middle one, a wide gap, an outer ring with a narrow gap of its own.
+ * t runs 0 at the inner edge to 1 at the outer; fine (0..1) fades the finest ringlets out.
+ */
+const RING_GLSL = /* glsl */ `
+  float rsq(float x) { return x * x; }
+  float rhash(float p) { p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
+  float rnoise(float x) { float i = floor(x), f = fract(x); return mix(rhash(i), rhash(i + 1.0), f * f * (3.0 - 2.0 * f)); }
+  float ringDensity(float t, float fine) {
+    float inner = smoothstep(0.0, 0.05, t) * (1.0 - smoothstep(0.2, 0.25, t));
+    float mid = smoothstep(0.21, 0.27, t) * (1.0 - smoothstep(0.6, 0.62, t));
+    float outer = smoothstep(0.655, 0.68, t) * (1.0 - smoothstep(0.93, 1.0, t));
+    float d = inner * (0.16 + 0.1 * rnoise(t * 60.0)) + mid * (0.7 + 0.3 * smoothstep(0.3, 0.52, t)) + outer * 0.58;
+    d *= 0.7 + 0.3 * rnoise(t * 18.0) + 0.15 * rnoise(t * 47.0 + 3.0) - 0.075;
+    d *= 1.0 - 0.32 * fine * rnoise(t * 160.0);
+    d *= 1.0 - 0.85 * exp(-rsq((t - 0.885) / 0.006));
+    return clamp(d, 0.0, 1.0);
+  }
+`;
+
 const PLANET_VERTEX = /* glsl */ `
   varying vec2 vUv;
   varying vec3 vLocal;
@@ -44,6 +65,7 @@ const PLANET_FRAGMENT = /* glsl */ `
   uniform int uStyle;
   uniform float uTime;
   uniform float uAtmo;
+  uniform float uHover;
   uniform vec3 uCenter;
   uniform vec3 uRingN;
   uniform float uRingInner;
@@ -54,6 +76,7 @@ const PLANET_FRAGMENT = /* glsl */ `
   varying vec3 vWorldNormal;
 
   float sq(float x) { return x * x; }
+  ${RING_GLSL}
 
   void main() {
     vec4 S = texture2D(uSurface, vUv);
@@ -107,9 +130,9 @@ const PLANET_FRAGMENT = /* glsl */ `
         float s = -dot(rel, uRingN) / denom;
         if (s > 0.0) {
           float rr = length(rel + uSun * s);
-          float cover = smoothstep(uRingInner, uRingInner * 1.08, rr) * (1.0 - smoothstep(uRingOuter * 0.92, uRingOuter, rr));
-          cover *= 0.6 + 0.4 * smoothstep(0.0, 0.5, abs(fract(rr * 2.3) - 0.5));
-          col *= 1.0 - 0.62 * cover;
+          float rt = (rr - uRingInner) / (uRingOuter - uRingInner);
+          float cover = rt > 0.0 && rt < 1.0 ? ringDensity(rt, 0.0) : 0.0;
+          col *= 1.0 - 0.8 * cover;
         }
       }
     }
@@ -121,7 +144,11 @@ const PLANET_FRAGMENT = /* glsl */ `
     vec3 hazeCol = mix(uAtmoColor * vec3(1.0, 0.6, 0.45), uAtmoColor, smoothstep(0.0, 0.4, NgL));
     col = mix(col, hazeCol * 0.55 * hazeLight, rim * 0.55 * uAtmo * hazeLight);
     // a bright lit limb where the atmosphere scatters sunlight toward the eye
-    col += hazeCol * pow(clamp(1.0 - NdV, 0.0, 1.0), 5.0) * smoothstep(-0.1, 0.5, NgL) * 0.45 * uAtmo;
+    float limb = pow(clamp(1.0 - NdV, 0.0, 1.0), 5.0);
+    col += hazeCol * limb * smoothstep(-0.1, 0.5, NgL) * 0.45 * uAtmo;
+    // picked out under the pointer: the disc lifts a touch and the whole limb takes the accent
+    col *= 1.0 + 0.1 * uHover;
+    col += uAtmoColor * limb * (0.25 + 0.75 * smoothstep(-0.4, 0.3, NgL)) * 0.7 * uHover;
 
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
@@ -219,38 +246,40 @@ const RING_FRAGMENT = /* glsl */ `
   varying vec3 vNormalW;
   varying float vR;
 
-  float sq(float x) { return x * x; }
-  float hash11(float p) { p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
-  float noise1(float x) { float i = floor(x), f = fract(x); return mix(hash11(i), hash11(i + 1.0), f * f * (3.0 - 2.0 * f)); }
+  ${RING_GLSL}
 
   void main() {
     float t = (vR - uInner) / (uOuter - uInner);
     float fw = fwidth(t);
-    float dens = smoothstep(0.0, 0.06, t) * (1.0 - smoothstep(0.86, 1.0, t));
-    dens *= 0.3 + 0.5 * noise1(t * 18.0) + 0.2 * noise1(t * 47.0 + 3.0);
-    float fineAmp = clamp(1.0 - fw * 140.0, 0.0, 1.0);
-    dens *= 1.0 - 0.3 * fineAmp * noise1(t * 160.0);
-    dens *= 1.0 - 0.18 * clamp(1.0 - fw * 420.0, 0.0, 1.0) * noise1(t * 430.0 + 7.0);
-    dens *= 1.0 - 0.9 * exp(-sq((t - 0.64) / 0.022));
-    dens *= 1.0 - 0.5 * exp(-sq((t - 0.27) / 0.012));
+    float dens = ringDensity(t, clamp(1.0 - fw * 140.0, 0.0, 1.0));
+    dens *= 1.0 - 0.18 * clamp(1.0 - fw * 420.0, 0.0, 1.0) * rnoise(t * 430.0 + 7.0);
 
-    vec3 base = mix(uA, uB, 0.35 + 0.4 * noise1(t * 9.0));
+    // the dense middle ring is brighter and warmer, the thin inner one grey and dim
+    vec3 base = mix(uA, uB, 0.35 + 0.4 * rnoise(t * 9.0));
+    base = mix(base, uA, 0.25 * rnoise(t * 31.0 + 5.0));
     float l = dot(base, vec3(0.2126, 0.7152, 0.0722));
-    base = mix(vec3(l), base, 0.68) * 0.75;
+    base = mix(vec3(l), base, 0.55 + 0.3 * dens) * (0.5 + 0.45 * dens);
 
     vec3 V = normalize(cameraPosition - vWorldPos);
     float nl = dot(vNormalW, uSun);
     float nv = dot(vNormalW, V);
-    float lit = 0.2 + 0.8 * abs(nl);
+    float lit = 0.22 + 0.78 * abs(nl);
     if (nl * nv < 0.0) lit *= 0.35 + 0.4 * (1.0 - dens);
+    // dust scatters forward: the thin parts glow when the rings stand between the eye and the sun
+    float fwd = max(-dot(V, uSun), 0.0);
+    fwd *= fwd;
+    lit *= 1.0 + 2.2 * fwd * fwd * (1.0 - 0.7 * dens);
 
     vec3 toC = uCenter - vWorldPos;
     float along = dot(toC, uSun);
     float dist = length(toC - uSun * along);
-    float shadow = along > 0.0 ? smoothstep(uR * 0.97, uR * 1.03, dist) : 1.0;
+    float shadow = along > 0.0 ? smoothstep(uR * 0.96, uR * 1.04, dist) : 1.0;
 
-    vec3 col = base * uSunColor * lit * (0.06 + 0.94 * shadow);
-    gl_FragColor = vec4(col, clamp(dens, 0.0, 1.0) * 0.9);
+    vec3 col = base * uSunColor * lit * (0.05 + 0.95 * shadow);
+    // a little light thrown back by the planet's day side onto the rings near it
+    float near = 1.0 - smoothstep(uR, uR * 2.0, length(toC));
+    col += base * uSunColor * 0.05 * near * max(dot(normalize(-toC), uSun), 0.0);
+    gl_FragColor = vec4(col, dens * 0.92);
     #include <colorspace_fragment>
   }
 `;
@@ -304,6 +333,7 @@ const PlanetNode = ({ planet }: Props) => {
         uStyle: { value: STYLE_INDEX[style] },
         uTime: { value: 0 },
         uAtmo: { value: ATMO_STRENGTH[style] },
+        uHover: { value: 0 },
         uCenter: { value: new THREE.Vector3() },
         uRingN: { value: ringNormal },
         uRingInner: { value: ringInner },
@@ -332,7 +362,7 @@ const PlanetNode = ({ planet }: Props) => {
         uR: { value: r },
         uRa: { value: atmoR },
         uIntensity: { value: 1 },
-        uHaze: { value: style === 'rocky' ? 1 : 0.35 },
+        uHaze: { value: style === 'rocky' ? 1 : style === 'gas-giant' ? 0.15 : 0.35 },
         uEmber: { value: style === 'molten' ? 1 : 0 },
       },
       vertexShader: ATMO_VERTEX,
@@ -407,6 +437,7 @@ const PlanetNode = ({ planet }: Props) => {
     const h = hover.current;
 
     mats.surface.uniforms.uTime.value = t;
+    mats.surface.uniforms.uHover.value = h;
     mats.surface.uniforms.uCenter.value.copy(o.position);
     mats.atmo.uniforms.uCenter.value.copy(o.position);
     mats.atmo.uniforms.uIntensity.value = (0.95 + 0.75 * h + (locked ? 0.3 : 0)) * haloScale;

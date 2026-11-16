@@ -26,7 +26,13 @@ const HALO_FRAGMENT = /* glsl */ `
     float core = exp(-r * r * 260.0) * 6.0;
     float glow = exp(-r * 9.0) * 0.55;
     float scatter = pow(1.0 - r, 3.0) * 0.06;
-    vec3 col = vec3(1.0, 0.93, 0.84) * (core + glow) + vec3(1.0, 0.82, 0.66) * scatter;
+    // faint rays of the corona, uneven in length, and a thin lens streak across
+    vec2 q = r > 1e-4 ? vUv : vec2(1.0, 0.0);
+    float a = atan(q.y, q.x);
+    float rays = 0.5 + 0.5 * sin(a * 14.0 + 2.0 * sin(a * 5.0));
+    rays *= rays * exp(-r * 6.0) * 0.22 * smoothstep(0.02, 0.08, r);
+    float streak = exp(-abs(vUv.y) * 90.0) * exp(-abs(vUv.x) * 3.2) * 0.16;
+    vec3 col = vec3(1.0, 0.93, 0.84) * (core + glow + rays) + vec3(1.0, 0.82, 0.66) * scatter + vec3(0.75, 0.82, 1.0) * streak;
     gl_FragColor = vec4(col, 1.0);
   }
 `;

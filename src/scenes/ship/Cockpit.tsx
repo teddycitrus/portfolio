@@ -11,6 +11,7 @@ import { cockpitShape, FRAME_DEPTH, HOLE, offsetPoly, type Pt } from './shape';
 import SpeedLines from './SpeedLines';
 import ShipDetails from './ShipDetails';
 import { glassMaterial, instrumentMaterial } from './materials';
+import { cabinEnv } from './cabinEnv';
 
 /*
  * The ship around the viewer. In orbit it is the beam deck: a bulkhead with a
@@ -331,24 +332,37 @@ const along = (pts: Pt[], step: number): Pt[] => {
   return out;
 };
 
-const useCockpitParts = () =>
+const useCockpitParts = (env: THREE.Texture) =>
   useMemo(() => {
     const D = FRAME_DEPTH;
     const tex = panelTexture();
     tex.repeat.set(1.6, 1.6);
     const plate = plateMaterial(tex);
+    plate.envMap = env;
+    plate.envMapIntensity = 1.4;
     const trimTex = tex.clone();
     trimTex.repeat.set(5, 5);
     const trim = new THREE.MeshStandardMaterial({
-      color: '#59606d',
+      color: '#5d6573',
       map: trimTex,
-      metalness: 0.7,
-      roughness: 0.38,
+      metalness: 0.8,
+      roughness: 0.32,
+      envMap: env,
+      envMapIntensity: 1.6,
       fog: false,
       transparent: true,
     });
     const dashTex = dashTexture();
-    const dark = new THREE.MeshStandardMaterial({ color: '#2b3340', map: dashTex, metalness: 0.3, roughness: 0.7, fog: false, transparent: true });
+    const dark = new THREE.MeshStandardMaterial({
+      color: '#2b3340',
+      map: dashTex,
+      metalness: 0.35,
+      roughness: 0.62,
+      envMap: env,
+      envMapIntensity: 1.2,
+      fog: false,
+      transparent: true,
+    });
     const strip = new THREE.MeshBasicMaterial({ color: new THREE.Color('#9fc4ff').multiplyScalar(0.75), fog: false, transparent: true });
     const amber = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffb46a').multiplyScalar(1.15), fog: false, transparent: true });
 
@@ -393,14 +407,16 @@ const useCockpitParts = () =>
     const dashTilt = -Math.atan2(0.085, 0.32);
 
     return { plate, trim, dark, strip, amber, bulkhead, ring, lightStrip, rivetGeo, rivetPts, dash, dashTilt, tex, trimTex, dashTex };
-  }, []);
+  }, [env]);
 
 /* ---------- the rig: camera offsets, ship pose, sounds ---------- */
 
 const Cockpit = () => {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const size = useThree((s) => s.size);
-  const parts = useCockpitParts();
+  const gl = useThree((s) => s.gl);
+  const env = useMemo(() => cabinEnv(gl), [gl]);
+  const parts = useCockpitParts(env);
   const shipRef = useRef<THREE.Group>(null);
   const frameRef = useRef<THREE.Group>(null);
   const leds = useRef<THREE.InstancedMesh>(null);

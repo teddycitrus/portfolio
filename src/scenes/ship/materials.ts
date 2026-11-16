@@ -113,7 +113,9 @@ export const linerMaterial = (uTime: { value: number }) =>
         float id = floor(c);
         float f = fract(c);
         float tone = 0.8 + 0.4 * hash(id);
-        vec3 col = vec3(0.046, 0.052, 0.064) * tone;
+        vec3 col = vec3(0.042, 0.05, 0.066) * tone;
+        // brushed along the strip
+        col *= 0.88 + 0.24 * noise(vec2(vUv.x * 3.0, v * 220.0));
 
         // long seams across the strip, offset panel to panel
         float s1 = 0.36 + 0.05 * hash(id + 3.0);
@@ -155,10 +157,18 @@ export const linerMaterial = (uTime: { value: number }) =>
         vec3 lampC = hash(lid + 5.0) > 0.72 ? vec3(1.0, 0.68, 0.36) : vec3(0.42, 0.8, 1.0);
         col = mix(col, lampC * (0.06 + 0.42 * on), lamp);
 
+        // the cabin lamp overhead glancing off the metal: a warm sheen strongest on the upper run,
+        // and the cold light of the window sliding up the strip toward the glass
+        float len = max(length(vP), 1e-3);
+        float up = vP.y / len;
+        float sheen = exp(-(v - 0.3) * (v - 0.3) * 18.0) * (1.0 - rib) * (1.0 - seam);
+        col += vec3(0.11, 0.085, 0.06) * sheen * smoothstep(-0.2, 1.0, up) * (0.6 + 0.4 * grime);
+        col += vec3(0.024, 0.04, 0.074) * smoothstep(0.4, 0.82, v) * (1.0 - rib);
+
         // the seal at the glass, then the sky's cold rim on it
         float seal = smoothstep(0.82, 0.86, v);
         col = mix(col, vec3(0.012, 0.014, 0.018), seal);
-        col += vec3(0.16, 0.22, 0.36) * smoothstep(0.93, 1.0, v) * 0.34;
+        col += vec3(0.16, 0.24, 0.42) * smoothstep(0.93, 1.0, v) * 0.42;
         // the near end sits in the shadow of the frame ring
         col *= 0.55 + 0.45 * smoothstep(0.0, 0.4, v);
         // the lower sill catches more of the cabin light than the head

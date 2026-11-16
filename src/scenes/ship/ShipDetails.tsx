@@ -6,6 +6,7 @@ import { useAppStore } from '@/state/useAppStore';
 import { planets } from '@/data/content';
 import { dustMaterial, linerMaterial, lightsMaterial } from './materials';
 import { FRAME_DEPTH, HOLE, offsetPoly } from './shape';
+import { cabinEnv } from './cabinEnv';
 
 /*
  * The working life of the deck. Whoever lives here builds things and flies
@@ -478,7 +479,7 @@ const dustGeometry = (count: number) => {
   return g;
 };
 
-const useDetailParts = () =>
+const useDetailParts = (env: THREE.Texture) =>
   useMemo(() => {
     const kit = new Kit();
     const lamps = new Lamps();
@@ -497,8 +498,10 @@ const useDetailParts = () =>
 
     const kitMat = new THREE.MeshStandardMaterial({
       vertexColors: true,
-      metalness: 0.42,
-      roughness: 0.58,
+      metalness: 0.5,
+      roughness: 0.48,
+      envMap: env,
+      envMapIntensity: 1.4,
       fog: false,
       transparent: true,
       opacity: 1,
@@ -528,10 +531,11 @@ const useDetailParts = () =>
     const linerMat = linerMaterial(uTime);
     const dustMat = dustMaterial(uTime);
     return { kitGeo, lampGeo, linerGeo, dustGeo, kitMat, lampMat, linerMat, dustMat, uTime, uFit };
-  }, []);
+  }, [env]);
 
 const ShipDetails = () => {
-  const parts = useDetailParts();
+  const gl = useThree((s) => s.gl);
+  const parts = useDetailParts(useMemo(() => cabinEnv(gl), [gl]));
   const size = useThree((s) => s.size);
   const lastAspect = useRef(0);
 
