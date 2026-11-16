@@ -7,17 +7,42 @@ import * as THREE from 'three';
 export const noRaycast = () => null;
 
 /** Adds a view-angle rim to a standard material so stone never reads as a flat silhouette. */
-export const addRim = (m: THREE.MeshStandardMaterial, color: THREE.Color, strength: number) => {
+export const addRim = (
+  m: THREE.MeshStandardMaterial,
+  color: THREE.Color,
+  strength: number,
+  /** Optional contact shade: how dark the foot gets (0..1) and the world height of the ground it stands on */
+  contact?: { k: number; y: number },
+) => {
   m.customProgramCacheKey = () => 'beacon-rim';
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uRim = { value: color.clone().multiplyScalar(strength) };
+    shader.uniforms.uContact = { value: new THREE.Vector2(contact?.k ?? 0, contact?.y ?? 0) };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying float vRimY;')
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        vec4 rimW = vec4(transformed, 1.0);
+        #ifdef USE_INSTANCING
+          rimW = instanceMatrix * rimW;
+        #endif
+        vRimY = (modelMatrix * rimW).y;`,
+      );
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 uRim;')
+      .replace('#include <common>', '#include <common>\nuniform vec3 uRim;\nuniform vec2 uContact;\nvarying float vRimY;')
+      // contact shade: the lowest metre and a half darkens toward the ground so built things sit in it
+      .replace(
+        '#include <color_fragment>',
+        '#include <color_fragment>\ndiffuseColor.rgb *= 1.0 - uContact.x * (1.0 - smoothstep(-0.1, 1.6, vRimY - uContact.y));',
+      )
       .replace(
         '#include <emissivemap_fragment>',
         `#include <emissivemap_fragment>
         float rimF = pow(1.0 - saturate(dot(normalize(normal), normalize(vViewPosition))), 2.5);
-        totalEmissiveRadiance += uRim * (0.2 + rimF);`,
+        // skylight on the rim: strongest on edges that face up, a trace on undersides, little flat fill
+        float rimSky = saturate(dot(normal, mat3(viewMatrix) * vec3(0.0, 1.0, 0.0)) * 0.5 + 0.5);
+        totalEmissiveRadiance += uRim * (0.07 + rimF * (0.45 + 1.1 * rimSky));`,
       );
   };
   return m;

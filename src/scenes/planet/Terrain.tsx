@@ -280,6 +280,8 @@ const mountainVert = /* glsl */ `
 `;
 const mountainFrag = /* glsl */ `
   uniform vec3 uFog;
+  uniform vec3 uWarm;
+  uniform vec3 uCool;
   uniform vec3 uTone;
   uniform vec3 uRim;
   uniform vec3 uSun;
@@ -297,7 +299,14 @@ const mountainFrag = /* glsl */ `
     vec4 d = texture2D(uDetail, vec2(vAlong * 34.0, vY * 0.05));
     float strata = sin(vY * 0.75 + d.a * 3.5) * 0.5 + 0.5;
     vec3 tone = uTone * (1.0 + ((d.r - 0.5) * 0.9 + (d.a - 0.5) * 0.5 + (strata - 0.5) * 0.3) * uFace);
-    vec3 col = mix(tone, uFog, haze);
+    // aerial perspective: the haze takes the sun's glow on that side of the sky and the
+    // zenith's colour away from it, so the ranges read as lit air rather than one flat tint
+    vec2 azD = vDir.xz / max(length(vDir.xz), 1e-4);
+    vec2 azS = uSun.xz / max(length(uSun.xz), 1e-4);
+    float toward = max(dot(azD, azS), 0.0);
+    vec3 air = mix(uFog, uWarm, toward * toward * 0.4);
+    air = mix(air, uCool, (1.0 - toward) * 0.12 * smoothstep(0.4, 1.0, vH));
+    vec3 col = mix(tone, air, haze);
     // thin rim light on ridges facing the sun
     float facing = pow(max(dot(normalize(vDir.xz + 1e-5), normalize(uSun.xz + 1e-5)), 0.0), 6.0);
     col += uRim * facing * smoothstep(0.75, 1.0, vH) * 0.35;
@@ -498,7 +507,7 @@ type RidgeRow = [number, number, number, number, number, RidgeForm];
 /** Haze rises with distance so each layer stands apart: atmospheric perspective by hand */
 const RIDGES: Record<PlanetStyle, RidgeRow[]> = {
   // radius, base, amplitude, seed, haze at the ridge, form
-  rocky: [[430, 36, 90, 7.9, 0.86, 'peaks'], [330, 26, 70, 11.7, 0.72, 'peaks'], [210, 10, 34, 3.3, 0.5, 'buttes'], [150, 6, 16, 14.2, 0.34, 'buttes']],
+  rocky: [[430, 36, 90, 7.9, 0.82, 'peaks'], [330, 26, 70, 11.7, 0.64, 'peaks'], [210, 10, 34, 3.3, 0.42, 'buttes'], [150, 6, 16, 14.2, 0.26, 'buttes']],
   forested: [[430, 36, 90, 7.9, 0.86, 'peaks'], [330, 26, 70, 11.7, 0.72, 'peaks'], [210, 10, 34, 3.3, 0.5, 'peaks']],
   // dark volcanic peaks, lightly hazed so they stay dark against the dawn sky
   molten: [[430, 40, 90, 2.4, 0.42, 'peaks'], [330, 30, 80, 5.1, 0.22, 'cones'], [210, 8, 30, 8.8, 0.12, 'cones']],
@@ -587,6 +596,8 @@ const Terrain = ({ planet, sky, reducedMotion }: TerrainProps) => {
         fragmentShader: mountainFrag,
         uniforms: {
           uFog: { value: sky.fogColor },
+          uWarm: { value: sky.glow },
+          uCool: { value: sky.upper },
           uTone: { value: tone },
           uRim: { value: sky.lightColor },
           uSun: { value: sky.sunDir },

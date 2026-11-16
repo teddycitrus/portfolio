@@ -110,13 +110,20 @@ const frag = /* glsl */ `
     float flick = 1.0 - 0.18 * step(0.985, hash(vec2(floor(t * 18.0), uSeed)));
 
     vec3 rimCol = mix(uAccent, vec3(1.0), uLook2.y);
-    // idle panels are dark, nearly solid plates so they read from across the field
-    vec3 base = mix(uCore * 0.6 + uAccent * 0.05, uCore, uM);
+    // idle panels are dark smoked glass: a cool sheen across the face (a dim accent alone went
+    // muddy brown under the tone map), a bright cut edge and a fine inset bezel line
+    float idle = 1.0 - clamp(uM, 0.0, 1.0);
+    vec3 glass = mix(uAccent, vec3(0.62, 0.78, 1.0), 0.55);
+    float sheen = clamp(0.5 + (vP.x * 0.6 + vP.y) * 2.2, 0.0, 1.0);
+    float bz = (d - erode - ew * 2.4) / max(ew * 0.22, 0.001);
+    float bezel = exp(-bz * bz) * body;
+    vec3 base = mix(uCore * 0.7 + glass * (0.012 + 0.05 * sheen * sheen), uCore, uM);
     vec3 col = base
       + uAccent * (scan * 0.007 + band * 0.012 + dots * 0.014) * uM
-      + rimCol * rim * mix(1.1, 0.42, uM);
+      + glass * band * 0.03 * idle
+      + rimCol * (rim * mix(1.4, 0.42, uM) + bezel * 0.35 * idle);
 
-    float a = body * build * mix(0.94, 0.9, uM) * (0.95 + scan * 0.05);
+    float a = body * build * mix(0.82, 0.9, uM) * (0.95 + scan * 0.05);
     a += rim * mix(0.6, 0.25, uM);
     a *= flick * uOpacity;
     if (a < 0.003) discard;

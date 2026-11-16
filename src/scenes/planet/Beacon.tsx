@@ -267,11 +267,13 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
       new THREE.MeshStandardMaterial({ color: stoneColor, roughness: 0.68, metalness: 0.02, flatShading: true }),
       rc,
       rim * 0.18,
+      { k: 0.3, y: position[1] },
     );
     const plinth = addRim(
       new THREE.MeshStandardMaterial({ color: stoneColor.clone().multiplyScalar(0.62), roughness: 0.9 }),
       rc,
       rim * 0.1,
+      { k: 0.22, y: position[1] },
     );
     const metal = new THREE.MeshStandardMaterial({
       color:
@@ -297,7 +299,7 @@ const Beacon = ({ beacon, planet, index, position, rim = 0.2, rimColor, reducedM
       side: THREE.DoubleSide,
     });
     return { stone, plinth, metal, seam, seamBase, pool, ringMat };
-  }, [planet, kind, rim, rimColor, rank, spec.shade]);
+  }, [planet, kind, rim, rimColor, rank, spec.shade, position]);
 
   // a copy compiled out of sight from orbit never set the cursor, and the pointer may be on a planet
   const staged = useContext(StagedSurface);

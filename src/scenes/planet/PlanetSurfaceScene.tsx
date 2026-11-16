@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { useAppStore } from '@/state/useAppStore';
 import { getBeaconPosition, planetById } from '@/data/content';
 import { buildSky } from '@/data/skyPresets';
-import type { Planet, Vec3 } from '@/types/content';
+import type { Planet, PlanetStyle, Vec3 } from '@/types/content';
 import SkyDome from './SkyDome';
 import Terrain, { heightFor, walkRadiusFor } from './Terrain';
 import Surroundings from './Surroundings';
@@ -20,6 +20,8 @@ import { StagedSurface, surfaceMounted } from './surfaceState';
 
 const SHADOW_EXTENT = 34;
 const SUN_DISTANCE = 70;
+/** Scene fog against the preset: the dusk dunes were drowning in haze a few metres out */
+const FOG_SCALE: Record<PlanetStyle, number> = { rocky: 0.78, forested: 0.9, molten: 1, oceanic: 1, 'gas-giant': 0.9 };
 
 /**
  * The sun and its shadow frame are fixed, and only slow things move (animals, my head, the
@@ -55,11 +57,25 @@ const Surface = ({ planet }: { planet: Planet }) => {
   const walkRadius = walkRadiusFor(planet.style);
   const sun = useRef<THREE.DirectionalLight>(null);
   const sky = useMemo(() => buildSky(planet), [planet]);
-  // soft fill from the spawn side so monument faces read when backlit
-  const fillPos = useMemo<Vec3>(() => [-sky.lightDir.x * 30, 18, 40], [sky]);
-  const fillColor = useMemo(() => sky.hemiSky.clone().lerp(sky.lightColor, 0.45), [sky]);
-  // backlit skies (sun in front of the spawn view) need a stronger fill
-  const fillIntensity = sky.lightIntensity * (sky.lightDir.z < -0.3 ? 0.7 : 0.45);
+  // Light hierarchy: a warm key, a cool sky-coloured counter light from the opposite azimuth
+  // (a front fill when the sun is ahead, a rim from beyond the monuments when it is behind),
+  // and less flat ambient so shadow sides keep their shape.
+  const lights = useMemo(() => {
+    const backlit = sky.lightDir.z < -0.3;
+    const fillPos: Vec3 = [-sky.lightDir.x * 30, 18, -sky.lightDir.z * 40];
+    const fillColor = backlit ? sky.hemiSky.clone().lerp(sky.lightColor, 0.3) : sky.hemiSky.clone().lerp(sky.rimColor, 0.55);
+    const fillIntensity = sky.lightIntensity * (backlit ? 0.6 : 0.55);
+    const hemiGround = sky.hemiGround.clone().multiplyScalar(0.75);
+    return {
+      fillPos,
+      fillColor,
+      fillIntensity,
+      hemiGround,
+      hemiIntensity: sky.hemiIntensity * 0.74,
+      keyIntensity: sky.lightIntensity * 1.12,
+      fogDensity: sky.fogDensity * FOG_SCALE[planet.style],
+    };
+  }, [sky, planet.style]);
 
   const beacons = useMemo<SurfaceBeacon[]>(
     () =>
@@ -84,11 +100,11 @@ const Surface = ({ planet }: { planet: Planet }) => {
 
   // exponential fog matching the sky horizon; removed on unmount so the overworld stays clear
   useEffect(() => {
-    scene.fog = new THREE.FogExp2(sky.fogColor.getHex(), sky.fogDensity);
+    scene.fog = new THREE.FogExp2(sky.fogColor.getHex(), lights.fogDensity);
     return () => {
       scene.fog = null;
     };
-  }, [scene, sky]);
+  }, [scene, sky, lights]);
 
   useLayoutEffect(() => {
     const l = sun.current;
@@ -107,18 +123,18 @@ const Surface = ({ planet }: { planet: Planet }) => {
   return (
     <>
       {shadows && <ShadowCadence />}
-      <hemisphereLight args={[sky.hemiSky, sky.hemiGround, sky.hemiIntensity]} />
+      <hemisphereLight args={[sky.hemiSky, lights.hemiGround, lights.hemiIntensity]} />
       <directionalLight
         ref={sun}
         color={sky.lightColor}
-        intensity={sky.lightIntensity}
+        intensity={lights.keyIntensity}
         castShadow={shadows}
         shadow-mapSize={isTouch ? [1024, 1024] : [2048, 2048]}
         shadow-bias={-0.0004}
         shadow-normalBias={0.03}
       />
 
-      <directionalLight position={fillPos} color={fillColor} intensity={fillIntensity} />
+      <directionalLight position={lights.fillPos} color={lights.fillColor} intensity={lights.fillIntensity} />
 
       <SkyDome sky={sky} reducedMotion={reducedMotion} />
       <Mothership sky={sky} reducedMotion={reducedMotion} />
