@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#05070d" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="John" />
+    <meta name="format-detection" content="telephone=no" />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="./icon-32.png" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
@@ -109,11 +115,12 @@
         position: absolute;
         left: 50%;
         top: 47%;
-        width: min(80vw, 720px);
+        width: min(84vw, 720px);
         margin: 0;
         transform: translate(-50%, -50%);
         font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
-        font-size: clamp(12px, 1.55vw, 18px);
+        /* the longest line is 38 characters: it fits 84vw down to 320px wide, and 8 lines fit a landscape phone */
+        font-size: clamp(10.5px, min(3.3vw, 3.4vh, 1.55vw + 6px), 18px);
         font-weight: 400;
         line-height: 1.75;
         color: rgba(180, 205, 255, 0.72);

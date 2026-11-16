@@ -96,7 +96,7 @@ const VARIANTS: Record<Variant, string> = {
 /** Button look for anchors and buttons alike. HUD controls are sm (h-9), content CTAs md (h-11). */
 export const buttonClass = (variant: Variant = 'panel', size: 'sm' | 'md' = 'md') =>
   cx(
-    'pointer-events-auto inline-flex select-none items-center gap-2.5 whitespace-nowrap font-medium transition-[color,text-decoration-color,opacity] duration-200 ease-out',
+    'press pointer-events-auto inline-flex select-none items-center gap-2.5 whitespace-nowrap font-medium',
     // sm controls are 36px tall; an invisible margin brings the touch target past 44px
     size === 'md' ? 'h-11 text-[14px]' : "relative h-9 px-2 text-[13px] after:absolute after:-inset-1.5 after:content-['']",
     VARIANTS[variant],

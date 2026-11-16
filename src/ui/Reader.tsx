@@ -135,7 +135,7 @@ const SectionBody = ({
               <a
                 href={l.content.url}
                 {...linkProps(l.content.url)}
-                className="d-row grid grid-cols-[120px_1fr_auto] items-center gap-4 px-5 py-3.5"
+                className="d-row grid min-h-12 grid-cols-[88px_1fr_auto] items-center gap-3 px-4 py-3 sm:grid-cols-[120px_1fr_auto] sm:gap-4 sm:px-5 sm:py-3.5"
               >
                 <span className="d-strong text-[14px]">{l.label}</span>
                 <span className="d-mono truncate text-[13px] text-[var(--d-muted)]">
@@ -302,10 +302,10 @@ const Reader = () => {
         }}
       >
         <header
-          className="sticky top-0 z-20 border-b border-[var(--d-line)] bg-black/85 backdrop-blur-md"
+          className="sticky top-0 z-20 border-b border-[var(--d-line)] bg-black/85 backdrop-blur-md [@media(pointer:coarse)]:bg-black/95 [@media(pointer:coarse)]:backdrop-blur-none"
           style={{ paddingTop: "env(safe-area-inset-top)" }}
         >
-          <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between gap-4 pl-[max(20px,env(safe-area-inset-left))] pr-[max(20px,env(safe-area-inset-right))] lg:px-[72px]">
+          <div className="mx-auto flex h-16 max-w-[1440px] [@media(max-height:500px)]:h-14 items-center justify-between gap-4 pl-[max(20px,env(safe-area-inset-left))] pr-[max(20px,env(safe-area-inset-right))] lg:px-[72px]">
             <span className="d-strong min-w-0 truncate text-[16px] tracking-[-0.02em]">
               {profile.name}
             </span>
@@ -344,7 +344,7 @@ const Reader = () => {
           >
             <ol
               ref={tabRow}
-              className="scrollbar-thin flex gap-6 overflow-x-auto pl-[max(20px,env(safe-area-inset-left))] pr-[max(20px,env(safe-area-inset-right))]"
+              className="scrollbar-thin flex gap-6 overflow-x-auto overscroll-x-contain [-webkit-mask-image:linear-gradient(to_right,#000_calc(100%-28px),transparent)] [mask-image:linear-gradient(to_right,#000_calc(100%-28px),transparent)] pl-[max(20px,env(safe-area-inset-left))] pr-[max(20px,env(safe-area-inset-right))]"
             >
               {planets.map((p) => {
                 const Icon = ICONS[p.id] ?? TbAlignLeft;
@@ -388,14 +388,14 @@ const Reader = () => {
             </ol>
           </nav>
 
-          <main className="min-w-0 pb-32 pt-10">
+          <main className="min-w-0 pb-[calc(8rem+env(safe-area-inset-bottom))] pt-10">
             <h1 className="d-h1">{profile.name}</h1>
             <p className="d-p mt-3">
               {profile.location
                 ? `${profile.role}, ${profile.location}`
                 : profile.role}
             </p>
-            <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-2">
+            <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-3">
               {contactLinks.map((l) => (
                 <li key={l.label}>
                   <a

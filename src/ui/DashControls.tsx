@@ -173,7 +173,7 @@ export const SoundToggle = ({ className, style }: { className?: string; style?: 
       aria-pressed={sound}
       onClick={() => setSoundEnabled(!sound)}
       className={cx(
-        "pointer-events-auto h-9 whitespace-nowrap text-[13px] font-medium text-ink/70 transition-colors duration-200 after:absolute after:-inset-1.5 after:content-[''] hover:text-white",
+        "press pointer-events-auto h-9 whitespace-nowrap text-[13px] font-medium text-ink/75 after:absolute after:-inset-1.5 after:content-[''] hover:text-white [text-shadow:0_1px_2px_rgba(5,7,13,0.9)]",
         className,
       )}
       style={style}

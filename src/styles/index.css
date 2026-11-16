@@ -45,7 +45,8 @@
   [role='button'] {
     touch-action: manipulation;
   }
-  button {
+  button,
+  [role='button'] {
     -webkit-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
@@ -69,6 +70,10 @@
     outline: 1.5px solid var(--accent);
     outline-offset: 3px;
     border-radius: 4px;
+  }
+  /* pointer presses never draw the ring; keyboard focus still does */
+  :focus:not(:focus-visible) {
+    outline: none;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -99,7 +104,32 @@
     border: 1px solid var(--line);
     backdrop-filter: blur(18px) saturate(1.2);
     -webkit-backdrop-filter: blur(18px) saturate(1.2);
-    box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.7);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      0 24px 60px -24px rgba(0, 0, 0, 0.7);
+  }
+  /* touch devices: a backdrop blur over the live scene re-samples it every frame, so go near opaque instead */
+  @media (pointer: coarse) {
+    .panel {
+      background: linear-gradient(to bottom, rgba(12, 16, 27, 0.96), rgba(8, 11, 19, 0.99) 140px);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+  }
+
+  /* Press feedback for HUD controls: a small, quick scale on press, felt on touch and mouse alike. */
+  .press {
+    transition-property: color, background-color, text-decoration-color, opacity, transform;
+    transition-duration: 160ms;
+    transition-timing-function: var(--ease-out);
+  }
+  .press:active {
+    transform: scale(0.96);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .press:active {
+      transform: none;
+    }
   }
 
   /* Small secondary label: same family as the text around it, just quieter. */

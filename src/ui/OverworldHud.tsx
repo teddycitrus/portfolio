@@ -15,12 +15,15 @@ import {
   SAFE,
   cx,
   usePresence,
+  useShort,
 } from './primitives';
 import { useScreenMarkers } from './useScreenMarkers';
 import DashControls from './DashControls';
 import AlienName from './AlienName';
 
 const SAFE_BANDS = { top: 84, bottom: 104 };
+/** Landscape phones: the header is one 56px row, so names may come up closer to it. */
+const SHORT_BANDS = { top: 64, bottom: 104 };
 /** Clears the hover reticle (about 1.15x the planet radius) with room to spare. */
 const LABEL_GAP = (size: number) => size * 0.32 + 18;
 /** Keep other labels off the hover reticle and off ring systems. */
@@ -38,7 +41,13 @@ const PlanetLabels = ({ hovered, isTouch }: { hovered: string | null; isTouch: b
   const travelTo = useAppStore((s) => s.travelTo);
   const priorityId = useRef<string | null>(hovered);
   priorityId.current = hovered;
-  const bind = useScreenMarkers(planetScreen, { safe: SAFE_BANDS, priorityId, gap: LABEL_GAP, extent: EXTENT });
+  const short = useShort();
+  const bind = useScreenMarkers(planetScreen, {
+    safe: short ? SHORT_BANDS : SAFE_BANDS,
+    priorityId,
+    gap: LABEL_GAP,
+    extent: EXTENT,
+  });
 
   return (
     <div className="absolute inset-0 overflow-hidden">
@@ -89,7 +98,8 @@ const PlanetLabels = ({ hovered, isTouch }: { hovered: string | null; isTouch: b
               {...common}
               className={cx(
                 IN_WORLD,
-                'pointer-events-auto absolute left-0 top-0 flex items-center gap-1.5 px-2 py-1 data-[side=right]:flex-row-reverse',
+                // the invisible margin brings the small arrow label past a 44px touch target
+                "pointer-events-auto absolute left-0 top-0 flex items-center gap-1.5 px-2 py-1 after:absolute after:-inset-x-1 after:-inset-y-2.5 after:content-[''] data-[side=right]:flex-row-reverse",
               )}
               style={{ visibility: 'hidden' }}
             >
@@ -124,7 +134,7 @@ const OverworldHud = () => {
       <PlanetLabels hovered={hovered} isTouch={isTouch} />
 
       <header
-        className={cx('absolute inset-x-0 top-0 flex items-start justify-between gap-2', HUD_ZOOM)}
+        className={cx('absolute inset-x-0 top-0 flex items-center justify-between gap-2', HUD_ZOOM)}
         style={{ paddingTop: SAFE.top, paddingLeft: SAFE.left, paddingRight: SAFE.right }}
       >
         <div className="pointer-events-none select-none">

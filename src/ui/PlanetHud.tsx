@@ -45,6 +45,21 @@ const hudBlocks = (() => {
   };
 })();
 
+/** Top of the phone sheet, re-read at most every 150ms (Infinity when closed). */
+const sheetTop = (() => {
+  let at = 0;
+  let top = Infinity;
+  return (): number => {
+    const now = performance.now();
+    if (now - at > 150) {
+      at = now;
+      const el = document.querySelector<HTMLElement>('[data-beacon-panel]');
+      top = el ? el.getBoundingClientRect().top : Infinity;
+    }
+    return top;
+  };
+})();
+
 const LABEL_FADE_MS = 350;
 const LABEL_STAGGER_MS = 80;
 
@@ -56,6 +71,8 @@ const LABEL_STAGGER_MS = 80;
  */
 const BeaconMarkers = ({ planet, focused }: { planet: Planet; focused: string | null }) => {
   const panelView = usePanelView();
+  const narrow = useRef(false);
+  narrow.current = useNarrow();
   // the phone sheet (or short-screen side panel) already shows the focused beacon
   const hiddenId = useRef<string | null>(null);
   hiddenId.current = panelView ? focused : null;
@@ -85,7 +102,11 @@ const BeaconMarkers = ({ planet, focused }: { planet: Planet; focused: string | 
       const k = Math.min(1, Math.max(0, info.scale ?? 1));
       return { opacity: reveal * (0.75 + 0.25 * k), scale: 0.92 + 0.08 * k };
     },
-    edgeY: (h) => h - (window.innerWidth < 640 ? 280 : 190),
+    // on phones the edge arrows sit above the sheet while it is open (kept below the middle so they stack upward)
+    edgeY: (h) => {
+      const y = h - (window.innerWidth < 640 ? 280 : 190);
+      return narrow.current ? Math.max(h / 2 + 1, Math.min(y, sheetTop() - 24)) : y;
+    },
   });
 
   return (
@@ -108,7 +129,8 @@ const BeaconMarkers = ({ planet, focused }: { planet: Planet; focused: string | 
               aria-label={`Go to ${b.label} (off screen)`}
               className={cx(
                 IN_WORLD,
-                'pointer-events-auto absolute left-0 top-0 flex items-center gap-1.5 px-2 py-1 data-[side=right]:flex-row-reverse',
+                // the invisible margin brings the small arrow label past a 44px touch target
+                "pointer-events-auto absolute left-0 top-0 flex items-center gap-1.5 px-2 py-1 after:absolute after:-inset-x-1 after:-inset-y-2.5 after:content-[''] data-[side=right]:flex-row-reverse",
               )}
               style={{ visibility: 'hidden' }}
             >
@@ -316,13 +338,19 @@ const PlanetHud = () => {
         <nav
           aria-label={`${planet.title} content`}
           className="pointer-events-auto w-full"
-          // short landscape screens: keep the chips clear of the side panel
-          style={short && !narrow && focused ? { paddingRight: 'calc(360px + 12px)' } : undefined}
+          style={
+            // short landscape screens: keep the chips clear of the side panel; phones: the sheet covers them
+            short && !narrow && focused
+              ? { paddingRight: 'calc(360px + 12px)' }
+              : narrow && focused
+                ? { opacity: 0, visibility: 'hidden', transition: `opacity 200ms ${EASE}, visibility 0s 200ms` }
+                : { transition: `opacity 300ms ${EASE}` }
+          }
         >
           <ul
             data-hud-block
             className={cx(
-              'scrollbar-thin mx-auto flex w-max max-w-full snap-x scroll-px-5 gap-2 overflow-x-auto pb-1 sm:gap-4',
+              'scrollbar-thin mx-auto flex w-max max-w-full snap-x scroll-px-5 gap-2 overflow-x-auto overscroll-x-contain pb-1 sm:gap-4',
               FLOAT_TEXT,
             )}
             style={{ paddingLeft: SAFE.left, paddingRight: SAFE.right }}
@@ -337,8 +365,8 @@ const PlanetHud = () => {
                     data-beacon-chip={b.id}
                     onClick={() => openBeacon(b.id)}
                     className={cx(
-                      'flex h-11 items-center px-2 text-[14px] font-medium transition-colors duration-200 ease-out',
-                      on ? 'text-[var(--accent)]' : 'text-ink/80 hover:text-white',
+                      'press flex h-11 items-center px-2 text-[14px] font-medium',
+                      on ? 'text-[var(--accent)]' : 'text-ink/80 hover:text-white active:text-white',
                     )}
                   >
                     {b.label}

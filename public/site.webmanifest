@@ -1,8 +1,11 @@
 {
+  "id": "/",
   "name": "John Mannully",
   "short_name": "John",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#05070d",
   "theme_color": "#05070d",
   "icons": [

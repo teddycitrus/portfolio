@@ -26,9 +26,9 @@ const Pager = ({ planet, beacon }: { planet: Planet; beacon: Beacon }) => {
   const next = planet.beacons[i + 1];
   if (!prev && !next) return null;
   const btn =
-    'group flex min-w-0 items-center gap-2 rounded-full px-1 py-2 text-[13px] text-ink-muted transition-colors duration-200 hover:text-ink';
+    'press group flex min-h-11 min-w-0 items-center gap-2 rounded-full px-1 text-[13px] text-ink-muted hover:text-ink active:text-ink';
   return (
-    <div className="flex items-center justify-between gap-4 border-t border-line px-6 py-2.5">
+    <div className="flex items-center justify-between gap-4 border-t border-line px-5 py-0.5 sm:px-6">
       {prev ? (
         <button type="button" className={btn} onClick={() => openBeacon(prev.id)}>
           <BackIcon className="transition-transform duration-200 ease-out group-hover:-translate-x-0.5" />
@@ -163,7 +163,7 @@ const BeaconPanel = () => {
             type="button"
             aria-label={expanded ? 'Collapse details' : 'Expand details'}
             aria-expanded={expanded}
-            className="flex h-6 w-full shrink-0 touch-none items-end justify-center"
+            className="group flex h-7 w-full shrink-0 touch-none items-end justify-center"
             onPointerDown={(e) => {
               dragY.current = e.clientY;
               dragged.current = false;
@@ -187,16 +187,16 @@ const BeaconPanel = () => {
               setExpanded((v) => !v);
             }}
           >
-            <span className="h-1 w-10 rounded-full bg-white/25" />
+            <span className="h-1 w-10 rounded-full bg-white/25 transition-[background-color,transform] duration-150 ease-out group-hover:bg-white/40 group-active:scale-x-110 group-active:bg-white/45" />
           </button>
         )}
         {/* close floats top-right; the heading leaves room for it */}
-        <div className={cx('absolute z-10', narrow ? 'right-3 top-5' : 'right-3 top-3', HUD_ZOOM)}>
+        <div className={cx('absolute z-10', narrow ? 'right-2 top-[18px]' : 'right-2.5 top-2.5', HUD_ZOOM)}>
           <button
             type="button"
             onClick={() => useAppStore.getState().setFocusedBeacon(null)}
             aria-label="Close"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-ink-muted transition-colors duration-200 hover:bg-white/[0.06] hover:text-ink"
+            className="press inline-flex h-11 w-11 items-center justify-center rounded-full text-ink-muted hover:bg-white/[0.06] hover:text-ink active:bg-white/[0.08] active:text-ink"
           >
             <CloseIcon />
           </button>
@@ -208,7 +208,7 @@ const BeaconPanel = () => {
           }}
           className={cx(
             'scrollbar-thin min-h-[160px] flex-auto overflow-y-auto overscroll-contain pb-8 [@media(max-height:500px)]:min-h-[110px] [&_[data-panel-heading]]:pr-10',
-            narrow ? 'pt-3' : 'pt-6',
+            narrow ? 'pt-2' : 'pt-6 [@media(max-height:500px)]:pt-4',
             narrow ? 'px-5' : 'px-6',
           )}
           style={{

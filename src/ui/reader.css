@@ -112,6 +112,10 @@
 }
 .docs .d-btn:active {
   transform: scale(0.97);
+  background: var(--d-hover);
+}
+.docs .d-btn-primary:active {
+  background: #a3d3ff;
 }
 .docs .d-btn-primary {
   background: var(--d-accent);
@@ -245,6 +249,33 @@
   }
   .docs .d-nav-item:hover svg {
     color: var(--d-fg);
+  }
+}
+
+/* touch: 32 to 36px buttons and one-line links get an invisible margin past 44px, without moving the layout */
+@media (pointer: coarse) {
+  .docs .d-btn,
+  .docs .d-link {
+    position: relative;
+  }
+  .docs .d-btn::after,
+  .docs .d-link::after {
+    content: '';
+    position: absolute;
+    inset: -6px -4px;
+  }
+  .docs .d-link::after {
+    inset: -12px -8px;
+  }
+  .docs .d-tab:active,
+  .docs .d-link:active {
+    color: var(--d-fg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .docs .d-btn:active {
+    transform: none;
   }
 }
 
