@@ -3,7 +3,8 @@
  *   'high'  the full scene
  *   'low'   1x pixels, no multisampling, a lighter bloom, no shadows, and only the system warmed
  *   'none'  no 3D at all: the reader is the site (no WebGL, or WebGL drawn on the CPU)
- * Preload can still step it down after timing real frames under the loader.
+ * Preload can still step it down after timing real frames under the loader, and Effects
+ * once more if the visit stays slow (in orbit only, see Governor).
  * `?quality=high|low|lite` forces a tier; a step down to 'low' is remembered for the next visit.
  */
 export type Quality = 'high' | 'low' | 'none';
@@ -16,7 +17,7 @@ const SOFTWARE = /swiftshader|llvmpipe|softpipe|software|basic render|microsoft 
  * Integrated and older mobile GPUs that share memory with the CPU: the full post chain at
  * high pixel density takes about all of their bandwidth. Intel Arc is a real GPU.
  */
-const WEAK = /intel(?!.*\barc\b)|\bradeon\(tm\) (?:r[2-7]|vega \d|graphics)\b|mali-[gt]\d{1,2}\b|adreno \(tm\) [3-5]\d\d|powervr|videocore/i;
+const WEAK = /intel(?!.*\barc\b)|\bradeon\(tm\) (?:r[2-7]|vega \d|graphics)\b|mali-[gt]\d{1,2}\b|adreno \(tm\) (?:[3-5]\d\d|6[01]\d)|powervr|videocore/i;
 
 const read = (k: string) => {
   try {
@@ -65,12 +66,16 @@ const probe = (): { quality: Quality; renderer: string } => {
   const stored = read(STORE_KEY);
   if (stored === 'low') return { quality: 'low', renderer };
 
-  const nav = navigator as Navigator & { deviceMemory?: number };
-  const small = (nav.deviceMemory ?? 8) <= 4 || (nav.hardwareConcurrency ?? 8) <= 4;
+  const nav = navigator as Navigator & { deviceMemory?: number; connection?: { saveData?: boolean } };
+  // Save-Data (data saver or a low-battery mode on some phones) asks for the lighter page
+  const small = (nav.deviceMemory ?? 8) <= 4 || (nav.hardwareConcurrency ?? 8) <= 4 || nav.connection?.saveData === true;
   return { quality: WEAK.test(renderer) || small ? 'low' : 'high', renderer };
 };
 
 const result = probe();
+
+/** `?quality=` set the tier: nothing measured may change it */
+export const qualityForced = typeof window !== 'undefined' && forced() !== null;
 
 /** The tier picked at startup (the store holds the live one) */
 export const startQuality: Quality = result.quality;

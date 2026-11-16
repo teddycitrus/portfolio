@@ -1,8 +1,10 @@
-import { PerformanceMonitor } from '@react-three/drei';
+import { useEffect, useRef } from 'react';
+import { PerformanceMonitor, type PerformanceMonitorApi } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import { Bloom, BrightnessContrast, EffectComposer, Noise, ToneMapping, Vignette } from '@react-three/postprocessing';
 import { BlendFunction, ToneMappingMode } from 'postprocessing';
 import { useAppStore } from '@/state/useAppStore';
+import { qualityForced, rememberLow } from '@/scenes/gpuTier';
 
 /**
  * Decided once at load and never changed: switching multisampling or effect
@@ -10,18 +12,48 @@ import { useAppStore } from '@/state/useAppStore';
  */
 const COARSE = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches === true;
 
-/** Drops to 1x pixel ratio when frame rate declines, restores the canvas default when it recovers. */
-const AdaptiveDpr = () => {
+/** Highest pixel ratio per tier (the canvas default) */
+export const DPR_TOP = { high: 1.75, low: 1 } as const;
+/** Lowest pixel ratio per tier: the high tier gives up its tier before going under 1x */
+const FLOOR = { high: 1, low: 0.75 } as const;
+/** Mean fps under which a decline at the floor counts against the tier */
+const STRIKE_FPS = 30;
+/** Strikes at the floor before the high tier steps down to low */
+const STRIKES = 2;
+
+/**
+ * Keeps the frame rate up during the visit without ever recompiling mid-scene:
+ *   1. the pixel ratio slides between the canvas default and the tier floor as fps falls and recovers;
+ *   2. the high tier still too slow at its floor steps down to low, but only in orbit, so the
+ *      recompile it causes never lands during a dive or on a planet; the next visit starts low.
+ */
+const Governor = ({ tier }: { tier: 'high' | 'low' }) => {
   const setDpr = useThree((s) => s.setDpr);
-  const initialDpr = useThree((s) => s.viewport.initialDpr);
-  return (
-    <PerformanceMonitor
-      onDecline={() => setDpr(1)}
-      onIncline={() => setDpr(initialDpr)}
-      flipflops={3}
-      onFallback={() => setDpr(1)}
-    />
-  );
+  const top = Math.min(DPR_TOP[tier], window.devicePixelRatio || 1);
+  const floor = Math.min(FLOOR[tier], top);
+  const strikes = useRef(0);
+  const due = useRef(false);
+
+  const stepDown = () => {
+    if (!due.current || useAppStore.getState().mode !== 'overworld') return;
+    due.current = false;
+    rememberLow();
+    useAppStore.getState().setQuality('low');
+  };
+
+  // a step down that came due away from orbit waits for the return
+  useEffect(() => (tier === 'high' ? useAppStore.subscribe(stepDown) : undefined), [tier]);
+
+  const onChange = ({ factor }: PerformanceMonitorApi) => setDpr(floor + (top - floor) * factor);
+  const onDecline = (api: PerformanceMonitorApi) => {
+    if (tier !== 'high' || qualityForced || api.factor > 0) return;
+    const mean = api.averages.reduce((a, b) => a + b, 0) / Math.max(1, api.averages.length);
+    if (mean >= STRIKE_FPS || (strikes.current += 1) < STRIKES) return;
+    due.current = true;
+    stepDown();
+  };
+
+  return <PerformanceMonitor factor={1} step={0.25} flipflops={8} onChange={onChange} onDecline={onDecline} />;
 };
 
 /**
@@ -37,7 +69,8 @@ const Effects = () => {
   const lean = COARSE || low;
   return (
     <>
-      {settled && !low && <AdaptiveDpr />}
+      {/* keyed so a tier change starts the new tier's ladder from its own top */}
+      {settled && <Governor key={low ? 'low' : 'high'} tier={low ? 'low' : 'high'} />}
       <EffectComposer multisampling={lean ? 0 : 2}>
         <Bloom
           mipmapBlur

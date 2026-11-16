@@ -4,7 +4,7 @@ import OverworldScene from '@/scenes/overworld/OverworldScene';
 import PlanetSurfaceScene from '@/scenes/planet/LazySurface';
 import TransitionController from '@/scenes/transition/TransitionController';
 import Cockpit from '@/scenes/ship/Cockpit';
-import Effects from '@/scenes/Effects';
+import Effects, { DPR_TOP } from '@/scenes/Effects';
 import Preload from '@/scenes/Preload';
 import UiRoot from '@/ui/UiRoot';
 import { useInputBridge } from '@/hooks/useInputBridge';
@@ -52,7 +52,7 @@ const App = () => {
         <SceneBoundary>
           <Canvas
             gl={{ antialias: false, alpha: false, powerPreference: 'high-performance' }}
-            dpr={low ? 1 : [1, 1.75]}
+            dpr={low ? DPR_TOP.low : [1, DPR_TOP.high]}
             frameloop={readerOpen ? 'never' : 'always'}
             camera={{ position: [0, 0, 0], fov: 60, near: 0.1, far: 800 }}
             aria-hidden="true"

@@ -3,7 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useAppStore } from '@/state/useAppStore';
 import { hideBoot } from '@/ui/boot';
 import { preloadAssets } from '@/ui/preloadAssets';
-import { rememberLow } from '@/scenes/gpuTier';
+import { qualityForced, rememberLow } from '@/scenes/gpuTier';
 import { keepPrograms, precompile } from '@/scenes/precompile';
 
 /*
@@ -110,7 +110,7 @@ const Preload = () => {
       await frames(4);
       const ms = await timeFrames();
       mark(`frame-${ms?.toFixed(1)}`);
-      if (ms === null || !live || !covered()) return true;
+      if (ms === null || !live || !covered() || qualityForced) return true;
       const { quality, setQuality } = useAppStore.getState();
       if (quality === 'high' && ms > SLOW_HIGH_MS) {
         setQuality('low');
