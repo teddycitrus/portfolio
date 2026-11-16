@@ -384,69 +384,43 @@
         pointer-events: none;
       }
 
-      /* a long load: one quiet line under the core, a label and the percentage over a thin bar */
+      /* a long load: the percentage alone, under the core, in the planet names' Cinzel */
+      @font-face {
+        font-family: 'Boot Cinzel';
+        src: url('./fonts/cinzel-600.woff2') format('woff2');
+        font-weight: 600;
+        font-display: swap;
+      }
       #boot .eta {
         position: absolute;
         left: 50%;
-        top: 74%;
-        width: min(260px, calc(100vw - 112px));
+        top: 72%;
+        margin: 0;
         transform: translate(-50%, -50%) translateY(4px);
-        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-        color: rgba(232, 240, 255, 0.78);
+        font-family: 'Boot Cinzel', 'Cinzel', Georgia, serif;
+        font-size: clamp(20px, 2.4vw, 28px);
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        font-variant-numeric: tabular-nums lining-nums;
+        color: #f2f6ff;
+        text-shadow: 0 0 18px rgba(2, 4, 16, 0.9), 0 0 6px rgba(2, 4, 16, 0.8), 0 0 22px rgba(140, 180, 255, 0.35);
+        white-space: nowrap;
         opacity: 0;
         transition: opacity 420ms ease-out, transform 420ms cubic-bezier(0.23, 1, 0.32, 1);
       }
-      /* a soft dark falloff behind it, no edges, so it reads over the streaks */
-      #boot .eta::before {
-        content: '';
-        position: absolute;
-        inset: -36px -64px;
-        z-index: -1;
-        background: radial-gradient(closest-side, rgba(2, 4, 16, 0.62), rgba(2, 4, 16, 0));
-      }
-      @media (max-aspect-ratio: 3/4) {
-        #boot .eta { top: 70%; }
-      }
       @media (max-height: 500px) {
-        #boot .eta { top: 64%; }
+        #boot .eta { top: 66%; }
       }
       #boot.boot-slow .eta {
-        opacity: 1;
+        opacity: 0.92;
         transform: translate(-50%, -50%);
       }
+      /* at 100 it fades out on its own; the jump ending clears it too */
+      #boot.boot-slow .eta.full,
       #boot.boot-spool .eta,
       #boot.boot-out .eta {
         opacity: 0;
-        transition-duration: 200ms;
-      }
-      #boot .eta p {
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-        margin: 0 0 9px;
-        font-size: 12px;
-        font-weight: 500;
-        letter-spacing: 0.01em;
-      }
-      #boot .eta .pct {
-        font-variant-numeric: tabular-nums;
-        color: #fff;
-      }
-      #boot .eta .track {
-        position: relative;
-        isolation: isolate;
-        height: 2px;
-        border-radius: 2px;
-        overflow: hidden;
-        background: rgba(200, 220, 255, 0.16);
-      }
-      #boot .eta .fill {
-        position: absolute;
-        inset: 0;
-        border-radius: inherit;
-        background: linear-gradient(90deg, rgba(160, 195, 255, 0.7), #fff);
-        transform: scaleX(0);
-        transform-origin: left center;
+        transition: opacity 600ms ease-out 150ms;
       }
       @media (prefers-reduced-motion: reduce) {
         #boot .hyper i, #boot .hyper b { animation: none; opacity: 0.8; transform: scale(0.9); }
@@ -504,10 +478,7 @@
         <span class="pr hi" style="--t: 4000ms">DESTINATION SET.</span>
         <span class="pr go" style="--t: 4300ms"><span class="fine">press any key to launch</span><span class="coarse">tap to launch</span><span class="cur"></span></span>
       </h1>
-      <div class="eta" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-        <p><span class="status">Jumping to Mannully</span><span class="pct">0%</span></p>
-        <div class="track" aria-hidden="true"><div class="fill"></div></div>
-      </div>
+      <p class="eta" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">0%</p>
       <div class="flash" aria-hidden="true"></div>
     </div>
     <script>
@@ -809,8 +780,6 @@
         // a load still going 2s into the jump (or 2s in, with no jump): the nav display counts toward
         // the destination. The app reports milestones; between them it creeps on and never goes back.
         var eta = boot.querySelector('.eta');
-        var fill = eta.querySelector('.fill');
-        var pct = eta.querySelector('.pct');
         var floor = 0;
         var floorAt = performance.now();
         var shown = 0;
@@ -820,26 +789,25 @@
           var cap = floor >= 1 ? 1 : Math.min(0.97, floor + 0.25);
           var target = floor + (cap - floor) * (1 - Math.exp(-(performance.now() - floorAt) / 3000));
           shown = Math.max(shown, shown + (target - shown) * 0.12);
-          fill.style.transform = 'scaleX(' + shown.toFixed(4) + ')';
-          var p = Math.round(shown * 100);
+          var p = Math.min(100, Math.round(shown * 100 + (floor >= 1 ? 0.5 : 0)));
           if (p !== said) {
             said = p;
-            pct.textContent = p + '%';
+            eta.textContent = p + '%';
             eta.setAttribute('aria-valuenow', String(p));
           }
-          requestAnimationFrame(tick);
+          if (p >= 100) eta.classList.add('full');
+          else requestAnimationFrame(tick);
         };
         var clock = function () {
+          // the readout's face comes in while the first two seconds run, so it never shows in a fallback
+          try { document.fonts.load("600 1em 'Boot Cinzel'"); } catch (err) { /* old browser: Georgia */ }
           setTimeout(function () {
             if (!boot.isConnected || boot.classList.contains('boot-done') || boot.classList.contains('boot-spool')) return;
             boot.classList.add('boot-slow');
             requestAnimationFrame(tick);
           }, 2000);
         };
-        if (direct) {
-          eta.querySelector('.status').textContent = 'On approach';
-          clock();
-        }
+        if (direct) clock();
 
         window.__nav = {
           departedAt: 0,
