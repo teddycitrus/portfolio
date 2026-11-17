@@ -118,7 +118,7 @@ const mallet = (x: Ctx, midi: number, at: number, vel: number, decay = 1.8, echo
 const arp = (x: Ctx, midi: number, at: number, vel: number, cutoff: number) => {
   const lp = x.c.createBiquadFilter();
   lp.type = 'lowpass';
-  lp.Q.value = 6;
+  lp.Q.value = 2.5;
   lp.frequency.setValueAtTime(cutoff, at);
   lp.frequency.exponentialRampToValueAtTime(260, at + 0.22);
   const g = env(x, at, 0.1 * vel, 0.003, 0.32, x.out);
@@ -158,7 +158,7 @@ const brass = (x: Ctx, notes: number[], at: number, len: number, level: number) 
   lp.type = 'lowpass';
   lp.Q.value = 1;
   lp.frequency.setValueAtTime(300, at);
-  lp.frequency.exponentialRampToValueAtTime(2200, at + 0.45);
+  lp.frequency.exponentialRampToValueAtTime(1300, at + 0.45);
   lp.frequency.exponentialRampToValueAtTime(900, at + len);
   const g = x.c.createGain();
   g.gain.setValueAtTime(0.0001, at);
@@ -251,11 +251,11 @@ const ABOUT: Track = {
     // a warm drone under each bar
     if (s === 0) pad(x, [st.key - 12 + st.chord.root % 12, ...chordNotes(st, st.key + 7)], at, dur * 16, 0.03, 900, 1.4);
     // fingerpicking: thumb on the beats, fingers rolling over the chord
-    if (s % 4 === 0) pluck(x, bassNote(st) + (s === 8 ? 7 : 0), at, 0.9, 1.6, 0.05);
+    if (s % 4 === 0) pluck(x, bassNote(st) + (s === 8 ? 7 : 0), at, 0.7, 1.6, 0.05);
     const roll = [0, -1, 2, 1, 3, 2, 1, 2][(s >> 1) % 8];
-    if (s % 2 === 1 || s === 2 || s === 10) pluck(x, tone(st, roll + 2, st.key + 12), at + sw, 0.55 + human(st.i) * 0.25, 1.2, 0.18);
-    // shaker on the off sixteenths, accented on the and
-    if (s % 2 === 1 || s % 4 === 2) noiseHit(x, at + sw, s % 4 === 2 ? 0.05 : 0.025, 6500, 0.9, 0.06, 'bandpass', 0.1);
+    if (s % 2 === 1 || s === 2 || s === 10) pluck(x, tone(st, roll + 2, st.key + 12), at + sw, 0.4 + human(st.i) * 0.2, 1.2, 0.18);
+    // a light shaker on the ands
+    if (s % 4 === 2) noiseHit(x, at + sw, 0.018, 5500, 0.9, 0.05, 'bandpass', 0.1);
     // a kalimba phrase every other bar, answering the guitar
     if (st.barCount % 2 === 1 && (s === 4 || s === 6 || s === 7 || s === 12)) {
       const k = s === 4 ? 4 : s === 6 ? 3 : s === 7 ? 2 : 1;
@@ -284,14 +284,14 @@ const PROJECTS: Track = {
     // the filter of the arpeggio breathes over two bars
     const breath = 0.5 - 0.5 * Math.cos(((st.barCount % 2) * 16 + s) / 32 * Math.PI * 2);
     if (s === 0) pad(x, chordNotes(st, st.key + 7), at, dur * 16, 0.022, 1400, 2.2);
-    // sixteenth arpeggio up and down the chord over two octaves
+    // eighth-note arpeggio up and down the chord over two octaves
     const shape = [0, 1, 2, 3, 4, 3, 2, 1, 0, 2, 4, 5, 6, 5, 4, 2][s];
-    arp(x, tone(st, shape, st.key + 12), at, s % 4 === 0 ? 1 : 0.6, 900 + breath * 2600);
-    // sub bass pulsing on the eighths, ducked off the beat like a pump
-    if (s % 2 === 0) sub(x, bassNote(st), at, dur * 1.7, s % 4 === 0 ? 0.7 : 1);
-    // a soft kick on the beats, a light tick between
-    if (s % 4 === 0) kick(x, at, s === 0 ? 1 : 0.7);
-    if (s % 4 === 2) noiseHit(x, at, 0.03, 9000, 0.7, 0.04, 'highpass', 0.05);
+    if (s % 2 === 0) arp(x, tone(st, shape, st.key + 12), at, s % 4 === 0 ? 0.7 : 0.45, 700 + breath * 1300);
+    // sub bass breathing on the beats
+    if (s % 4 === 0) sub(x, bassNote(st), at, dur * 3.5, 0.6);
+    // a soft kick on beats one and three, a faint tick between
+    if (s % 8 === 0) kick(x, at, s === 0 ? 0.6 : 0.4);
+    if (s % 8 === 4) noiseHit(x, at, 0.012, 9000, 0.7, 0.04, 'highpass', 0.05);
     // a glassy lead every fourth bar, drifting like the jellyfish
     if (st.barCount % 4 === 3 && (s === 0 || s === 6 || s === 10)) mallet(x, tone(st, s === 0 ? 3 : s === 6 ? 2 : 4, st.key + 24), at, 0.6, 2.8, 0.6, 0.15);
   },
@@ -314,13 +314,13 @@ const AWARDS: Track = {
   ],
   play: (x, st) => {
     const { s, at, dur } = st;
-    if (s === 0) brass(x, chordNotes(st, st.key), at, dur * 15, 0.028);
-    if (s === 0) sub(x, bassNote(st), at, dur * 14, 0.8);
-    // taiko: a heartbeat with a pickup into each bar
-    const hits: Record<number, number> = { 0: 1, 6: 0.55, 8: 0.85, 14: 0.4, 15: 0.5 };
+    if (s === 0) brass(x, chordNotes(st, st.key), at, dur * 15, 0.02);
+    if (s === 0) sub(x, bassNote(st), at, dur * 14, 0.6);
+    // taiko: a slow heartbeat
+    const hits: Record<number, number> = { 0: 0.55, 8: 0.4 };
     if (hits[s]) taiko(x, at, hits[s]);
     // embers: quiet crackle
-    if (human(st.i * 3.1) > 0.82) noiseHit(x, at + dur * human(st.i), 0.02, 3000, 3, 0.03, 'bandpass', 0.15);
+    if (human(st.i * 3.1) > 0.88) noiseHit(x, at + dur * human(st.i), 0.01, 3000, 3, 0.03, 'bandpass', 0.15);
     // a bell melody that climbs through the bar, brightest on the raised fourth
     const tune: Record<number, number> = { 0: 2, 4: 3, 8: 4, 10: 5, 12: 4 };
     if (st.barCount % 2 === 0 && tune[s] !== undefined) mallet(x, tone(st, tune[s], st.key + 19), at, 0.75, 3, 0.45, 0.5);

@@ -4,7 +4,7 @@ import { useAppStore } from '@/state/useAppStore';
 import { TRACKS, startTrack, type Sequencer } from './tracks';
 
 /**
- * Music, synthesised with Web Audio. In orbit an ambient string pad walks a
+ * Music, synthesised with Web Audio. In orbit a soft ambient pad walks a
  * slow chord progression that keeps cadencing home (V to I), with a suspended
  * fourth resolving on every dominant, a soft bass and a sparse high chime.
  * Each planet has its own track (see tracks.ts), which takes over from the
@@ -16,8 +16,8 @@ import { TRACKS, startTrack, type Sequencer } from './tracks';
 const PREF_KEY = 'sound';
 /** Key played in orbit with no destination chosen */
 const ORBIT_KEY = 'D major';
-const LEVEL_PLANET = 0.2;
-const LEVEL_ORBIT = 0.08;
+const LEVEL_PLANET = 0.12;
+const LEVEL_ORBIT = 0.06;
 /** Planet tracks against the pad (drums read louder than sustained chords at the same level) */
 const TRACK_GAIN = 1.0;
 /** Planet tracks fade in and out over this long */
@@ -173,19 +173,19 @@ const build = () => {
   verb.buffer = impulse(ctx, 5);
   verbIn = ctx.createGain();
   const wet = ctx.createGain();
-  wet.gain.value = 1.3;
+  wet.gain.value = 0.7;
   verbIn.connect(verb).connect(wet).connect(comp);
 
   // dark section sound: lowpass with a slow breathing cutoff
   bus = ctx.createGain();
   const lp = ctx.createBiquadFilter();
   lp.type = 'lowpass';
-  lp.frequency.value = 950;
-  lp.Q.value = 0.4;
+  lp.frequency.value = 700;
+  lp.Q.value = 0.3;
   const sweep = ctx.createOscillator();
-  sweep.frequency.value = 0.04;
+  sweep.frequency.value = 0.03;
   const sweepAmt = ctx.createGain();
-  sweepAmt.gain.value = 320;
+  sweepAmt.gain.value = 180;
   sweep.connect(sweepAmt).connect(lp.frequency);
   sweep.start();
   bus.connect(lp);
@@ -209,7 +209,7 @@ const build = () => {
   return true;
 };
 
-/** One sustained chord: each tone a few detuned saws with its own slow swell. */
+/** One sustained chord: each tone a sine and two detuned triangles with its own slow swell. */
 const makeChord = (c: AudioContext, keyRoot: number, chord: Chord, notes: number[], dur: number): Voice => {
   const out = c.createGain();
   out.gain.value = 0;
@@ -232,17 +232,10 @@ const makeChord = (c: AudioContext, keyRoot: number, chord: Chord, notes: number
     swell.connect(swellAmt).connect(g.gain);
     swell.start(now + Math.random() * 2);
     nodes.push(swell);
-    const vib = c.createOscillator();
-    vib.frequency.value = 4.4 + Math.random() * 0.8;
-    const vibAmt = c.createGain();
-    vibAmt.gain.value = isBass ? 0 : 3;
-    vib.connect(vibAmt);
-    vib.start();
-    nodes.push(vib);
     const sus = chord.sus && !isBass && n % 12 === thirdPc;
-    for (const cents of isBass ? [0, 5] : [-7, 0, 6]) {
+    for (const cents of isBass ? [0, 4] : [-5, 0, 5]) {
       const o = c.createOscillator();
-      o.type = isBass ? 'triangle' : 'sawtooth';
+      o.type = isBass || cents === 0 ? 'sine' : 'triangle';
       if (sus) {
         // hold the fourth, then lean down onto the third
         o.frequency.setValueAtTime(hz(n + (chord.tones[1] === 3 ? 2 : 1)), now);
@@ -252,7 +245,6 @@ const makeChord = (c: AudioContext, keyRoot: number, chord: Chord, notes: number
         o.frequency.value = hz(n);
       }
       o.detune.value = cents;
-      vibAmt.connect(o.detune);
       o.connect(g);
       o.start();
       nodes.push(o);
@@ -337,11 +329,11 @@ const advance = (fade: number) => {
     window.setTimeout(() => old.out.disconnect(), fade * 1600 + 200);
   }
   // a chime now and then, more often on a planet; always on the home chord
-  const chimeP = onPlanet() ? 0.7 : 0.35;
+  const chimeP = onPlanet() ? 0.7 : 0.2;
   if (chord.root === 0 || Math.random() < chimeP) {
     const top = notes[notes.length - 1] + 12;
-    chime(ctx, top, now + 0.6 + Math.random() * 1.2, 0.05);
-    if (Math.random() < 0.5) chime(ctx, notes[Math.floor(Math.random() * notes.length)] + 12, now + dur * 0.55, 0.035);
+    chime(ctx, top, now + 0.6 + Math.random() * 1.2, 0.035);
+    if (Math.random() < 0.3) chime(ctx, notes[Math.floor(Math.random() * notes.length)] + 12, now + dur * 0.55, 0.025);
   }
 };
 
@@ -636,7 +628,7 @@ export const shipSound = (kind: ShipSound, touchdown = 0.54) => {
   const c = ctx;
   const t0 = c.currentTime + 0.005;
   const out = c.createGain();
-  out.gain.value = 1;
+  out.gain.value = kind === 'dropout' ? 0.55 : 0.8;
   out.connect(sfx);
   const send = c.createGain();
   send.gain.value = 0.22;
@@ -744,7 +736,7 @@ export const warpHum = (): ((fade: number) => void) | null => {
   const t0 = c.currentTime + 0.01;
   const out = c.createGain();
   out.gain.setValueAtTime(0.0001, t0);
-  out.gain.exponentialRampToValueAtTime(1, t0 + 0.8);
+  out.gain.exponentialRampToValueAtTime(0.5, t0 + 0.8);
   out.connect(sfx);
   const stops: AudioScheduledSourceNode[] = [];
 
