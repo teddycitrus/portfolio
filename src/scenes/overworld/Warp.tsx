@@ -84,6 +84,8 @@ const Warp = () => {
     const s = st.current;
     // nothing to do without an arrival, or once it has settled
     if (s.done || (s.phase < 2 && !useAppStore.getState().intro)) {
+      s.hum?.(0.6);
+      s.hum = null;
       warpFx.shake = 0;
       warpFx.lens = 0;
       return;
@@ -98,7 +100,7 @@ const Warp = () => {
       dragLook.yaw = 0;
       dragLook.pitch = 0;
       // the departing key or tap unlocked audio: the roar runs through hyperspace
-      if (!s.hum && departedAt() > 0) s.hum = warpHum();
+      if (s.phase === 0 && !s.hum && departedAt() > 0) s.hum = warpHum();
     }
 
     let fov = base;
