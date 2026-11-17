@@ -69,8 +69,8 @@
           "label": "Hello",
           "kind": "profile",
           "content": {
-            "heading": "the name's john.",
-            "body": "first year cs at uoft. i'm big on tech and i'll take any excuse to go to a hackathon. outside of code, music's a huge part of my life and i sing in my church choir. i also play volleyball (still very much a beginner) and do calisthenics."
+            "heading": "the name's john",
+            "body": "cs @ UofT. i'm big on tech and i'll take any excuse to go to a hackathon. outside of code, music's a huge part of my life and i sing in my church choir. i also play volleyball (still very much a beginner) and do calisthenics."
           }
         },
         {
