@@ -564,9 +564,8 @@
         };
         requestAnimationFrame(function () { setTimeout(bake, 0); });
 
-        // the deck as the 3D cockpit draws it at rest (Cockpit.tsx and shape.ts): glass framed by the ceiling's
-        // header and two mullions, the console in front; outlines in frame units, where x / 0.6 and y / 0.6
-        // are screen coordinates (-1..1)
+        // the deck as the 3D cockpit draws it at rest (Cockpit.tsx): all glass, so only the console shows;
+        // outlines in frame units, where x / 0.6 and y / 0.6 are screen coordinates (-1..1)
         var deck = boot.querySelector('.deck');
         var D = 0.6;
         var grow = function (pts, d) {
@@ -599,19 +598,6 @@
               pts.forEach(function (q, i) { if (i) g.lineTo(X(q[0]), Y(q[1])); else g.moveTo(X(q[0]), Y(q[1])); });
               g.closePath();
             };
-
-            // the ceiling's header along the top, its cove light on the lower edge, and the front pane's mullions
-            var NX = function (n) { return (0.5 + 0.5 * n) * W; };
-            var NY = function (n) { return (0.5 - 0.5 * n) * H; };
-            var head = g.createLinearGradient(0, NY(1), 0, NY(0.953));
-            head.addColorStop(0, '#0a0d13');
-            head.addColorStop(1, '#1f2530');
-            g.fillStyle = head;
-            g.fillRect(-O, -O, W + O * 2, NY(0.953) + O);
-            g.fillStyle = 'rgba(150, 190, 255, 0.7)';
-            g.fillRect(-O, NY(0.953) - 1, W + O * 2, 1.5);
-            g.fillStyle = '#1b2a44';
-            for (var ms = -1; ms <= 1; ms += 2) g.fillRect(NX(ms * 0.9375) - (0.011 * W) / 2, NY(0.953), 0.011 * W, H + O);
 
             // the console along the bottom of the view
             var cl = function (x, y) { return [x, y]; };

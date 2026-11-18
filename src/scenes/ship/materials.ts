@@ -3,9 +3,8 @@ import { FRAME_DEPTH } from './shape';
 
 /**
  * The glass: clear in the middle, but it reads as glass. Two soft sheen bands,
- * the cove light along the ceiling mirrored near the top, the floor's glow at
- * its foot, specks of dust, and a cold reflection that grows at grazing angles,
- * so the side panes catch the light. On atmospheric entry (uHeat) plasma
+ * the floor's glow at its foot, specks of dust, and a cold reflection that
+ * grows at grazing angles, so the side panes catch the light. On atmospheric entry (uHeat) plasma
  * streams outward from the centre and burns along the rim.
  */
 export const glassMaterial = () =>
@@ -57,10 +56,6 @@ export const glassMaterial = () =>
         float r1 = (d - 0.5) / 0.16;
         float r2 = (d - 0.78) / 0.045;
         float refl = (exp(-r1 * r1) * 0.014 + exp(-r2 * r2) * 0.01) * off;
-        // the cove light under the ceiling's header, mirrored near the top of the glass
-        float cy = (n.y - 0.9) / 0.018;
-        float cg = (n.y - 0.87) / 0.08;
-        refl += exp(-cy * cy) * 0.03 + exp(-cg * cg) * 0.008;
         // the floor's glow at the foot of the glass
         refl += smoothstep(-1.05, -1.32, n.y) * 0.022;
         // dust
