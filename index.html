@@ -51,7 +51,7 @@
       /*
        * The loader, drawn before the app loads: the observation deck around the
        * viewer (painted to match the 3D cockpit, which lines up under it), and
-       * its window turned to a terminal that finds the system and sets the
+       * its glass turned to a terminal that finds the system and sets the
        * course, ending on the launch prompt. Nothing else runs while it does: the
        * app's files only download in the background. Any key or tap launches
        * (and, being a gesture, lets the sound play): the terminal clears, hyperspace
@@ -94,7 +94,7 @@
         width: 100%;
         height: 100%;
       }
-      /* the deck runs 48px past every edge, so the jump's sway and rumble never uncover what is behind it */
+      /* the deck runs 48px past every edge, so the jump's sway and rumble never pull the console off it */
       #boot canvas.deck {
         position: absolute;
         left: -48px;
@@ -102,7 +102,7 @@
         width: calc(100% + 96px);
         height: calc(100% + 96px);
       }
-      /* the window as a screen: a faint glow and scanlines behind the terminal */
+      /* the glass as a screen: a faint glow and scanlines behind the terminal */
       #boot .screen {
         background:
           repeating-linear-gradient(to bottom, rgba(150, 190, 255, 0.03) 0 1px, rgba(0, 0, 0, 0) 1px 3px),
@@ -281,7 +281,7 @@
         100% { transform: scale(4); opacity: 0; }
       }
 
-      /* the deck: a faint reflection on the glass, and the frame lit blue by the tunnel */
+      /* the deck: a faint reflection on the glass, and its edges lit blue by the tunnel */
       #boot .glass {
         background: linear-gradient(115deg, rgba(255, 255, 255, 0) 16%, rgba(200, 220, 255, 0.045) 23%, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0) 60%, rgba(200, 220, 255, 0.03) 63%, rgba(255, 255, 255, 0) 68%);
       }
@@ -564,18 +564,10 @@
         };
         requestAnimationFrame(function () { setTimeout(bake, 0); });
 
-        // the deck around the window, as the 3D cockpit draws it at rest (src/scenes/ship/shape.ts and
-        // Cockpit.tsx): outlines in frame units, where x / 0.6 and y / 0.6 are screen coordinates (-1..1)
+        // the deck as the 3D cockpit draws it at rest (Cockpit.tsx): all glass, so only the console shows;
+        // outlines in frame units, where x / 0.6 and y / 0.6 are screen coordinates (-1..1)
         var deck = boot.querySelector('.deck');
         var D = 0.6;
-        // the aperture: a squared-off superellipse, S wide, from T at the top down to B (shape.ts)
-        var hole = [];
-        for (var hi = 0; hi < 128; hi += 1) {
-          var ha = (hi / 128) * Math.PI * 2, hc = Math.cos(ha), hs = Math.sin(ha);
-          var hx = (hc < 0 ? -1 : 1) * Math.pow(Math.abs(hc), 2 / 3.4) * 1.04;
-          var hy = (0.94 - 1.0) / 2 + (hs < 0 ? -1 : 1) * Math.pow(Math.abs(hs), 2 / 3.4) * ((0.94 + 1.0) / 2);
-          hole.push([hx * D, hy * D]);
-        }
         var grow = function (pts, d) {
           var n = pts.length;
           var normal = function (i) {
@@ -593,8 +585,7 @@
           try {
             var dpr = Math.min(2, window.devicePixelRatio || 1);
             var W = window.innerWidth, H = window.innerHeight;
-            // drawn in viewport coordinates, with an overscan margin of plain bulkhead all round
-            // (matches the CSS on canvas.deck)
+            // drawn in viewport coordinates, with an overscan margin all round (matches the CSS on canvas.deck)
             var O = 48;
             deck.width = Math.round((W + O * 2) * dpr);
             deck.height = Math.round((H + O * 2) * dpr);
@@ -608,87 +599,6 @@
               g.closePath();
             };
 
-            // the bulkhead: dark brushed plates, lit from the fixture above the window
-            var wall = g.createLinearGradient(0, 0, 0, H);
-            wall.addColorStop(0, '#262d38');
-            wall.addColorStop(0.45, '#181d26');
-            wall.addColorStop(1, '#0c0f15');
-            g.fillStyle = wall;
-            g.fillRect(-O, -O, W + O * 2, H + O * 2);
-            var lamp = g.createRadialGradient(W / 2, 0, 0, W / 2, 0, Math.max(W, H) * 0.6);
-            lamp.addColorStop(0, 'rgba(210, 220, 240, 0.16)');
-            lamp.addColorStop(1, 'rgba(210, 220, 240, 0)');
-            g.fillStyle = lamp;
-            g.fillRect(-O, -O, W + O * 2, H + O * 2);
-            for (var b = 0; b < 900; b += 1) {
-              g.fillStyle = 'rgba(' + (b % 2 ? '255,255,255' : '0,0,0') + ',' + (0.012 + Math.random() * 0.018).toFixed(3) + ')';
-              g.fillRect(Math.random() * (W + O * 2) - O, Math.random() * (H + O * 2) - O, 20 + Math.random() * 90, 1);
-            }
-            // panel seams: a dark groove with a lit lower lip, and rivets along them
-            var seam = function (x0, y0, x1, y1) {
-              g.strokeStyle = 'rgba(6, 8, 12, 0.85)';
-              g.lineWidth = 2;
-              g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
-              g.strokeStyle = 'rgba(255, 255, 255, 0.07)';
-              g.lineWidth = 1;
-              g.beginPath(); g.moveTo(x0 + 1, y0 + 1.5); g.lineTo(x1 + 1, y1 + 1.5); g.stroke();
-            };
-            var rowH = H / 4.2, colW = W / 3.2;
-            for (var ry = 0; ry * rowH < H; ry += 1) {
-              var y0 = ry * rowH + rowH * 0.15;
-              seam(-O, y0, W + O, y0);
-              for (var cx2 = (ry % 2) * colW * 0.5; cx2 < W; cx2 += colW) seam(cx2, y0, cx2, y0 + rowH);
-              for (var rx = 8 - 26 * 2; rx < W + O; rx += 26) {
-                g.fillStyle = 'rgba(0, 0, 0, 0.5)';
-                g.beginPath(); g.arc(rx + 0.6, y0 + 9.6, 2, 0, 6.2832); g.fill();
-                g.fillStyle = 'rgba(255, 255, 255, 0.18)';
-                g.beginPath(); g.arc(rx, y0 + 9, 1.3, 0, 6.2832); g.fill();
-              }
-            }
-            // the cut through the bulkhead reads as thick metal
-            path(grow(hole, 0.02));
-            g.strokeStyle = 'rgba(0, 0, 0, 0.55)';
-            g.lineWidth = 10;
-            g.stroke();
-            // the raised frame around the window
-            path(grow(hole, 0.045));
-            var trim = g.createLinearGradient(0, Y(0.62), 0, Y(-0.56));
-            trim.addColorStop(0, '#3a414d');
-            trim.addColorStop(0.5, '#262b34');
-            trim.addColorStop(1, '#171b22');
-            g.fillStyle = trim;
-            g.fill();
-            g.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-            g.lineWidth = 1;
-            g.stroke();
-            // rivets on the frame
-            var ring = grow(hole, 0.031);
-            for (var i2 = 0; i2 < ring.length; i2 += 1) {
-              var a2 = ring[i2], b2 = ring[(i2 + 1) % ring.length];
-              var steps = Math.max(1, Math.round(Math.hypot(b2[0] - a2[0], b2[1] - a2[1]) / 0.04));
-              for (var k2 = 0; k2 < steps; k2 += 1) {
-                var px = X(a2[0] + ((b2[0] - a2[0]) * k2) / steps), py = Y(a2[1] + ((b2[1] - a2[1]) * k2) / steps);
-                g.fillStyle = 'rgba(0, 0, 0, 0.55)';
-                g.beginPath(); g.arc(px + 0.6, py + 0.7, 2.2, 0, 6.2832); g.fill();
-                g.fillStyle = 'rgba(200, 210, 225, 0.4)';
-                g.beginPath(); g.arc(px, py, 1.4, 0, 6.2832); g.fill();
-              }
-            }
-            // the window itself: cut out, so what is outside shows through
-            g.save();
-            g.globalCompositeOperation = 'destination-out';
-            g.fillStyle = '#000';
-            path(hole);
-            g.fill();
-            g.restore();
-            // the light strip just inside the frame
-            path(grow(hole, 0.006));
-            g.strokeStyle = 'rgba(150, 190, 255, 0.75)';
-            g.lineWidth = 1.5;
-            g.shadowColor = 'rgba(120, 170, 255, 0.9)';
-            g.shadowBlur = 8;
-            g.stroke();
-            g.shadowBlur = 0;
             // the console along the bottom of the view
             var cl = function (x, y) { return [x, y]; };
             var con = [cl(-0.445, -0.51), cl(0.445, -0.51), cl(0.46, -0.615), cl(-0.46, -0.615)];

@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { B, FRAME_DEPTH, S, T } from './shape';
+import { FRAME_DEPTH } from './shape';
 
 /**
- * Canopy glass: almost invisible. Two soft reflection bands, a haze where the
- * glass meets the frame and a few specks of dust. On atmospheric entry
+ * The glass wall: almost invisible. Two soft reflection bands and a few specks
+ * of dust. On atmospheric entry
  * (uHeat) plasma streams outward from the centre and burns along the rim.
  */
 export const glassMaterial = () =>
@@ -47,12 +47,9 @@ export const glassMaterial = () =>
         float r2 = (d - 0.62) / 0.035;
         float refl = exp(-r1 * r1) * 0.006 + exp(-r2 * r2) * 0.005;
         refl *= smoothstep(-0.2, 0.6, n.y + 0.3);
-        // haze toward the frame
-        float edge = max(abs(n.x) / ${S.toFixed(3)}, (n.y > 0.0 ? n.y / ${T.toFixed(3)} : n.y / ${B.toFixed(3)}));
-        float haze = smoothstep(0.85, 1.0, edge) * 0.006;
         // dust
         float dust = step(0.9975, hash(floor(n * 260.0))) * 0.02 * noise(n * 6.0);
-        vec3 col = vec3(0.75, 0.85, 1.0) * (refl + haze + dust);
+        vec3 col = vec3(0.75, 0.85, 1.0) * (refl + dust);
 
         // entry plasma: streaks rushing outward, brightest at the rim
         if (uHeat > 0.001) {
@@ -64,118 +61,6 @@ export const glassMaterial = () =>
           vec3 hot = mix(vec3(1.0, 0.92, 0.8), uHeatColor, smoothstep(0.4, 1.1, r));
           col += hot * flame * 1.6 + uHeatColor * uHeat * 0.12;
         }
-        gl_FragColor = vec4(col, 1.0);
-        #include <tonemapping_fragment>
-        #include <colorspace_fragment>
-      }
-    `,
-  });
-
-/**
- * Lining of the window cut: frames, seams and bolts drawn procedurally along
- * the strip, with a rubber seal at the glass and a cold rim from the sky.
- * uv is (arc length in frame units, 0 at the ring .. 1 at the glass).
- */
-export const linerMaterial = (uTime: { value: number }) =>
-  new THREE.ShaderMaterial({
-    fog: false,
-    transparent: true,
-    side: THREE.DoubleSide,
-    uniforms: { uTime },
-    vertexShader: /* glsl */ `
-      varying vec2 vUv;
-      varying vec2 vP;
-      void main() {
-        vUv = uv;
-        vP = position.xy;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: /* glsl */ `
-      uniform float uTime;
-      varying vec2 vUv;
-      varying vec2 vP;
-
-      float hash(float p) { return fract(sin(p * 91.7) * 43758.5453); }
-      float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-      float noise(vec2 p) {
-        vec2 i = floor(p);
-        vec2 f = fract(p);
-        vec2 u = f * f * (3.0 - 2.0 * f);
-        return mix(mix(hash2(i), hash2(i + vec2(1.0, 0.0)), u.x), mix(hash2(i + vec2(0.0, 1.0)), hash2(i + vec2(1.0, 1.0)), u.x), u.y);
-      }
-
-      void main() {
-        float v = vUv.y;
-        // ribs at a fixed pitch; every panel between them is a little different
-        float pitch = 0.086;
-        float c = vUv.x / pitch;
-        float id = floor(c);
-        float f = fract(c);
-        float tone = 0.8 + 0.4 * hash(id);
-        vec3 col = vec3(0.042, 0.05, 0.066) * tone;
-        // brushed along the strip
-        col *= 0.88 + 0.24 * noise(vec2(vUv.x * 3.0, v * 220.0));
-
-        // long seams across the strip, offset panel to panel
-        float s1 = 0.36 + 0.05 * hash(id + 3.0);
-        float seam = smoothstep(0.012, 0.0, abs(v - s1));
-        col *= 1.0 - 0.6 * seam;
-        col += vec3(0.05, 0.056, 0.07) * smoothstep(0.012, 0.0, abs(v - s1 - 0.018)) * 0.5;
-
-        // ribs: a dark gap, a raised lit edge and a shadow
-        float rib = smoothstep(0.035, 0.0, min(f, 1.0 - f));
-        col = mix(col, vec3(0.012, 0.014, 0.018), rib);
-        float lip = smoothstep(0.03, 0.0, abs(f - 0.05));
-        col += vec3(0.07, 0.078, 0.095) * lip * 0.55;
-
-        // bolts down each rib: little domes lit from the cabin side
-        for (int i = 0; i < 3; i++) {
-          float bv = 0.14 + float(i) * 0.26;
-          vec2 d = vec2((min(f, 1.0 - f) - 0.1) * pitch, (v - bv) * 0.074);
-          float r = length(d);
-          float bolt = smoothstep(0.0022, 0.0016, r);
-          col = mix(col, vec3(0.1, 0.106, 0.118) * (0.75 + 0.5 * (d.y / 0.0022)), bolt);
-          col *= 1.0 - 0.4 * smoothstep(0.0034, 0.0022, r) * (1.0 - bolt);
-        }
-
-        // grime pooled at the low side of the panels, scuffs and streaks
-        float grime = noise(vec2(vUv.x * 90.0, v * 6.0)) * noise(vec2(vUv.x * 13.0 + 4.0, v * 2.0));
-        col *= 0.72 + 0.6 * grime;
-        float scratch = smoothstep(0.86, 0.96, noise(vec2(vUv.x * 240.0, v * 3.0)));
-        col += vec3(0.05, 0.055, 0.06) * scratch * 0.35 * (1.0 - rib);
-
-        // an occasional service lamp on a slow, independent beat
-        float every = 11.0;
-        float lid = floor(c / every);
-        float lf = (c / every - lid) * every;
-        vec2 ld = vec2((lf - 5.5) * pitch, (v - 0.68) * 0.074);
-        float lamp = smoothstep(0.0024, 0.0008, length(ld));
-        float period = 14.0 + 26.0 * hash(lid + 9.0);
-        float phase = fract(uTime / period + hash(lid + 2.0));
-        float on = smoothstep(0.0, 0.06, phase) * smoothstep(0.7, 0.58, phase);
-        vec3 lampC = hash(lid + 5.0) > 0.72 ? vec3(1.0, 0.68, 0.36) : vec3(0.42, 0.8, 1.0);
-        col = mix(col, lampC * (0.06 + 0.42 * on), lamp);
-
-        // the cabin lamp overhead glancing off the metal: a warm sheen strongest on the upper run,
-        // and the cold light of the window sliding up the strip toward the glass
-        float len = max(length(vP), 1e-3);
-        float up = vP.y / len;
-        float sheen = exp(-(v - 0.3) * (v - 0.3) * 18.0) * (1.0 - rib) * (1.0 - seam);
-        col += vec3(0.11, 0.085, 0.06) * sheen * smoothstep(-0.2, 1.0, up) * (0.6 + 0.4 * grime);
-        col += vec3(0.024, 0.04, 0.074) * smoothstep(0.4, 0.82, v) * (1.0 - rib);
-
-        // the seal at the glass, then the sky's cold rim on it
-        float seal = smoothstep(0.82, 0.86, v);
-        col = mix(col, vec3(0.012, 0.014, 0.018), seal);
-        col += vec3(0.16, 0.24, 0.42) * smoothstep(0.93, 1.0, v) * 0.42;
-        // the near end sits in the shadow of the frame ring
-        col *= 0.55 + 0.45 * smoothstep(0.0, 0.4, v);
-        // the lower sill catches more of the cabin light than the head
-        col *= 1.0 + 0.5 * smoothstep(0.1, -0.4, vP.y);
-        // kept well below anything in the window
-        col *= 0.5;
-
         gl_FragColor = vec4(col, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>

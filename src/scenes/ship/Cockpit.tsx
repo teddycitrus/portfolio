@@ -7,25 +7,25 @@ import { profile } from '@/data/content';
 import { ARRIVAL_MS, BEAM_DOWN_MS, PULL_AT } from '@/state/timing';
 import { responsiveFov } from '@/scenes/overworld/TelescopeCamera';
 import { shipSound } from '@/audio/drone';
-import { cockpitShape, FRAME_DEPTH, HOLE, offsetPoly, type Pt } from './shape';
+import { FLOOR_Y, GLASS_Z } from './shape';
 import SpeedLines from './SpeedLines';
 import ShipDetails from './ShipDetails';
 import { glassMaterial, instrumentMaterial } from './materials';
 import { cabinEnv } from './cabinEnv';
 
 /*
- * The ship around the viewer. In orbit it is the beam deck: a bulkhead with a
- * wide beam aperture ringed by emitter cells and the contact console below
- * it. Picking a planet charges the emitters and fires the
+ * The ship around the viewer. In orbit it is the beam deck: one wall of glass
+ * from the floor up, thin mullions far out to the sides, and the contact
+ * console standing on a pedestal in front of it. Picking a planet charges the emitters and fires the
  * tractor beam out through the aperture to it; the viewer is pulled along the
  * beam, the deck falling away, into its light (the transition controller,
  * LaunchBeam and the veil). After the cut the rig lowers the viewer down the
  * beam from the mothership, looking up at it, onto the ground; the deck is not
  * seen again until the lobby.
  *
- * Geometry lives in "frame units": the bulkhead sits FRAME_DEPTH in front of
- * the eye and the frame group is scaled by the resting lens, so x and y of
- * the bulkhead map straight to screen space (1 = screen edge) at rest.
+ * Geometry lives in "frame units": the frame group is scaled by the resting
+ * lens, so x / depth and y / depth map straight to screen space (1 = screen
+ * edge) at rest.
  */
 
 /* ---------- down the beam ---------- */
@@ -72,8 +72,6 @@ interface Rig {
   rel: THREE.Quaternion;
   deploy: number;
   aspect: number;
-  /** Phase of the light chasing round the aperture */
-  chase: number;
 }
 
 const _fwd = new THREE.Vector3();
@@ -212,33 +210,8 @@ const panelTexture = () => {
   return t;
 };
 
-/** A thin tube following a closed outline (frame units), for the window's light strip. */
-const outlineTube = (pts: Pt[], z: number, radius: number) => {
-  const curve = new THREE.CatmullRomCurve3(
-    pts.map(([x, y]) => new THREE.Vector3(x, y, z)),
-    true,
-    'catmullrom',
-    0.08,
-  );
-  return new THREE.TubeGeometry(curve, 400, radius, 6, true);
-};
-
-/** Points every `step` along a closed outline (for the emitter cells). */
-const along = (pts: Pt[], step: number): Pt[] => {
-  const out: Pt[] = [];
-  for (let i = 0; i < pts.length; i += 1) {
-    const [ax, ay] = pts[i];
-    const [bx, by] = pts[(i + 1) % pts.length];
-    const len = Math.hypot(bx - ax, by - ay);
-    const n = Math.max(1, Math.round(len / step));
-    for (let k = 0; k < n; k += 1) out.push([ax + ((bx - ax) * k) / n, ay + ((by - ay) * k) / n]);
-  }
-  return out;
-};
-
 const useCockpitParts = (env: THREE.Texture) =>
   useMemo(() => {
-    const D = FRAME_DEPTH;
     const tex = panelTexture();
     tex.repeat.set(1.6, 1.6);
     const plate = plateMaterial(tex);
@@ -257,44 +230,18 @@ const useCockpitParts = (env: THREE.Texture) =>
       transparent: true,
     });
     const strip = new THREE.MeshBasicMaterial({ color: new THREE.Color('#9fc4ff').multiplyScalar(0.75), fog: false, transparent: true });
-    const amber = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffb46a').multiplyScalar(1.15), fog: false, transparent: true });
 
-    // the bulkhead: a huge plate with the window cut out, beveled so the cut reads as thick metal
-    const hole = offsetPoly(HOLE, 0.02);
-    const bulkhead = new THREE.ExtrudeGeometry(cockpitShape(hole), {
-      depth: 0.05,
-      bevelEnabled: true,
-      bevelThickness: 0.012,
-      bevelSize: 0.012,
-      bevelSegments: 3,
-      curveSegments: 6,
-    });
-    bulkhead.translate(0, 0, -D - 0.062);
+    // the floor runs out to the foot of the glass
+    const floorTex = tex.clone();
+    floorTex.repeat.set(34, 2.4);
+    const floorMat = plateMaterial(floorTex);
+    floorMat.envMap = env;
+    floorMat.envMapIntensity = 1.4;
+    const floor = new THREE.PlaneGeometry(24, 1.7);
+    floor.rotateX(-Math.PI / 2);
+    floor.translate(0, FLOOR_Y, GLASS_Z + 0.85);
 
-    // the window frame: a raised ring just inside the bulkhead cut
-    const ringShape = new THREE.Shape(offsetPoly(HOLE, 0.045).map(([x, y]) => new THREE.Vector2(x, y)));
-    ringShape.holes.push(new THREE.Path(HOLE.map(([x, y]) => new THREE.Vector2(x, y))));
-    const ring = new THREE.ExtrudeGeometry(ringShape, {
-      depth: 0.012,
-      bevelEnabled: true,
-      bevelThickness: 0.006,
-      bevelSize: 0.006,
-      bevelSegments: 3,
-    });
-    ring.translate(0, 0, -D + 0.004);
-
-    const lightStrip = outlineTube(offsetPoly(HOLE, 0.006), -D + 0.019, 0.0013);
-
-    // emitter cells set into the aperture ring, each lying along the rim
-    const rivetGeo = new THREE.BoxGeometry(EMITTER_LEN, 0.0042, 0.003);
-    const rimPts = offsetPoly(HOLE, 0.031);
-    const rivetPts = along(rimPts, EMITTER_STEP).map(([x, y], i, all) => {
-      const [nx, ny] = all[(i + 1) % all.length];
-      const [px, py] = all[(i - 1 + all.length) % all.length];
-      return [x, y, Math.atan2(ny - py, nx - px)] as [number, number, number];
-    });
-
-    return { plate, trim, strip, amber, bulkhead, ring, lightStrip, rivetGeo, rivetPts, tex, trimTex };
+    return { plate, trim, strip, floor, floorMat, tex, trimTex, floorTex };
   }, [env]);
 
 /* ---------- the rig: camera offsets, ship pose, sounds ---------- */
@@ -308,7 +255,6 @@ const Cockpit = () => {
   const shipRef = useRef<THREE.Group>(null);
   const frameRef = useRef<THREE.Group>(null);
   const glow = useRef<THREE.PointLight>(null);
-  const rivets = useRef<THREE.InstancedMesh>(null);
   const glass = useMemo(() => glassMaterial(), []);
   const consoleRef = useRef<THREE.Mesh>(null);
   const screen = useMemo(() => instrumentMaterial(0, CONSOLE_KEYS, CONSOLE_W / CONSOLE_H / 2), []);
@@ -332,15 +278,15 @@ const Cockpit = () => {
     rel: new THREE.Quaternion(),
     deploy: useAppStore.getState().mode === 'planet' ? 0 : 1,
     aspect: size.width / Math.max(1, size.height),
-    chase: 0,
   });
 
   useEffect(
     () => () => {
-      for (const m of [parts.plate, parts.trim, parts.strip, parts.amber, glass, screen]) m.dispose();
-      for (const g of [parts.bulkhead, parts.ring, parts.lightStrip, parts.rivetGeo]) g.dispose();
+      for (const m of [parts.plate, parts.trim, parts.strip, parts.floorMat, glass, screen]) m.dispose();
+      parts.floor.dispose();
       parts.tex.dispose();
       parts.trimTex.dispose();
+      parts.floorTex.dispose();
       logos.current.tex?.dispose();
     },
     [parts, glass, screen],
@@ -376,22 +322,6 @@ const Cockpit = () => {
       }),
     [],
   );
-
-  // rivet layout
-  useEffect(() => {
-    const m = rivets.current;
-    if (!m) return;
-    const o = new THREE.Object3D();
-    parts.rivetPts.forEach(([x, y, a], i) => {
-      o.position.set(x, y, -FRAME_DEPTH + 0.026);
-      o.rotation.set(0, 0, a);
-      o.updateMatrix();
-      m.setMatrixAt(i, o.matrix);
-      m.setColorAt(i, EMIT_IDLE);
-    });
-    m.instanceMatrix.needsUpdate = true;
-    EMIT_MAT.needsUpdate = true;
-  }, [parts]);
 
   // restore the camera to what its controller wrote, before any controller runs;
   // skipped when something placed the camera in between (the landing spawn on arrival)
@@ -583,27 +513,9 @@ const Cockpit = () => {
         });
       }
     }
-    const em = rivets.current;
-    if (em) {
-      // light chasing round the aperture; picking a planet charges the whole ring for the beam
-      const n = parts.rivetPts.length;
-      const charge = flight.launch;
-      const speed = 0.9 + charge * 5;
-      r.chase += dt * speed;
-      for (let i = 0; i < n; i += 1) {
-        // two pulses running round in opposite halves, cells along the bottom (the beam's throat) brighter
-        const ph = (i / n) * Math.PI * 4 - r.chase * 2;
-        const pulse = reduced ? 0 : Math.pow(Math.max(0, Math.cos(ph)), 10);
-        const throat = clamp01((-parts.rivetPts[i][1] - 0.3) / 0.12);
-        const lvl = 0.22 + 0.9 * pulse + 0.35 * throat + charge * (1.1 + 0.6 * pulse);
-        _c.copy(EMIT_IDLE).lerp(EMIT_HOT, Math.min(1, charge * 0.8 + pulse * 0.3)).multiplyScalar(lvl);
-        em.setColorAt(i, _c);
-      }
-      if (em.instanceColor) em.instanceColor.needsUpdate = true;
-    }
+    parts.strip.color.copy(STRIP_C).lerp(STRIP_HOT, Math.min(1, flight.launch)).multiplyScalar(1 + flight.launch * 1.6);
   }, 0.5);
 
-  const D = FRAME_DEPTH;
 
   return (
     <>
@@ -614,18 +526,23 @@ const Cockpit = () => {
       {/* warm fill that picks up the burn and the glow of entry */}
       <pointLight ref={glow} position={[0, 0.3, -0.35]} intensity={0.18} distance={1.0} decay={2} color="#ffd2a8" />
       <group ref={frameRef}>
-        <mesh geometry={parts.bulkhead} material={parts.plate} raycast={noRaycast} renderOrder={30} />
-        <mesh geometry={parts.ring} material={parts.trim} raycast={noRaycast} renderOrder={30} />
-        <mesh geometry={parts.lightStrip} material={parts.strip} raycast={noRaycast} renderOrder={31} />
-        <instancedMesh
-          ref={rivets}
-          args={[parts.rivetGeo, EMIT_MAT, parts.rivetPts.length]}
-          raycast={noRaycast}
-          renderOrder={31}
-        />
-        {/* canopy glass: reflections, dust, and the plasma of atmospheric entry */}
-        <mesh material={glass} position={[0, 0.03, -D - 0.03]} raycast={noRaycast} renderOrder={29}>
-          <planeGeometry args={[1.45, 1.35]} />
+        <mesh geometry={parts.floor} material={parts.floorMat} raycast={noRaycast} renderOrder={30} />
+        {/* the sill along the foot of the glass, with a running light that charges for the beam */}
+        <mesh material={parts.trim} position={[0, FLOOR_Y + 0.012, GLASS_Z + 0.012]} raycast={noRaycast} renderOrder={30}>
+          <boxGeometry args={[24, 0.024, 0.024]} />
+        </mesh>
+        <mesh material={parts.strip} position={[0, FLOOR_Y + 0.0255, GLASS_Z + 0.02]} raycast={noRaycast} renderOrder={31}>
+          <boxGeometry args={[24, 0.0018, 0.003]} />
+        </mesh>
+        {/* mullions between the panes, far out to the sides */}
+        {MULLIONS.map((x) => (
+          <mesh key={x} material={parts.trim} position={[x, FLOOR_Y + 2, GLASS_Z]} raycast={noRaycast} renderOrder={30}>
+            <boxGeometry args={[0.012, 4, 0.02]} />
+          </mesh>
+        ))}
+        {/* the glass: reflections, dust, and the plasma of atmospheric entry */}
+        <mesh material={glass} position={[0, FLOOR_Y + 2, GLASS_Z + 0.005]} raycast={noRaycast} renderOrder={29}>
+          <planeGeometry args={[24, 4]} />
         </mesh>
         <ShipDetails />
         {/* the console: one long display along the bottom of the view, tilted toward the pilot */}
@@ -645,14 +562,11 @@ const Cockpit = () => {
 
 /* ---------- emitter cells and colours ---------- */
 
-/** Emitter cells round the aperture: length of each and spacing along the rim (frame units) */
-const EMITTER_LEN = 0.022;
-const EMITTER_STEP = 0.034;
-const EMIT_MAT = new THREE.MeshBasicMaterial({ color: '#ffffff', fog: false, transparent: true, toneMapped: false });
-const EMIT_IDLE = new THREE.Color('#5fb8ff');
-const EMIT_HOT = new THREE.Color('#d4ecff');
-
-const _c = new THREE.Color();
+/** Mullions between the panes, in frame units: past the edges of the view at rest */
+const MULLIONS = [-2.6, -1.18, 1.18, 2.6];
+/** The sill's running light at rest; picking a planet charges it for the beam */
+const STRIP_C = new THREE.Color('#9fc4ff').multiplyScalar(0.75);
+const STRIP_HOT = new THREE.Color('#d4ecff');
 /** Colours the frame loop uses, parsed once (Color.set on a hex string parses and converts every call) */
 const GLOW_C = new THREE.Color('#ffd2a8');
 const _heat = new THREE.Color('#ffb070');

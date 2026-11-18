@@ -3,39 +3,29 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { useAppStore } from '@/state/useAppStore';
-import { dustMaterial, linerMaterial, lightsMaterial } from './materials';
-import { FRAME_DEPTH, HOLE, offsetPoly } from './shape';
+import { dustMaterial, lightsMaterial } from './materials';
+import { FLOOR_Y } from './shape';
 import { cabinEnv } from './cabinEnv';
 
 /*
- * The working life of the deck: hand-run conduit along the ceiling, with
- * clamps, a tap box and a tag on a cord.
+ * The console's pedestal and the dust hanging in the cabin air.
  *
- * Everything is one merged lit mesh, one merged unlit mesh for lamps and
- * needles, one ruled strip lining the window cut and one point cloud of dust.
+ * Everything is one merged lit mesh, one merged unlit mesh for lamps and one
+ * point cloud of dust.
  * All motion is in the vertex shaders, driven by a single clock.
  *
  * Frame units stretch with the aspect ratio, so parts are authored around an
- * anchor and the vertex shaders refit them about it (uFit): a clamp stays
- * square on any screen while its position still tracks the window.
+ * anchor and the vertex shaders refit them about it (uFit): the pedestal's
+ * foot stays round on any screen while its position still tracks the view.
  */
 
 const noRaycast = () => null;
 
 type V3 = [number, number, number];
 
-/** The wall's face */
-const WALL_Z = -FRAME_DEPTH + 0.002;
-
 const C = {
   steel: '#4a515d',
   steelDark: '#343a45',
-  black: '#14171d',
-  brass: '#5c4d37',
-  cableB: '#5b4a33',
-  cableC: '#2c3a4d',
-  paper: '#4c483d',
-  ink: '#2b2a26',
 } as const;
 
 const INK: V3 = [0.42, 0.8, 1.0];
@@ -178,69 +168,22 @@ class Lamps {
 
 /* ---------- what is on the deck ---------- */
 
-/** Conduit hand-run along the ceiling, with clamps, a tap box and a tag on a cord. */
-const buildCeiling = (k: Kit, l: Lamps) => {
-  // above the aperture's frame: out of view at rest, seen when looking up
-  const y = 0.69;
-  const z = WALL_Z + 0.007;
-  const span = 0.7;
-  k.cable([[-span, y, z], [0, y, z], [span, y, z]], 0.0052, C.steelDark);
-  // a thinner line added later, sagging between its clips
-  const sag: V3[] = [];
-  for (let x = -span; x <= span + 1e-6; x += 0.14) {
-    sag.push([x, y - 0.0145, z - 0.002], [x + 0.07, y - 0.0205, z - 0.001]);
+/** The console's pedestal: a collar behind the display, one rod down to a foot on the floor. */
+const buildPedestal = (k: Kit, l: Lamps) => {
+  const z = -0.5;
+  const top = -0.468;
+  k.at(0, top, z - 0.002, -0.32);
+  k.box(0.09, 0.018, 0.012, [0, 0, 0], C.steelDark);
+  k.cable([[0, top, z - 0.004], [0, FLOOR_Y + 0.01, z - 0.004]], 0.0062, C.steel);
+  k.at(0, FLOOR_Y, z - 0.004);
+  k.cyl(0.042, 0.007, [0, 0.0035, 0], C.steelDark, undefined, 24, 0.038);
+  k.cyl(0.013, 0.022, [0, 0.016, 0], C.steel, undefined, 12, 0.008);
+  // status lights round the foot, keeping their own time
+  l.at(0, FLOOR_Y + 0.0075, z - 0.004, -Math.PI / 2);
+  for (let i = 0; i < 6; i += 1) {
+    const a = (i / 6) * Math.PI * 2;
+    l.lamp(Math.cos(a) * 0.028, Math.sin(a) * 0.028, 0.0016, i % 3 === 0 ? AMBER : INK, 19 + i * 7.3, i * 0.31, 0.7, 0.0004);
   }
-  k.cable(sag, 0.0021, C.cableB, 0.3);
-  k.cable([[-span, y + 0.0125, z - 0.003], [0.08, y + 0.0125, z - 0.003], [span, y + 0.0125, z - 0.003]], 0.0026, C.cableC);
-  for (let x = -0.63; x <= 0.63; x += 0.14) {
-    k.at(x, y, z);
-    k.box(0.0125, 0.03, 0.0034, [0, -0.003, 0.0052], C.steel);
-    k.cyl(0.0022, 0.002, [0, 0.0085, 0.0073], C.brass, [Math.PI / 2, 0, 0], 6);
-    k.cyl(0.0022, 0.002, [0, -0.0145, 0.0073], C.brass, [Math.PI / 2, 0, 0], 6);
-  }
-  // tap box where the added line joins
-  k.at(0.216, y - 0.002, z);
-  k.box(0.048, 0.036, 0.012, [0, 0, 0.003], C.steelDark);
-  k.box(0.042, 0.03, 0.002, [0, 0, 0.0098], C.black);
-  for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-    k.cyl(0.0016, 0.0016, [sx * 0.019, sy * 0.012, 0.0106], C.steel, [Math.PI / 2, 0, 0], 6);
-  }
-  l.at(0.216, y - 0.002, z + 0.0115);
-  l.lamp(-0.012, 0.004, 0.0016, INK, 23, 0.1, 0.72);
-  l.lamp(-0.004, 0.004, 0.0016, AMBER, 37, 0.6, 0.18);
-  // an inspection tag on a cord, moved a little by the air handling
-  k.at(-0.238, y - 0.02, z + 0.004);
-  k.sway = 0.06;
-  k.cable([[-0.238, y - 0.02, z + 0.004], [-0.238, y - 0.05, z + 0.005]], 0.0007, C.cableB);
-  k.box(0.012, 0.022, 0.0009, [0, -0.04, 0.001], C.paper);
-  k.box(0.0085, 0.0013, 0.0004, [0, -0.034, 0.0017], C.ink);
-  k.box(0.0085, 0.0013, 0.0004, [0, -0.0385, 0.0017], C.ink);
-  k.sway = 0;
-};
-
-/** The strip lining the window cut, from just behind the frame ring to the outer glass. */
-const linerGeometry = () => {
-  const front = offsetPoly(HOLE, 0.0015);
-  const back = offsetPoly(HOLE, 0.006);
-  const pos: number[] = [];
-  const uv: number[] = [];
-  const idx: number[] = [];
-  let u = 0;
-  const n = front.length;
-  for (let i = 0; i <= n; i += 1) {
-    const a = front[i % n];
-    const b = back[i % n];
-    pos.push(a[0], a[1], -FRAME_DEPTH + 0.002, b[0], b[1], -FRAME_DEPTH - 0.072);
-    uv.push(u, 0, u, 1);
-    const c = front[(i + 1) % n];
-    u += Math.hypot(c[0] - a[0], c[1] - a[1]);
-    if (i < n) idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  g.setIndex(idx);
-  return g;
 };
 
 /** Seeds for the dust; positions are worked out in the vertex shader. */
@@ -263,10 +206,9 @@ const useDetailParts = (env: THREE.Texture) =>
   useMemo(() => {
     const kit = new Kit();
     const lamps = new Lamps();
-    buildCeiling(kit, lamps);
+    buildPedestal(kit, lamps);
     const kitGeo = kit.build();
     const lampGeo = lamps.build();
-    const linerGeo = linerGeometry();
     const dustGeo = dustGeometry(54);
 
     // one set of shared uniforms: nothing here needs its own clock
@@ -305,9 +247,8 @@ const useDetailParts = (env: THREE.Texture) =>
     kitMat.customProgramCacheKey = () => 'ship-kit-v1';
 
     const lampMat = lightsMaterial(uTime, uFit);
-    const linerMat = linerMaterial(uTime);
     const dustMat = dustMaterial(uTime);
-    return { kitGeo, lampGeo, linerGeo, dustGeo, kitMat, lampMat, linerMat, dustMat, uTime, uFit };
+    return { kitGeo, lampGeo, dustGeo, kitMat, lampMat, dustMat, uTime, uFit };
   }, [env]);
 
 const ShipDetails = () => {
@@ -318,8 +259,8 @@ const ShipDetails = () => {
 
   useEffect(
     () => () => {
-      for (const g of [parts.kitGeo, parts.lampGeo, parts.linerGeo, parts.dustGeo]) g.dispose();
-      for (const m of [parts.kitMat, parts.lampMat, parts.linerMat, parts.dustMat]) m.dispose();
+      for (const g of [parts.kitGeo, parts.lampGeo, parts.dustGeo]) g.dispose();
+      for (const m of [parts.kitMat, parts.lampMat, parts.dustMat]) m.dispose();
     },
     [parts],
   );
@@ -337,7 +278,6 @@ const ShipDetails = () => {
 
   return (
     <>
-      <mesh geometry={parts.linerGeo} material={parts.linerMat} raycast={noRaycast} renderOrder={30} frustumCulled={false} />
       <mesh geometry={parts.kitGeo} material={parts.kitMat} raycast={noRaycast} renderOrder={31} frustumCulled={false} />
       <mesh geometry={parts.lampGeo} material={parts.lampMat} raycast={noRaycast} renderOrder={32} frustumCulled={false} />
       <points geometry={parts.dustGeo} material={parts.dustMat} raycast={noRaycast} renderOrder={33} frustumCulled={false} />
