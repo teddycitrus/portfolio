@@ -1,22 +1,24 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { useAppStore, type SceneMode } from '@/state/useAppStore';
 import { dashPanel, flight, warpFx } from '@/state/runtime';
 import { profile } from '@/data/content';
 import { ARRIVAL_MS, BEAM_DOWN_MS, PULL_AT } from '@/state/timing';
 import { responsiveFov } from '@/scenes/overworld/TelescopeCamera';
 import { shipSound } from '@/audio/drone';
-import { FLOOR_Y, GLASS_Z } from './shape';
+import { CEIL_Y, FLOOR_Y, GLASS_Z, PANE_X } from './shape';
 import SpeedLines from './SpeedLines';
 import ShipDetails from './ShipDetails';
 import { glassMaterial, instrumentMaterial } from './materials';
 import { cabinEnv } from './cabinEnv';
 
 /*
- * The ship around the viewer. In orbit it is the beam deck: one wall of glass
- * from the floor up, thin mullions far out to the sides, and the contact
- * console standing on a pedestal in front of it. Picking a planet charges the emitters and fires the
+ * The ship around the viewer. In orbit it is the beam deck: a glass bay, floor
+ * to ceiling, with a tall front pane, angled panes either side and walls
+ * behind them, and the contact console standing on a pedestal in front of
+ * the glass. Picking a planet charges the emitters and fires the
  * tractor beam out through the aperture to it; the viewer is pulled along the
  * beam, the deck falling away, into its light (the transition controller,
  * LaunchBeam and the veil). After the cut the rig lowers the viewer down the
@@ -210,6 +212,35 @@ const panelTexture = () => {
   return t;
 };
 
+/** The bay in plan (x, z), round the viewer from the back left to the back right */
+const BAY: [number, number][] = [
+  [-1.63, 1.6],
+  [-1.63, 0.36],
+  [-PANE_X, GLASS_Z],
+  [PANE_X, GLASS_Z],
+  [1.63, 0.36],
+  [1.63, 1.6],
+];
+/** Which sides of the bay are glass; the others are wall */
+const BAY_GLASS = [false, true, true, true, false];
+const ROOM_H = CEIL_Y - FLOOR_Y;
+const ROOM_MID = (CEIL_Y + FLOOR_Y) / 2;
+
+const sideLen = (i: number) => Math.hypot(BAY[i + 1][0] - BAY[i][0], BAY[i + 1][1] - BAY[i][1]);
+/** Lays a part built along +x, facing +z, on side i of the bay at height y, `inset` into the room. */
+const alongSide = (g: THREE.BufferGeometry, i: number, y: number, inset = 0) => {
+  const [ax, az] = BAY[i];
+  const [bx, bz] = BAY[i + 1];
+  const rot = Math.atan2(-(bz - az), bx - ax);
+  g.rotateY(rot);
+  g.translate((ax + bx) / 2 + Math.sin(rot) * inset, y, (az + bz) / 2 + Math.cos(rot) * inset);
+  return g;
+};
+const sides = (glass: boolean, make: (i: number) => THREE.BufferGeometry) =>
+  mergeGeometries(BAY_GLASS.flatMap((g, i) => (g === glass ? [make(i)] : [])), false)!;
+/** The bay's outline as a flat shape, for the floor and the ceiling */
+const bayShape = (flip: boolean) => new THREE.Shape(BAY.map(([x, z]) => new THREE.Vector2(x, flip ? -z : z)));
+
 const useCockpitParts = (env: THREE.Texture) =>
   useMemo(() => {
     const tex = panelTexture();
@@ -231,17 +262,37 @@ const useCockpitParts = (env: THREE.Texture) =>
     });
     const strip = new THREE.MeshBasicMaterial({ color: new THREE.Color('#9fc4ff').multiplyScalar(0.75), fog: false, transparent: true });
 
-    // the floor runs out to the foot of the glass
+    // floor and ceiling fill the bay's outline; their uvs are frame units
     const floorTex = tex.clone();
-    floorTex.repeat.set(34, 2.4);
+    floorTex.repeat.set(1.4, 1.4);
     const floorMat = plateMaterial(floorTex);
     floorMat.envMap = env;
     floorMat.envMapIntensity = 1.4;
-    const floor = new THREE.PlaneGeometry(24, 1.7);
-    floor.rotateX(-Math.PI / 2);
-    floor.translate(0, FLOOR_Y, GLASS_Z + 0.85);
+    const ceilMat = floorMat.clone();
+    ceilMat.color.set('#262c36');
+    const floor = new THREE.ShapeGeometry(bayShape(true)).rotateX(-Math.PI / 2).translate(0, FLOOR_Y, 0);
+    const ceiling = new THREE.ShapeGeometry(bayShape(false)).rotateX(Math.PI / 2).translate(0, CEIL_Y, 0);
+    const walls = sides(false, (i) => alongSide(new THREE.PlaneGeometry(sideLen(i), ROOM_H), i, ROOM_MID));
+    const panes = sides(true, (i) => alongSide(new THREE.PlaneGeometry(sideLen(i), ROOM_H), i, ROOM_MID, 0.002));
+    // along each pane: a sill at its foot and the ceiling's header at its head, a mullion at every corner
+    const frame = mergeGeometries(
+      [
+        sides(true, (i) => alongSide(new THREE.BoxGeometry(sideLen(i), 0.024, 0.024), i, FLOOR_Y + 0.012, 0.012)),
+        sides(true, (i) => alongSide(new THREE.BoxGeometry(sideLen(i), 0.028, 0.04), i, CEIL_Y - 0.014, 0.02)),
+        ...BAY.slice(1, -1).map(([x, z]) => new THREE.BoxGeometry(0.014, ROOM_H, 0.02).translate(x, ROOM_MID, z)),
+      ],
+      false,
+    )!;
+    // running lights on the sills and a cove light under the header
+    const lights = mergeGeometries(
+      [
+        sides(true, (i) => alongSide(new THREE.BoxGeometry(sideLen(i), 0.0018, 0.003), i, FLOOR_Y + 0.0255, 0.02)),
+        sides(true, (i) => alongSide(new THREE.BoxGeometry(sideLen(i), 0.002, 0.003), i, CEIL_Y - 0.029, 0.039)),
+      ],
+      false,
+    )!;
 
-    return { plate, trim, strip, floor, floorMat, tex, trimTex, floorTex };
+    return { plate, trim, strip, floor, ceiling, walls, panes, frame, lights, floorMat, ceilMat, tex, trimTex, floorTex };
   }, [env]);
 
 /* ---------- the rig: camera offsets, ship pose, sounds ---------- */
@@ -282,8 +333,8 @@ const Cockpit = () => {
 
   useEffect(
     () => () => {
-      for (const m of [parts.plate, parts.trim, parts.strip, parts.floorMat, glass, screen]) m.dispose();
-      parts.floor.dispose();
+      for (const m of [parts.plate, parts.trim, parts.strip, parts.floorMat, parts.ceilMat, glass, screen]) m.dispose();
+      for (const g of [parts.floor, parts.ceiling, parts.walls, parts.panes, parts.frame, parts.lights]) g.dispose();
       parts.tex.dispose();
       parts.trimTex.dispose();
       parts.floorTex.dispose();
@@ -527,23 +578,13 @@ const Cockpit = () => {
       <pointLight ref={glow} position={[0, 0.3, -0.35]} intensity={0.18} distance={1.0} decay={2} color="#ffd2a8" />
       <group ref={frameRef}>
         <mesh geometry={parts.floor} material={parts.floorMat} raycast={noRaycast} renderOrder={30} />
-        {/* the sill along the foot of the glass, with a running light that charges for the beam */}
-        <mesh material={parts.trim} position={[0, FLOOR_Y + 0.012, GLASS_Z + 0.012]} raycast={noRaycast} renderOrder={30}>
-          <boxGeometry args={[24, 0.024, 0.024]} />
-        </mesh>
-        <mesh material={parts.strip} position={[0, FLOOR_Y + 0.0255, GLASS_Z + 0.02]} raycast={noRaycast} renderOrder={31}>
-          <boxGeometry args={[24, 0.0018, 0.003]} />
-        </mesh>
-        {/* mullions between the panes, far out to the sides */}
-        {MULLIONS.map((x) => (
-          <mesh key={x} material={parts.trim} position={[x, FLOOR_Y + 2, GLASS_Z]} raycast={noRaycast} renderOrder={30}>
-            <boxGeometry args={[0.012, 4, 0.02]} />
-          </mesh>
-        ))}
+        <mesh geometry={parts.ceiling} material={parts.ceilMat} raycast={noRaycast} renderOrder={30} />
+        <mesh geometry={parts.walls} material={parts.plate} raycast={noRaycast} renderOrder={30} />
+        <mesh geometry={parts.frame} material={parts.trim} raycast={noRaycast} renderOrder={30} />
+        {/* the sills' running lights charge for the beam */}
+        <mesh geometry={parts.lights} material={parts.strip} raycast={noRaycast} renderOrder={31} />
         {/* the glass: reflections, dust, and the plasma of atmospheric entry */}
-        <mesh material={glass} position={[0, FLOOR_Y + 2, GLASS_Z + 0.005]} raycast={noRaycast} renderOrder={29}>
-          <planeGeometry args={[24, 4]} />
-        </mesh>
+        <mesh geometry={parts.panes} material={glass} raycast={noRaycast} renderOrder={29} />
         <ShipDetails />
         {/* the console: one long display along the bottom of the view, tilted toward the pilot */}
         <group position={[0, -0.46, -0.49]} rotation={[-0.32, 0, 0]}>
@@ -560,10 +601,8 @@ const Cockpit = () => {
   );
 };
 
-/* ---------- emitter cells and colours ---------- */
+/* ---------- colours ---------- */
 
-/** Mullions between the panes, in frame units: past the edges of the view at rest */
-const MULLIONS = [-2.6, -1.18, 1.18, 2.6];
 /** The sill's running light at rest; picking a planet charges it for the beam */
 const STRIP_C = new THREE.Color('#9fc4ff').multiplyScalar(0.75);
 const STRIP_HOT = new THREE.Color('#d4ecff');

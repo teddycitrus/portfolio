@@ -2,9 +2,11 @@ import * as THREE from 'three';
 import { FRAME_DEPTH } from './shape';
 
 /**
- * The glass wall: almost invisible. Two soft reflection bands and a few specks
- * of dust. On atmospheric entry
- * (uHeat) plasma streams outward from the centre and burns along the rim.
+ * The glass: clear in the middle, but it reads as glass. Two soft sheen bands,
+ * the cove light along the ceiling mirrored near the top, the floor's glow at
+ * its foot, specks of dust, and a cold reflection that grows at grazing angles,
+ * so the side panes catch the light. On atmospheric entry (uHeat) plasma
+ * streams outward from the centre and burns along the rim.
  */
 export const glassMaterial = () =>
   new THREE.ShaderMaterial({
@@ -19,9 +21,14 @@ export const glassMaterial = () =>
     },
     vertexShader: /* glsl */ `
       varying vec2 vN;
+      varying vec3 vPosV;
+      varying vec3 vNormalV;
       void main() {
         vN = position.xy / ${FRAME_DEPTH.toFixed(3)};
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vPosV = mv.xyz;
+        vNormalV = normalMatrix * normal;
+        gl_Position = projectionMatrix * mv;
       }
     `,
     fragmentShader: /* glsl */ `
@@ -29,6 +36,8 @@ export const glassMaterial = () =>
       uniform float uHeat;
       uniform vec3 uHeatColor;
       varying vec2 vN;
+      varying vec3 vPosV;
+      varying vec3 vNormalV;
 
       float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float noise(vec2 p) {
@@ -40,16 +49,26 @@ export const glassMaterial = () =>
 
       void main() {
         vec2 n = vN;
+        // stronger away from the middle, so the planets stay clean
+        float off = 0.3 + 0.7 * smoothstep(0.35, 1.05, length(n * vec2(0.85, 1.0)));
         // reflections of the cabin: two soft diagonal bands
         float d = dot(n, normalize(vec2(1.0, 0.62)));
         // squared by hand: pow() of a negative base is NaN on Metal (Safari, every Mac browser)
-        float r1 = (d - 0.42) / 0.11;
-        float r2 = (d - 0.62) / 0.035;
-        float refl = exp(-r1 * r1) * 0.006 + exp(-r2 * r2) * 0.005;
-        refl *= smoothstep(-0.2, 0.6, n.y + 0.3);
+        float r1 = (d - 0.5) / 0.16;
+        float r2 = (d - 0.78) / 0.045;
+        float refl = (exp(-r1 * r1) * 0.014 + exp(-r2 * r2) * 0.01) * off;
+        // the cove light under the ceiling's header, mirrored near the top of the glass
+        float cy = (n.y - 0.9) / 0.018;
+        float cg = (n.y - 0.87) / 0.08;
+        refl += exp(-cy * cy) * 0.03 + exp(-cg * cg) * 0.008;
+        // the floor's glow at the foot of the glass
+        refl += smoothstep(-1.05, -1.32, n.y) * 0.022;
         // dust
         float dust = step(0.9975, hash(floor(n * 260.0))) * 0.02 * noise(n * 6.0);
         vec3 col = vec3(0.75, 0.85, 1.0) * (refl + dust);
+        // a cold sheen that grows at grazing angles
+        float facing = clamp(1.0 - abs(dot(normalize(vNormalV), normalize(-vPosV))), 0.0, 1.0);
+        col += vec3(0.55, 0.68, 0.95) * facing * facing * facing * 0.09;
 
         // entry plasma: streaks rushing outward, brightest at the rim
         if (uHeat > 0.001) {
