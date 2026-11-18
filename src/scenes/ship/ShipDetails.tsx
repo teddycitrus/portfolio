@@ -180,7 +180,8 @@ class Lamps {
 
 /** Conduit hand-run along the ceiling, with clamps, a tap box and a tag on a cord. */
 const buildCeiling = (k: Kit, l: Lamps) => {
-  const y = 0.566;
+  // above the aperture's frame: out of view at rest, seen when looking up
+  const y = 0.69;
   const z = WALL_Z + 0.007;
   const span = 0.7;
   k.cable([[-span, y, z], [0, y, z], [span, y, z]], 0.0052, C.steelDark);

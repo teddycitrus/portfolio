@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ComponentType, type CSSProperties } from 'react';
-import { SiDevpost, SiGithub, SiGmail, SiX } from 'react-icons/si';
+import { SiGithub, SiGmail, SiX } from 'react-icons/si';
 import { FaLinkedinIn } from 'react-icons/fa6';
 import { PiFileTextBold } from 'react-icons/pi';
 import { profile } from '@/data/content';
@@ -12,7 +12,6 @@ const ICONS: Record<string, ComponentType<{ className?: string }>> = {
   Email: SiGmail,
   GitHub: SiGithub,
   LinkedIn: FaLinkedinIn,
-  Devpost: SiDevpost,
   X: SiX,
   Resume: PiFileTextBold,
 };
@@ -160,7 +159,8 @@ const DashControls = () => {
           return <Icon key={l.label} />;
         })}
       </div>
-      <SoundToggle className="absolute" style={{ left: SAFE.left, bottom: SAFE.bottom }} />
+      {/* where the console reaches the left edge, it sits just above it */}
+      <SoundToggle className="absolute max-[799px]:!bottom-[11%]" style={{ left: SAFE.left, bottom: SAFE.bottom }} />
     </>
   );
 };

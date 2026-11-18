@@ -6,24 +6,14 @@
     "email": "johnmannul@gmail.com",
     "links": [
       {
-        "label": "Email",
-        "url": "mailto:johnmannul@gmail.com",
-        "handle": "johnmannul@gmail.com"
+        "label": "LinkedIn",
+        "url": "https://www.linkedin.com/in/john-mannully/",
+        "handle": "john-mannully"
       },
       {
         "label": "GitHub",
         "url": "https://github.com/teddycitrus",
         "handle": "teddycitrus"
-      },
-      {
-        "label": "Devpost",
-        "url": "https://devpost.com/teddycitrus",
-        "handle": "teddycitrus"
-      },
-      {
-        "label": "LinkedIn",
-        "url": "https://www.linkedin.com/in/john-mannully/",
-        "handle": "john-mannully"
       },
       {
         "label": "X",
@@ -34,6 +24,11 @@
         "label": "Resume",
         "url": "https://drive.google.com/file/d/1Ls-2N1WWJZyQQ86P0QV-XEC-SSUOw7s-/view",
         "handle": "PDF"
+      },
+      {
+        "label": "Email",
+        "url": "mailto:johnmannul@gmail.com",
+        "handle": "johnmannul@gmail.com"
       }
     ]
   },

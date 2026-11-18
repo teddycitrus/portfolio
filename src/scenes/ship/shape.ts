@@ -8,18 +8,19 @@ export const FRAME_DEPTH = 0.6;
 /**
  * The beam aperture in screen space at rest (1 = screen edge): a rounded,
  * squared-off ring (a superellipse) the tractor beam fires out through, from
- * T at the top down to B above the dashboard. The overworld layout keeps every
+ * T at the top down to B behind the console. It fills nearly the whole view,
+ * its frame just past the edges at rest. The overworld layout keeps every
  * planet inside it (see WINDOW_FIT).
  */
-const S = 0.92;
-const T = 0.8;
-const B = -0.7;
+export const S = 1.04;
+export const T = 1.02;
+export const B = -0.92;
 /** Squareness: 2 is an ellipse, higher fills the corners more */
 const SQUARE = 3.4;
 const HOLE_STEPS = 128;
 
 /** Fraction of the lens the overworld layout may use, so planets stay inside the window. */
-export const WINDOW_FIT = 0.84;
+export const WINDOW_FIT = 0.95;
 
 /** The aperture outline in frame units (counter-clockwise). */
 export const HOLE: Pt[] = Array.from({ length: HOLE_STEPS }, (_, i) => {

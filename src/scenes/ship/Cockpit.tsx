@@ -625,11 +625,11 @@ const Cockpit = () => {
         />
         {/* canopy glass: reflections, dust, and the plasma of atmospheric entry */}
         <mesh material={glass} position={[0, 0.03, -D - 0.03]} raycast={noRaycast} renderOrder={29}>
-          <planeGeometry args={[1.3, 1.1]} />
+          <planeGeometry args={[1.45, 1.35]} />
         </mesh>
         <ShipDetails />
-        {/* the console: one long display across the foot of the window, tilted toward the pilot */}
-        <group position={[0, -0.372, -0.49]} rotation={[-0.32, 0, 0]}>
+        {/* the console: one long display along the bottom of the view, tilted toward the pilot */}
+        <group position={[0, -0.432, -0.49]} rotation={[-0.32, 0, 0]}>
           <mesh material={parts.trim} raycast={noRaycast} renderOrder={30}>
             <boxGeometry args={[CONSOLE_W + 0.01, CONSOLE_H + 0.01, 0.008]} />
           </mesh>

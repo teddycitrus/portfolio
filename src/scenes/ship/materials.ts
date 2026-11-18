@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { FRAME_DEPTH } from './shape';
+import { B, FRAME_DEPTH, S, T } from './shape';
 
 /**
  * Canopy glass: almost invisible. Two soft reflection bands, a haze where the
@@ -48,7 +48,7 @@ export const glassMaterial = () =>
         float refl = exp(-r1 * r1) * 0.006 + exp(-r2 * r2) * 0.005;
         refl *= smoothstep(-0.2, 0.6, n.y + 0.3);
         // haze toward the frame
-        float edge = max(abs(n.x) / 0.9, (n.y > 0.0 ? n.y / 0.8 : -n.y / 0.7));
+        float edge = max(abs(n.x) / ${S.toFixed(3)}, (n.y > 0.0 ? n.y / ${T.toFixed(3)} : n.y / ${B.toFixed(3)}));
         float haze = smoothstep(0.85, 1.0, edge) * 0.006;
         // dust
         float dust = step(0.9975, hash(floor(n * 260.0))) * 0.02 * noise(n * 6.0);

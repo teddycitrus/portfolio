@@ -24,11 +24,11 @@ export const beaconById = (
  * A vertical zig-zag between the top bar and the bottom dock.
  */
 const PORTRAIT_SLOTS: [number, number, number][] = [
-  [-0.48, 0.22, 0.088],
-  [0.08, 0.37, 0.1],
-  [0.48, 0.51, 0.088],
-  [-0.48, 0.64, 0.088],
-  [0.48, 0.77, 0.088],
+  [-0.48, 0.2, 0.096],
+  [0.08, 0.41, 0.11],
+  [0.48, 0.62, 0.096],
+  [-0.48, 0.72, 0.096],
+  [0.48, 0.8, 0.096],
 ];
 
 const view = { aspect: 16 / 9, fov: 60 };

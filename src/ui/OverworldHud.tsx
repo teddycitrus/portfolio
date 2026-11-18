@@ -22,8 +22,8 @@ import DashControls from './DashControls';
 import AlienName from './AlienName';
 
 const SAFE_BANDS = { top: 84, bottom: 104 };
-/** Landscape phones: the header is one 56px row, so names may come up closer to it. */
-const SHORT_BANDS = { top: 64, bottom: 104 };
+/** Landscape phones: the header is one 56px row and the console under 40px, so names may come up closer to both. */
+const SHORT_BANDS = { top: 64, bottom: 56 };
 /** Clears the hover reticle (about 1.15x the planet radius) with room to spare. */
 const LABEL_GAP = (size: number) => size * 0.32 + 18;
 /** Keep other labels off the hover reticle and off ring systems. */
