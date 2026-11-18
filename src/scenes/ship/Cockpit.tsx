@@ -15,8 +15,8 @@ import { cabinEnv } from './cabinEnv';
 
 /*
  * The ship around the viewer. In orbit it is the beam deck: a bulkhead with a
- * wide beam aperture ringed by emitter cells, a dashboard below it and a
- * couple of instruments. Picking a planet charges the emitters and fires the
+ * wide beam aperture ringed by emitter cells and the contact console below
+ * it. Picking a planet charges the emitters and fires the
  * tractor beam out through the aperture to it; the viewer is pulled along the
  * beam, the deck falling away, into its light (the transition controller,
  * LaunchBeam and the veil). After the cut the rig lowers the viewer down the
@@ -91,7 +91,7 @@ const _zAxis = new THREE.Vector3(0, 0, 1);
 const _target = new THREE.Quaternion();
 const ID = new THREE.Quaternion();
 const _corner = new THREE.Vector3();
-/** The console's face: it spans the dash under the window, one key per contact link */
+/** The console's face: it spans the wall under the window, one key per contact link */
 const CONSOLE_W = 0.72;
 const CONSOLE_H = 0.06;
 const CONSOLE_KEYS = profile.links.length;
@@ -212,102 +212,6 @@ const panelTexture = () => {
   return t;
 };
 
-/**
- * The dash skin: a 1.2 unit wide tile centred on the console (more than the
- * view ever shows). Vent slots, seams, bolts, a ruled edge and the wear of hands
- * where the switches and the mug live.
- */
-const dashTexture = () => {
-  const W = 1024;
-  const H = 256;
-  const c = document.createElement('canvas');
-  c.width = W;
-  c.height = H;
-  const g = c.getContext('2d')!;
-  g.fillStyle = '#5b6370';
-  g.fillRect(0, 0, W, H);
-  for (let i = 0; i < 900; i += 1) {
-    g.fillStyle = `rgba(${Math.random() < 0.5 ? '255,255,255' : '0,0,0'},${0.02 + Math.random() * 0.03})`;
-    g.fillRect(Math.random() * W, Math.random() * H, 8 + Math.random() * 60, 1);
-  }
-  // hands: rubbed lighter in front of the toggles and at the two work areas
-  for (const [x, y, rx, ry, a] of [
-    [512, 196, 170, 34, 0.09],
-    [132, 150, 86, 62, 0.07],
-    [892, 148, 92, 66, 0.07],
-  ] as const) {
-    const r = g.createRadialGradient(x, y, 2, x, y, rx);
-    r.addColorStop(0, `rgba(255,255,255,${a})`);
-    r.addColorStop(1, 'rgba(255,255,255,0)');
-    g.save();
-    g.translate(x, y);
-    g.scale(1, ry / rx);
-    g.translate(-x, -y);
-    g.fillStyle = r;
-    g.fillRect(x - rx, y - rx, rx * 2, rx * 2);
-    g.restore();
-  }
-  // panel seams
-  const groove = (x0: number, y0: number, x1: number, y1: number) => {
-    g.strokeStyle = 'rgba(8,10,14,0.8)';
-    g.lineWidth = 2;
-    g.beginPath();
-    g.moveTo(x0, y0);
-    g.lineTo(x1, y1);
-    g.stroke();
-    g.strokeStyle = 'rgba(255,255,255,0.14)';
-    g.lineWidth = 1;
-    g.beginPath();
-    g.moveTo(x0 + 1, y0 + 1.5);
-    g.lineTo(x1 + 1, y1 + 1.5);
-    g.stroke();
-  };
-  groove(0, 66, W, 66);
-  groove(0, 228, W, 228);
-  for (const x of [190, 834]) groove(x, 66, x, 228);
-  // vent slots either side of the console footing
-  for (const x0 of [212, 680])
-    for (let i = 0; i < 16; i += 1) {
-      const x = x0 + i * 8.5;
-      g.fillStyle = 'rgba(4,5,8,0.85)';
-      g.fillRect(x, 78, 4, 34);
-      g.fillStyle = 'rgba(255,255,255,0.12)';
-      g.fillRect(x + 4, 78, 1, 34);
-    }
-  // bolts along the seams
-  for (let x = 16; x < W; x += 64)
-    for (const y of [74, 220]) {
-      g.fillStyle = 'rgba(0,0,0,0.55)';
-      g.beginPath();
-      g.arc(x, y, 3.2, 0, Math.PI * 2);
-      g.fill();
-      g.fillStyle = 'rgba(255,255,255,0.3)';
-      g.fillRect(x - 2.4, y - 0.6, 4.8, 1.2);
-    }
-  // a ruled scale along the front edge
-  for (let i = 0; i <= 200; i += 1) {
-    g.fillStyle = 'rgba(245,240,225,0.2)';
-    g.fillRect(i * 5.12, 240, 1, i % 10 === 0 ? 11 : 5);
-  }
-  // a strip of tape over a repair
-  g.save();
-  g.translate(788, 180);
-  g.rotate(-0.03);
-  g.fillStyle = 'rgba(200,190,160,0.17)';
-  g.fillRect(-34, -8, 68, 16);
-  g.fillStyle = 'rgba(30,28,22,0.35)';
-  g.fillRect(-20, -1, 40, 1.5);
-  g.restore();
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = THREE.RepeatWrapping;
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 4;
-  // the box's top runs 5 units: show one 1.2 unit tile centred on the console
-  t.repeat.set(5 / 1.2, 1);
-  t.offset.set(0.5 - 0.5 * (5 / 1.2), 0);
-  return t;
-};
-
 /** A thin tube following a closed outline (frame units), for the window's light strip. */
 const outlineTube = (pts: Pt[], z: number, radius: number) => {
   const curve = new THREE.CatmullRomCurve3(
@@ -352,17 +256,6 @@ const useCockpitParts = (env: THREE.Texture) =>
       fog: false,
       transparent: true,
     });
-    const dashTex = dashTexture();
-    const dark = new THREE.MeshStandardMaterial({
-      color: '#2b3340',
-      map: dashTex,
-      metalness: 0.35,
-      roughness: 0.62,
-      envMap: env,
-      envMapIntensity: 1.2,
-      fog: false,
-      transparent: true,
-    });
     const strip = new THREE.MeshBasicMaterial({ color: new THREE.Color('#9fc4ff').multiplyScalar(0.75), fog: false, transparent: true });
     const amber = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffb46a').multiplyScalar(1.15), fog: false, transparent: true });
 
@@ -401,12 +294,7 @@ const useCockpitParts = (env: THREE.Texture) =>
       return [x, y, Math.atan2(ny - py, nx - px)] as [number, number, number];
     });
 
-    // dashboard: a slab rising toward the viewer below the window
-    const dash = new THREE.BoxGeometry(5, 0.03, 0.36);
-    // the top rises toward the pilot, like a dashboard under a windscreen
-    const dashTilt = -Math.atan2(0.085, 0.32);
-
-    return { plate, trim, dark, strip, amber, bulkhead, ring, lightStrip, rivetGeo, rivetPts, dash, dashTilt, tex, trimTex, dashTex };
+    return { plate, trim, strip, amber, bulkhead, ring, lightStrip, rivetGeo, rivetPts, tex, trimTex };
   }, [env]);
 
 /* ---------- the rig: camera offsets, ship pose, sounds ---------- */
@@ -419,7 +307,6 @@ const Cockpit = () => {
   const parts = useCockpitParts(env);
   const shipRef = useRef<THREE.Group>(null);
   const frameRef = useRef<THREE.Group>(null);
-  const leds = useRef<THREE.InstancedMesh>(null);
   const glow = useRef<THREE.PointLight>(null);
   const rivets = useRef<THREE.InstancedMesh>(null);
   const glass = useMemo(() => glassMaterial(), []);
@@ -450,11 +337,10 @@ const Cockpit = () => {
 
   useEffect(
     () => () => {
-      for (const m of [parts.plate, parts.trim, parts.dark, parts.strip, parts.amber, glass, screen]) m.dispose();
-      for (const g of [parts.bulkhead, parts.ring, parts.lightStrip, parts.rivetGeo, parts.dash]) g.dispose();
+      for (const m of [parts.plate, parts.trim, parts.strip, parts.amber, glass, screen]) m.dispose();
+      for (const g of [parts.bulkhead, parts.ring, parts.lightStrip, parts.rivetGeo]) g.dispose();
       parts.tex.dispose();
       parts.trimTex.dispose();
-      parts.dashTex.dispose();
       logos.current.tex?.dispose();
     },
     [parts, glass, screen],
@@ -505,11 +391,6 @@ const Cockpit = () => {
     });
     m.instanceMatrix.needsUpdate = true;
     EMIT_MAT.needsUpdate = true;
-    if (leds.current) {
-      placeLeds(leds.current);
-      for (let i = 0; i < LED_COUNT; i += 1) leds.current.setColorAt(i, LED_BLUE);
-      LED_MAT.needsUpdate = true;
-    }
   }, [parts]);
 
   // restore the camera to what its controller wrote, before any controller runs;
@@ -720,21 +601,9 @@ const Cockpit = () => {
       }
       if (em.instanceColor) em.instanceColor.needsUpdate = true;
     }
-    const l = leds.current;
-    if (l && !reduced) {
-      for (let i = 0; i < LED_COUNT; i += 1) {
-        const on = Math.sin(t * (0.09 + (i % 5) * 0.047) + i * 2.4) > -0.2 || i % 6 === 0;
-        _c.copy(i % 7 === 3 ? LED_AMBER : LED_BLUE).multiplyScalar(on ? 1.4 : 0.12);
-        l.setColorAt(i, _c);
-      }
-      if (l.instanceColor) l.instanceColor.needsUpdate = true;
-    }
   }, 0.5);
 
   const D = FRAME_DEPTH;
-  // dashboard surface: back edge just under the window, front edge below the screen
-  const dashY = -0.407;
-  const dashZ = -0.44;
 
   return (
     <>
@@ -758,22 +627,8 @@ const Cockpit = () => {
         <mesh material={glass} position={[0, 0.03, -D - 0.03]} raycast={noRaycast} renderOrder={29}>
           <planeGeometry args={[1.3, 1.1]} />
         </mesh>
-        {/* dashboard */}
-        <mesh
-          geometry={parts.dash}
-          material={parts.dark}
-          position={[0, dashY, dashZ]}
-          rotation={[parts.dashTilt, 0, 0]}
-          raycast={noRaycast}
-          renderOrder={30}
-        />
-        {/* a lit lip along the dashboard's back edge */}
-        <mesh position={[0, -0.436, -0.6]} material={parts.strip} raycast={noRaycast} renderOrder={31}>
-          <boxGeometry args={[0.5, 0.0022, 0.003]} />
-        </mesh>
-        <instancedMesh ref={leds} args={[LED_GEO, LED_MAT, LED_COUNT]} raycast={noRaycast} renderOrder={31} />
         <ShipDetails />
-        {/* the console: one long display standing on the dash across the window, tilted toward the pilot */}
+        {/* the console: one long display across the foot of the window, tilted toward the pilot */}
         <group position={[0, -0.372, -0.49]} rotation={[-0.32, 0, 0]}>
           <mesh material={parts.trim} raycast={noRaycast} renderOrder={30}>
             <boxGeometry args={[CONSOLE_W + 0.01, CONSOLE_H + 0.01, 0.008]} />
@@ -788,7 +643,7 @@ const Cockpit = () => {
   );
 };
 
-/* ---------- status lights along the dash ---------- */
+/* ---------- emitter cells and colours ---------- */
 
 /** Emitter cells round the aperture: length of each and spacing along the rim (frame units) */
 const EMITTER_LEN = 0.022;
@@ -797,13 +652,8 @@ const EMIT_MAT = new THREE.MeshBasicMaterial({ color: '#ffffff', fog: false, tra
 const EMIT_IDLE = new THREE.Color('#5fb8ff');
 const EMIT_HOT = new THREE.Color('#d4ecff');
 
-const LED_COUNT = 18;
-const LED_GEO = new THREE.BoxGeometry(0.009, 0.0035, 0.004);
-const LED_MAT = new THREE.MeshBasicMaterial({ color: '#ffffff', fog: false, transparent: true, toneMapped: false });
 const _c = new THREE.Color();
 /** Colours the frame loop uses, parsed once (Color.set on a hex string parses and converts every call) */
-const LED_BLUE = new THREE.Color('#7fd4ff');
-const LED_AMBER = new THREE.Color('#ffb46a');
 const GLOW_C = new THREE.Color('#ffd2a8');
 const _heat = new THREE.Color('#ffb070');
 let heatHex = '#ffb070';
@@ -814,19 +664,6 @@ const heatColor = () => {
     _heat.set(heatHex);
   }
   return _heat;
-};
-
-/** Places the status lights in a row on the dash, behind the HUD chips. */
-export const placeLeds = (m: THREE.InstancedMesh) => {
-  const o = new THREE.Object3D();
-  for (let i = 0; i < LED_COUNT; i += 1) {
-    const x = -0.17 + (i / (LED_COUNT - 1)) * 0.34 + (i >= LED_COUNT / 2 ? 0.02 : -0.02);
-    o.position.set(x, -0.4295, -0.585);
-    o.rotation.set(0.26, 0, 0);
-    o.updateMatrix();
-    m.setMatrixAt(i, o.matrix);
-  }
-  m.instanceMatrix.needsUpdate = true;
 };
 
 export default Cockpit;
