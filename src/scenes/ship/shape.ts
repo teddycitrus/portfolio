@@ -13,8 +13,8 @@ export const FRAME_DEPTH = 0.6;
  * planet inside it (see WINDOW_FIT).
  */
 export const S = 1.04;
-export const T = 1.02;
-export const B = -0.92;
+export const T = 0.94;
+export const B = -1.0;
 /** Squareness: 2 is an ellipse, higher fills the corners more */
 const SQUARE = 3.4;
 const HOLE_STEPS = 128;

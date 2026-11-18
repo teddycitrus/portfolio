@@ -27,7 +27,7 @@ const LOCK_ZOOM = 4;
 /** The pull stops this many planet radii from its centre, just outside the atmosphere */
 const DIVE_STOP = 1.4;
 /** The beam leaves the aperture at the bottom of the view (screen y, -1 = bottom edge), just past the wall */
-const MOUTH_Y = -0.8;
+const MOUTH_Y = -0.85;
 const MOUTH_Z = FRAME_DEPTH + 0.08;
 /** Turn about the beam by the end of the pull, radians */
 const PULL_ROLL = 0.5;

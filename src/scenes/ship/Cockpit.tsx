@@ -629,7 +629,7 @@ const Cockpit = () => {
         </mesh>
         <ShipDetails />
         {/* the console: one long display along the bottom of the view, tilted toward the pilot */}
-        <group position={[0, -0.432, -0.49]} rotation={[-0.32, 0, 0]}>
+        <group position={[0, -0.46, -0.49]} rotation={[-0.32, 0, 0]}>
           <mesh material={parts.trim} raycast={noRaycast} renderOrder={30}>
             <boxGeometry args={[CONSOLE_W + 0.01, CONSOLE_H + 0.01, 0.008]} />
           </mesh>

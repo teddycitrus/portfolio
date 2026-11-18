@@ -160,7 +160,7 @@ const DashControls = () => {
         })}
       </div>
       {/* where the console reaches the left edge, it sits just above it */}
-      <SoundToggle className="absolute max-[799px]:!bottom-[11%]" style={{ left: SAFE.left, bottom: SAFE.bottom }} />
+      <SoundToggle className="absolute max-[799px]:!bottom-[9%]" style={{ left: SAFE.left, bottom: SAFE.bottom }} />
     </>
   );
 };
